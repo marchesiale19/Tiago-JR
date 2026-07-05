@@ -1,1 +1,2 @@
 - [Discord/gateway bots as workspace packages](discord-bot-packaging.md) — long-running non-HTTP services don't fit the artifact/preview model; build as a plain workspace package + console workflow instead.
+- [Bot loses access to channels it makes private](discord-private-channel-bot-access.md) — denying @everyone ViewChannel without an explicit bot self-overwrite causes delayed 50001 Missing Access errors.

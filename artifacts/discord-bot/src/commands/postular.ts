@@ -56,6 +56,8 @@ async function getOrCreateApplicationsChannel(
     return null;
   }
 
+  const botUserId = interaction.client.user.id;
+
   console.log(
     `[postular] Guild obtained: id=${guild.id} name="${guild.name}"`,
   );
@@ -91,7 +93,11 @@ async function getOrCreateApplicationsChannel(
       `[postular] Ensuring existing channel id=${existingChannel.id} has correct private permissions...`,
     );
     try {
-      await applyApplicationsChannelPermissions(existingChannel, guild.id);
+      await applyApplicationsChannelPermissions(
+        existingChannel,
+        guild.id,
+        botUserId,
+      );
       console.log(
         `[postular] Permissions verified/updated on existing channel id=${existingChannel.id}`,
       );
@@ -117,7 +123,10 @@ async function getOrCreateApplicationsChannel(
       name: APPLICATIONS_CHANNEL_NAME,
       type: ChannelType.GuildText,
       reason: "Canal privado para revisar postulaciones de staff",
-      permissionOverwrites: buildApplicationsChannelOverwrites(guild.id),
+      permissionOverwrites: buildApplicationsChannelOverwrites(
+        guild.id,
+        botUserId,
+      ),
     });
     console.log(
       `[postular] Successfully created private channel: id=${created.id} name="${created.name}"`,
@@ -138,11 +147,21 @@ async function getOrCreateApplicationsChannel(
 
 function buildApplicationsChannelOverwrites(
   guildId: string,
+  botUserId: string,
 ): OverwriteResolvable[] {
   const overwrites: OverwriteResolvable[] = [
     {
       id: guildId,
       deny: [PermissionFlagsBits.ViewChannel],
+    },
+    {
+      id: botUserId,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ManageChannels,
+        PermissionFlagsBits.ManageRoles,
+      ],
     },
   ];
 
@@ -159,7 +178,19 @@ function buildApplicationsChannelOverwrites(
 async function applyApplicationsChannelPermissions(
   channel: TextChannel,
   guildId: string,
+  botUserId: string,
 ): Promise<void> {
+  // Ensure the bot itself always retains access to the channel it manages.
+  // Without this explicit overwrite, denying @everyone ViewChannel also
+  // blocks the bot (unless it has Administrator), causing "Missing Access"
+  // (50001) on every subsequent fetch/edit/send call to this channel.
+  await channel.permissionOverwrites.edit(botUserId, {
+    ViewChannel: true,
+    SendMessages: true,
+    ManageChannels: true,
+    ManageRoles: true,
+  });
+
   await channel.permissionOverwrites.edit(guildId, {
     ViewChannel: false,
   });
