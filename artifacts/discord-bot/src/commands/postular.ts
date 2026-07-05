@@ -11,6 +11,7 @@ import {
   type OverwriteResolvable,
   type TextChannel,
 } from "discord.js";
+import { areApplicationsOpen } from "../lib/applications-state";
 import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
@@ -178,6 +179,15 @@ export async function execute(
   if (!interaction.guild) {
     await interaction.reply({
       content: "Este comando solo se puede usar dentro de un servidor.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  if (!areApplicationsOpen()) {
+    await interaction.reply({
+      content:
+        "❌ Las postulaciones para Trial Helper están actualmente cerradas. Por favor, espera a que el staff las abra nuevamente.",
       ephemeral: true,
     });
     return;
