@@ -1,4 +1,14 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
+import {
+  Client,
+  Events,
+  GatewayIntentBits,
+  PermissionsBitField,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  type ButtonInteraction,
+} from "discord.js";
 import { commands } from "./commands";
 import { logger } from "./lib/logger";
 
@@ -16,7 +26,98 @@ client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.tag }, "Discord bot logged in");
 });
 
+async function handlePostulationDecision(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const match = interaction.customId.match(
+    /^postular_(approve|reject)_(\d+)$/,
+  );
+  if (!match) return;
+
+  const [, decision, applicantId] = match;
+
+  const member = interaction.member;
+  const hasPermission =
+    member &&
+    "permissions" in member &&
+    typeof member.permissions !== "string" &&
+    (member.permissions as Readonly<PermissionsBitField>).has(
+      PermissionsBitField.Flags.ManageRoles,
+    );
+
+  if (!hasPermission) {
+    await interaction.reply({
+      content: "No tienes permiso para revisar postulaciones.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const originalEmbed = interaction.message.embeds[0];
+  const approved = decision === "approve";
+
+  const updatedEmbed = originalEmbed
+    ? EmbedBuilder.from(originalEmbed)
+        .setColor(approved ? 0x57f287 : 0xed4245)
+        .setTitle(
+          approved
+            ? "✅ Postulación aprobada"
+            : "❌ Postulación rechazada",
+        )
+        .setFooter({
+          text: `${approved ? "Aprobada" : "Rechazada"} por ${interaction.user.username}`,
+        })
+    : null;
+
+  const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("postular_approve_disabled")
+      .setLabel("Approve")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(true),
+    new ButtonBuilder()
+      .setCustomId("postular_reject_disabled")
+      .setLabel("Reject")
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true),
+  );
+
+  try {
+    await interaction.update({
+      embeds: updatedEmbed ? [updatedEmbed] : undefined,
+      components: [disabledRow],
+    });
+  } catch (err) {
+    logger.warn({ err }, "Failed to update application message");
+  }
+
+  try {
+    const applicant = await interaction.client.users.fetch(applicantId ?? "");
+    await applicant.send(
+      approved
+        ? "¡Felicidades! Tu postulación al rol de Developer fue **aprobada**."
+        : "Tu postulación al rol de Developer fue **rechazada**. ¡Gracias por tu interés!",
+    );
+  } catch (err) {
+    logger.info(
+      { err, applicantId },
+      "Could not DM applicant about decision",
+    );
+  }
+}
+
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) {
+    if (interaction.customId.startsWith("postular_")) {
+      try {
+        await handlePostulationDecision(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error handling postulation decision button");
+      }
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);

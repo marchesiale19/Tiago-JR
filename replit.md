@@ -38,7 +38,8 @@ A Discord bot that runs a `/postular` slash command, which DMs the user a short 
 
 ## Product
 
-- `/postular` — a slash command any server member can run. The bot DMs the user a short questionnaire (name, age, motivation, experience, how they heard about the server), collects answers one at a time (5 min timeout per question), then sends the user a summary. If `APPLICATION_LOG_CHANNEL_ID` is set, the completed application is also posted there for staff review.
+- `/postular` — a slash command any server member can run to apply for the Developer/staff role. The bot DMs the user 6 questions (name, age, staff experience, who they hang out with, what they'd contribute as staff, weekly activity level), collects answers one at a time (5 min timeout per question), then posts the full application as an embed with Approve/Reject buttons to the `postulaciones-staff` channel (auto-created if missing). Members with `ManageRoles` permission can click the buttons to decide; the applicant is DMed the outcome. Each user has a 5-minute cooldown between uses of `/postular`.
+- `APPLICATION_LOG_CHANNEL_ID` (legacy/optional) is no longer used by `/postular` — applications now always go to the `postulaciones-staff` channel.
 
 ## User preferences
 
@@ -48,6 +49,9 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 - The bot needs the "Message Content" behavior is NOT required for slash commands/DMs used here — only `Guilds` and `DirectMessages` intents are enabled. If future features need to read message content in guild channels, enable the "Message Content Intent" in the Discord Developer Portal and add `GatewayIntentBits.MessageContent`.
 - `/postular` will fail to DM users who have "Allow direct messages from server members" disabled in their Discord privacy settings — the command replies ephemerally with guidance in that case.
+- The bot needs the "Manage Channels" permission in the server to auto-create `postulaciones-staff` if it doesn't already exist.
+- Approve/Reject buttons require the clicking member to have the `ManageRoles` permission; otherwise they get an ephemeral "no permission" reply.
+- The 5-minute `/postular` cooldown is tracked in-memory per user — it resets if the bot restarts.
 
 ## Pointers
 
