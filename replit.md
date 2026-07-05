@@ -1,15 +1,19 @@
-# [Project name]
+# Discord Application Bot
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A Discord bot that runs a `/postular` slash command, which DMs the user a short application questionnaire and collects their answers.
 
 ## Run & Operate
 
+- `pnpm --filter @workspace/discord-bot run dev` — run the Discord bot (workflow: "Discord Bot")
+- `pnpm --filter @workspace/discord-bot run deploy-commands` — register/update slash commands with Discord (run after changing command definitions)
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+- Required secrets: `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`
+- Optional env: `APPLICATION_LOG_CHANNEL_ID` — channel ID where completed `/postular` submissions get posted
 
 ## Stack
 
@@ -22,15 +26,19 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/discord-bot/src/index.ts` — bot client login and interaction dispatch
+- `artifacts/discord-bot/src/commands/postular.ts` — the `/postular` command logic (DM questionnaire)
+- `artifacts/discord-bot/src/deploy-commands.ts` — one-off script to (re)register slash commands with Discord
+- `artifacts/api-server` — unrelated shared API server scaffold, not currently used by the bot
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- The bot is its own workspace package (`@workspace/discord-bot`) with its own workflow, separate from `api-server` — it's a long-running gateway connection, not an HTTP service, so it doesn't fit the artifact/preview model.
+- Slash commands must be re-registered (`pnpm --filter @workspace/discord-bot run deploy-commands`) any time a command's name/description/options change; Discord caches command definitions globally.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- `/postular` — a slash command any server member can run. The bot DMs the user a short questionnaire (name, age, motivation, experience, how they heard about the server), collects answers one at a time (5 min timeout per question), then sends the user a summary. If `APPLICATION_LOG_CHANNEL_ID` is set, the completed application is also posted there for staff review.
 
 ## User preferences
 
@@ -38,7 +46,8 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The bot needs the "Message Content" behavior is NOT required for slash commands/DMs used here — only `Guilds` and `DirectMessages` intents are enabled. If future features need to read message content in guild channels, enable the "Message Content Intent" in the Discord Developer Portal and add `GatewayIntentBits.MessageContent`.
+- `/postular` will fail to DM users who have "Allow direct messages from server members" disabled in their Discord privacy settings — the command replies ephemerally with guidance in that case.
 
 ## Pointers
 

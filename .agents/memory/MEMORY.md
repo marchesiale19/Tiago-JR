@@ -1,0 +1,1 @@
+- [Discord/gateway bots as workspace packages](discord-bot-packaging.md) — long-running non-HTTP services don't fit the artifact/preview model; build as a plain workspace package + console workflow instead.
