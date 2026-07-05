@@ -155,6 +155,23 @@ function buildApplicationsChannelOverwrites(
   return overwrites;
 }
 
+const EMBED_FIELD_VALUE_LIMIT = 1024;
+
+function buildAnswerFields(
+  fullAnswer: string,
+): { name: string; value: string }[] {
+  const text = fullAnswer.trim() || "N/A";
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += EMBED_FIELD_VALUE_LIMIT) {
+    chunks.push(text.slice(i, i + EMBED_FIELD_VALUE_LIMIT));
+  }
+
+  return chunks.map((chunk, index) => ({
+    name: chunks.length > 1 ? `Respuestas (parte ${index + 1})` : "Respuestas",
+    value: chunk,
+  }));
+}
+
 async function applyApplicationsChannelPermissions(
   channel: TextChannel,
   guildId: string,
@@ -200,7 +217,12 @@ export async function execute(
   try {
     dmChannel = await user.createDM();
     await dmChannel.send(
-      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de Trial Helper. Responde cada pregunta con sinceridad. Tendrás hasta 5 minutos para responder cada una.`,
+      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de Trial Helper. Por favor, copia las siguientes preguntas y responde todas juntas en un solo mensaje:`,
+    );
+    await dmChannel.send(
+      QUESTIONS.map((question, index) => `${index + 1}. ${question}`).join(
+        "\n",
+      ),
     );
   } catch (err) {
     logger.warn({ err, userId: user.id }, "Could not open DM with user");
@@ -219,32 +241,26 @@ export async function execute(
     ephemeral: true,
   });
 
-  const answers: string[] = [];
-
-  for (const question of QUESTIONS) {
-    await dmChannel.send(question);
-
-    try {
-      const collected = await dmChannel.awaitMessages({
-        filter: (msg: Message) => msg.author.id === user.id,
-        max: 1,
-        time: ANSWER_TIMEOUT_MS,
-        errors: ["time"],
-      });
-      const answer = collected.first()?.content ?? "";
-      answers.push(answer);
-    } catch (err) {
-      logger.info({ err, userId: user.id }, "Postulation timed out");
-      await dmChannel.send(
-        "No recibí una respuesta a tiempo. Tu postulación fue cancelada. Usa /postular de nuevo cuando quieras intentarlo.",
-      );
-      return;
-    }
+  let fullAnswer: string;
+  try {
+    const collected = await dmChannel.awaitMessages({
+      filter: (msg: Message) => msg.author.id === user.id,
+      max: 1,
+      time: ANSWER_TIMEOUT_MS,
+      errors: ["time"],
+    });
+    fullAnswer = collected.first()?.content ?? "";
+  } catch (err) {
+    logger.info({ err, userId: user.id }, "Postulation timed out");
+    await dmChannel.send(
+      "No recibí una respuesta a tiempo. Tu postulación fue cancelada. Usa /postular de nuevo cuando quieras intentarlo.",
+    );
+    return;
   }
 
   console.log(
-    `[postular] Questionnaire finished for userId=${user.id} username=${user.username}. Answers:`,
-    answers,
+    `[postular] Questionnaire finished for userId=${user.id} username=${user.username}. Full answer:`,
+    fullAnswer,
   );
   logger.info(
     { userId: user.id, username: user.username },
@@ -289,10 +305,13 @@ export async function execute(
     .setThumbnail(user.displayAvatarURL())
     .setDescription(`Postulación de <@${user.id}> (${user.username})`)
     .addFields(
-      QUESTIONS.map((question, index) => ({
-        name: question,
-        value: answers[index] || "N/A",
-      })),
+      {
+        name: "Preguntas",
+        value: QUESTIONS.map(
+          (question, index) => `${index + 1}. ${question}`,
+        ).join("\n"),
+      },
+      ...buildAnswerFields(fullAnswer),
     )
     .setFooter({ text: "Pendiente de revisión por staff" })
     .setTimestamp();
