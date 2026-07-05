@@ -5,8 +5,10 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ChannelType,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
   type Message,
+  type OverwriteResolvable,
   type TextChannel,
 } from "discord.js";
 import { logger } from "../lib/logger";
@@ -14,8 +16,10 @@ import { logger } from "../lib/logger";
 export const data = new SlashCommandBuilder()
   .setName("postular")
   .setDescription(
-    "Inicia el proceso de postulación al rol de Developer por mensaje directo (DM).",
+    "Inicia el proceso de postulación al rol de Trial Helper por mensaje directo (DM).",
   );
+
+const STAFF_ROLE_ID = process.env["STAFF_ROLE_ID"];
 
 const QUESTIONS = [
   "Nombre:",
@@ -81,7 +85,26 @@ async function getOrCreateApplicationsChannel(
     console.log(
       `[postular] Found existing channel: id=${existing.id} name="${existing.name}"`,
     );
-    return existing as TextChannel;
+    const existingChannel = existing as TextChannel;
+    console.log(
+      `[postular] Ensuring existing channel id=${existingChannel.id} has correct private permissions...`,
+    );
+    try {
+      await applyApplicationsChannelPermissions(existingChannel, guild.id);
+      console.log(
+        `[postular] Permissions verified/updated on existing channel id=${existingChannel.id}`,
+      );
+    } catch (err) {
+      console.error(
+        `[postular] ERROR updating permissions on existing channel id=${existingChannel.id}:`,
+        err,
+      );
+      logger.warn(
+        { err, channelId: existingChannel.id },
+        "Failed to update permissions on existing applications channel",
+      );
+    }
+    return existingChannel;
   }
 
   console.log(
@@ -92,10 +115,11 @@ async function getOrCreateApplicationsChannel(
     const created = await guild.channels.create({
       name: APPLICATIONS_CHANNEL_NAME,
       type: ChannelType.GuildText,
-      reason: "Canal para revisar postulaciones de staff",
+      reason: "Canal privado para revisar postulaciones de staff",
+      permissionOverwrites: buildApplicationsChannelOverwrites(guild.id),
     });
     console.log(
-      `[postular] Successfully created channel: id=${created.id} name="${created.name}"`,
+      `[postular] Successfully created private channel: id=${created.id} name="${created.name}"`,
     );
     return created;
   } catch (err) {
@@ -108,6 +132,41 @@ async function getOrCreateApplicationsChannel(
       "Failed to create applications channel",
     );
     return null;
+  }
+}
+
+function buildApplicationsChannelOverwrites(
+  guildId: string,
+): OverwriteResolvable[] {
+  const overwrites: OverwriteResolvable[] = [
+    {
+      id: guildId,
+      deny: [PermissionFlagsBits.ViewChannel],
+    },
+  ];
+
+  if (STAFF_ROLE_ID) {
+    overwrites.push({
+      id: STAFF_ROLE_ID,
+      allow: [PermissionFlagsBits.ViewChannel],
+    });
+  }
+
+  return overwrites;
+}
+
+async function applyApplicationsChannelPermissions(
+  channel: TextChannel,
+  guildId: string,
+): Promise<void> {
+  await channel.permissionOverwrites.edit(guildId, {
+    ViewChannel: false,
+  });
+
+  if (STAFF_ROLE_ID) {
+    await channel.permissionOverwrites.edit(STAFF_ROLE_ID, {
+      ViewChannel: true,
+    });
   }
 }
 
@@ -141,7 +200,7 @@ export async function execute(
   try {
     dmChannel = await user.createDM();
     await dmChannel.send(
-      `¡Hola ${user.username}! Vamos a comenzar tu postulación al rol de **Developer**. Responde cada pregunta con un mensaje. Tienes 5 minutos por pregunta.`,
+      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de Trial Helper. Responde cada pregunta con sinceridad. Tendrás hasta 5 minutos para responder cada una.`,
     );
   } catch (err) {
     logger.warn({ err, userId: user.id }, "Could not open DM with user");

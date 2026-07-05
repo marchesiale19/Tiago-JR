@@ -38,7 +38,7 @@ A Discord bot that runs a `/postular` slash command, which DMs the user a short 
 
 ## Product
 
-- `/postular` — a slash command any server member can run to apply for the Developer/staff role. The bot DMs the user 6 questions (name, age, staff experience, who they hang out with, what they'd contribute as staff, weekly activity level), collects answers one at a time (5 min timeout per question), then posts the full application as an embed with Approve/Reject buttons to the `postulaciones-staff` channel (auto-created if missing). Members with `ManageRoles` permission can click the buttons to decide; the applicant is DMed the outcome. Each user has a 5-minute cooldown between uses of `/postular`.
+- `/postular` — a slash command any server member can run to apply for the Trial Helper role. The bot DMs the user 6 questions (name, age, staff experience, who they hang out with, what they'd contribute as staff, weekly activity level), collects answers one at a time (5 min timeout per question), then posts the full application as an embed with Approve/Reject buttons to the `postulaciones-staff` channel (auto-created if missing, and kept private — `@everyone` is denied View Channel; set `STAFF_ROLE_ID` to also grant a specific staff role view access, otherwise only Administrators can see it). Members with `ManageRoles` permission can click the buttons to decide; the applicant is DMed the outcome. Each user has a 5-minute cooldown between uses of `/postular`.
 - `APPLICATION_LOG_CHANNEL_ID` (legacy/optional) is no longer used by `/postular` — applications now always go to the `postulaciones-staff` channel.
 
 ## User preferences
