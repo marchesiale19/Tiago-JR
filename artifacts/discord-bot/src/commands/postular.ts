@@ -46,14 +46,47 @@ async function getOrCreateApplicationsChannel(
   interaction: ChatInputCommandInteraction,
 ): Promise<TextChannel | null> {
   const guild = interaction.guild;
-  if (!guild) return null;
+  if (!guild) {
+    console.log("[postular] No guild on interaction, aborting channel lookup.");
+    return null;
+  }
 
-  const existing = guild.channels.cache.find(
-    (channel) =>
-      channel.name === APPLICATIONS_CHANNEL_NAME &&
-      channel.type === ChannelType.GuildText,
+  console.log(
+    `[postular] Guild obtained: id=${guild.id} name="${guild.name}"`,
   );
-  if (existing) return existing as TextChannel;
+
+  console.log(
+    `[postular] Searching for existing channel named "${APPLICATIONS_CHANNEL_NAME}"...`,
+  );
+
+  let existing;
+  try {
+    // Make sure the channel cache is fresh in case the channel exists but
+    // wasn't cached yet (e.g. bot just started).
+    await guild.channels.fetch();
+    existing = guild.channels.cache.find(
+      (channel) =>
+        channel.name === APPLICATIONS_CHANNEL_NAME &&
+        channel.type === ChannelType.GuildText,
+    );
+  } catch (err) {
+    console.error(
+      `[postular] ERROR while fetching/searching guild channels:`,
+      err,
+    );
+    return null;
+  }
+
+  if (existing) {
+    console.log(
+      `[postular] Found existing channel: id=${existing.id} name="${existing.name}"`,
+    );
+    return existing as TextChannel;
+  }
+
+  console.log(
+    `[postular] Channel "${APPLICATIONS_CHANNEL_NAME}" not found. Attempting to create it...`,
+  );
 
   try {
     const created = await guild.channels.create({
@@ -61,8 +94,15 @@ async function getOrCreateApplicationsChannel(
       type: ChannelType.GuildText,
       reason: "Canal para revisar postulaciones de staff",
     });
+    console.log(
+      `[postular] Successfully created channel: id=${created.id} name="${created.name}"`,
+    );
     return created;
   } catch (err) {
+    console.error(
+      `[postular] ERROR creating channel "${APPLICATIONS_CHANNEL_NAME}" in guild ${guild.id}:`,
+      err,
+    );
     logger.warn(
       { err, guildId: guild.id },
       "Failed to create applications channel",
@@ -143,19 +183,44 @@ export async function execute(
     }
   }
 
-  await dmChannel.send("✅ Tu postulación fue enviada al staff.");
-
+  console.log(
+    `[postular] Questionnaire finished for userId=${user.id} username=${user.username}. Answers:`,
+    answers,
+  );
   logger.info(
     { userId: user.id, username: user.username },
     "Postulation completed",
   );
 
-  const applicationsChannel = await getOrCreateApplicationsChannel(interaction);
+  let applicationsChannel: TextChannel | null;
+  try {
+    applicationsChannel = await getOrCreateApplicationsChannel(interaction);
+  } catch (err) {
+    console.error(
+      `[postular] ERROR while resolving applications channel:`,
+      err,
+    );
+    applicationsChannel = null;
+  }
+
   if (!applicationsChannel) {
+    console.error(
+      `[postular] Aborting: no applications channel available for userId=${user.id} guildId=${interaction.guild.id}. Application was NOT posted.`,
+    );
     logger.warn(
       { userId: user.id, guildId: interaction.guild.id },
       "No applications channel available to post to",
     );
+    try {
+      await dmChannel.send(
+        "⚠️ Hubo un problema al enviar tu postulación al staff. Por favor contacta a un administrador.",
+      );
+    } catch (err) {
+      console.error(
+        `[postular] ERROR sending failure notice DM to userId=${user.id}:`,
+        err,
+      );
+    }
     return;
   }
 
@@ -184,12 +249,53 @@ export async function execute(
       .setStyle(ButtonStyle.Danger),
   );
 
+  console.log(
+    `[postular] Sending application embed to channel id=${applicationsChannel.id} name="${applicationsChannel.name}"...`,
+  );
+
+  let sentMessage;
   try {
-    await applicationsChannel.send({ embeds: [embed], components: [row] });
+    sentMessage = await applicationsChannel.send({
+      embeds: [embed],
+      components: [row],
+    });
+    console.log(
+      `[postular] Embed sent successfully. messageId=${sentMessage.id} channelId=${applicationsChannel.id}`,
+    );
   } catch (err) {
+    console.error(
+      `[postular] ERROR sending embed to channel id=${applicationsChannel.id} name="${applicationsChannel.name}":`,
+      err,
+    );
     logger.warn(
       { err, channelId: applicationsChannel.id },
       "Failed to post application to applications channel",
+    );
+    try {
+      await dmChannel.send(
+        "⚠️ Hubo un problema al enviar tu postulación al staff. Por favor contacta a un administrador.",
+      );
+    } catch (dmErr) {
+      console.error(
+        `[postular] ERROR sending failure notice DM to userId=${user.id}:`,
+        dmErr,
+      );
+    }
+    return;
+  }
+
+  console.log(
+    `[postular] Sending success confirmation DM to userId=${user.id}...`,
+  );
+  try {
+    await dmChannel.send("✅ Tu postulación fue enviada al staff.");
+    console.log(
+      `[postular] Success confirmation DM sent to userId=${user.id}.`,
+    );
+  } catch (err) {
+    console.error(
+      `[postular] ERROR sending success confirmation DM to userId=${user.id}:`,
+      err,
     );
   }
 }
