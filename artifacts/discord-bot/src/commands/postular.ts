@@ -21,8 +21,8 @@ const QUESTIONS = [
   "Nombre:",
   "Edad:",
   "¿Tienes experiencia de staff?",
-  "¿Con quiénes te la pasas?",
-  "¿Qué aportarías al ser STAFF?",
+  "¿Con quién te sueles llevar en el server?",
+  "¿Qué aportarías como STAFF?",
   "¿Qué tan activo eres a la semana?",
 ];
 
@@ -143,13 +143,7 @@ export async function execute(
     }
   }
 
-  const summary = QUESTIONS.map(
-    (question, index) => `**${question}**\n${answers[index]}`,
-  ).join("\n\n");
-
-  await dmChannel.send(
-    `¡Gracias por completar tu postulación! Un miembro del staff revisará tus respuestas pronto.\n\n${summary}`,
-  );
+  await dmChannel.send("✅ Tu postulación fue enviada al staff.");
 
   logger.info(
     { userId: user.id, username: user.username },
@@ -166,17 +160,17 @@ export async function execute(
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("📋 Nueva postulación a Developer")
-    .setColor(0x5865f2)
+    .setTitle("📩 Nueva Postulación - Staff")
+    .setColor("Yellow")
     .setThumbnail(user.displayAvatarURL())
-    .setDescription(`Postulante: <@${user.id}> (${user.username})`)
+    .setDescription(`Postulación de <@${user.id}> (${user.username})`)
     .addFields(
       QUESTIONS.map((question, index) => ({
         name: question,
-        value: answers[index] || "(sin respuesta)",
+        value: answers[index] || "N/A",
       })),
     )
-    .setFooter({ text: `ID de usuario: ${user.id}` })
+    .setFooter({ text: "Pendiente de revisión por staff" })
     .setTimestamp();
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(

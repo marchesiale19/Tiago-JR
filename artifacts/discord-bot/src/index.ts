@@ -58,11 +58,9 @@ async function handlePostulationDecision(
 
   const updatedEmbed = originalEmbed
     ? EmbedBuilder.from(originalEmbed)
-        .setColor(approved ? 0x57f287 : 0xed4245)
+        .setColor(approved ? "Green" : "Red")
         .setTitle(
-          approved
-            ? "✅ Postulación aprobada"
-            : "❌ Postulación rechazada",
+          approved ? "✅ Postulación APROBADA" : "❌ Postulación RECHAZADA",
         )
         .setFooter({
           text: `${approved ? "Aprobada" : "Rechazada"} por ${interaction.user.username}`,
@@ -95,8 +93,8 @@ async function handlePostulationDecision(
     const applicant = await interaction.client.users.fetch(applicantId ?? "");
     await applicant.send(
       approved
-        ? "¡Felicidades! Tu postulación al rol de Developer fue **aprobada**."
-        : "Tu postulación al rol de Developer fue **rechazada**. ¡Gracias por tu interés!",
+        ? "✅ Tu postulación fue APROBADA."
+        : "❌ Tu postulación fue RECHAZADA.",
     );
   } catch (err) {
     logger.info(
