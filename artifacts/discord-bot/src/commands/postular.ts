@@ -246,8 +246,7 @@ export async function execute(
     await dmChannel.send(
       `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de **Trial Helper**.\n\n` +
         `Te haré ${QUESTIONS.length} preguntas, una a la vez. Responde cada una con sinceridad.\n\n` +
-        `⏱️ Tienes tiempo para responder hasta que el Staff oficialmente cierre las postulaciones. ` +
-        `Si el staff cierra las postulaciones con /cerrar-postulaciones mientras estás respondiendo, tu sesión se cerrará automáticamente y no podrás enviar más respuestas.\n\n` +
+        `⏱️ Tienes tiempo para responder hasta que el Staff oficialmente cierre las postulaciones. Si el proceso se cierra mientras estás respondiendo, tu sesión se cancelará automáticamente y no podrás enviar más respuestas.\n\n` +
         `Si en cualquier momento quieres cancelar tu postulación, responde "cancelar".`,
     );
   } catch (err) {
