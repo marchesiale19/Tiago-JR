@@ -297,6 +297,19 @@ export async function execute(
         closedPromise,
       ]);
       const answer = collected.first()?.content ?? "";
+
+      if (answer.trim().toLowerCase() === "cancelar") {
+        lastUsedAt.delete(user.id);
+        logger.info(
+          { userId: user.id },
+          "Postulation cancelled by user via 'cancelar' keyword",
+        );
+        await dmChannel.send(
+          "La postulación ha sido cancelada correctamente. Podrás volver a postularte mientras el proceso siga abierto.",
+        );
+        return;
+      }
+
       answers.push(answer);
     } catch (err) {
       if (err instanceof ApplicationsClosedError) {
