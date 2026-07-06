@@ -35,7 +35,6 @@ const QUESTIONS = [
   "¿Qué tan activo eres a la semana?",
 ];
 
-const ANSWER_TIMEOUT_MS = 5 * 60 * 1000;
 const COOLDOWN_MS = 5 * 60 * 1000;
 const APPLICATIONS_CHANNEL_NAME = "postulaciones-staff";
 
@@ -247,8 +246,9 @@ export async function execute(
     await dmChannel.send(
       `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de **Trial Helper**.\n\n` +
         `Te haré ${QUESTIONS.length} preguntas, una a la vez. Responde cada una con sinceridad.\n\n` +
-        `⏱️ Ten en cuenta que tienes tiempo limitado para responder: cuentas con hasta 5 minutos por pregunta. ` +
-        `Además, si el staff cierra las postulaciones con /cerrar-postulaciones mientras estás respondiendo, tu sesión se cerrará automáticamente y no podrás enviar más respuestas.`,
+        `⏱️ Tienes tiempo para responder hasta que el Staff oficialmente cierre las postulaciones. ` +
+        `Si el staff cierra las postulaciones con /cerrar-postulaciones mientras estás respondiendo, tu sesión se cerrará automáticamente y no podrás enviar más respuestas.\n\n` +
+        `Si en cualquier momento quieres cancelar tu postulación, responde "cancelar".`,
     );
   } catch (err) {
     logger.warn({ err, userId: user.id }, "Could not open DM with user");
@@ -291,8 +291,6 @@ export async function execute(
         dmChannel.awaitMessages({
           filter: (msg: Message) => msg.author.id === user.id,
           max: 1,
-          time: ANSWER_TIMEOUT_MS,
-          errors: ["time"],
         }),
         closedPromise,
       ]);
@@ -322,9 +320,12 @@ export async function execute(
         );
         return;
       }
-      logger.info({ err, userId: user.id }, "Postulation timed out");
+      logger.warn(
+        { err, userId: user.id },
+        "Unexpected error while awaiting an answer",
+      );
       await dmChannel.send(
-        "No recibí una respuesta a tiempo. Tu postulación fue cancelada. Usa /postular de nuevo cuando quieras intentarlo.",
+        "⚠️ Hubo un problema inesperado durante tu postulación. Tu postulación fue cancelada. Usa /postular de nuevo cuando quieras intentarlo.",
       );
       return;
     } finally {
