@@ -65,6 +65,50 @@ const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     .setDisabled(true),
 );
 
+const POSTULADOS_ROLE_NAME = "Postulados";
+
+async function assignPostuladosRole(
+  interaction: ButtonInteraction,
+  applicantId: string,
+): Promise<void> {
+  const guild = interaction.guild;
+  if (!guild) {
+    console.error(
+      "[postular] Cannot assign role: no guild on approval interaction.",
+    );
+    return;
+  }
+
+  let role;
+  try {
+    await guild.roles.fetch();
+    role = guild.roles.cache.find((r) => r.name === POSTULADOS_ROLE_NAME);
+  } catch (err) {
+    console.error(
+      `[postular] ERROR fetching roles while searching for "${POSTULADOS_ROLE_NAME}":`,
+      err,
+    );
+    return;
+  }
+
+  if (!role) {
+    console.error(
+      `[postular] Role "${POSTULADOS_ROLE_NAME}" not found in guild ${guild.id}. Skipping role assignment.`,
+    );
+    return;
+  }
+
+  try {
+    const member = await guild.members.fetch(applicantId);
+    await member.roles.add(role);
+  } catch (err) {
+    logger.warn(
+      { err, applicantId, guildId: guild.id },
+      "Failed to assign Postulados role to applicant",
+    );
+  }
+}
+
 async function handleApprove(
   interaction: ButtonInteraction,
   applicantId: string,
@@ -98,6 +142,8 @@ async function handleApprove(
   } catch (err) {
     logger.info({ err, applicantId }, "Could not DM applicant about decision");
   }
+
+  await assignPostuladosRole(interaction, applicantId);
 }
 
 async function handleRejectButton(
