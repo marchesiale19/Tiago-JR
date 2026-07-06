@@ -92,7 +92,9 @@ async function handleApprove(
 
   try {
     const applicant = await interaction.client.users.fetch(applicantId);
-    await applicant.send("✅ Tu postulación fue APROBADA.");
+    await applicant.send(
+      "Buenas noticias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad para indicarte los pasos a seguir y coordinar la siguiente etapa, mantente atento",
+    );
   } catch (err) {
     logger.info({ err, applicantId }, "Could not DM applicant about decision");
   }
