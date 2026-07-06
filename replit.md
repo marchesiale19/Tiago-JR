@@ -14,7 +14,6 @@ A Discord bot that runs a `/postular` slash command, which DMs the user a short 
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required secrets: `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`
 - Optional env: `APPLICATION_LOG_CHANNEL_ID` — channel ID where completed `/postular` submissions get posted
-- Optional env: `LOGS_CHANNEL_ID` — channel ID where a plain-text audit log line is posted every time a staff member Approves or Rejects an application (format: "`[User] se postuló a las [HH:MM]. Resultado: [Aprobado/Rechazado] por [Staff]`")
 
 ## Stack
 
@@ -41,6 +40,7 @@ A Discord bot that runs a `/postular` slash command, which DMs the user a short 
 
 - `/postular` — a slash command any server member can run to apply for the Trial Helper role. The bot DMs the user 6 questions (name, age, staff experience, who they hang out with, what they'd contribute as staff, weekly activity level), collects answers one at a time (5 min timeout per question), then posts the full application as an embed with Approve/Reject buttons to the `postulaciones-staff` channel (auto-created if missing, and kept private — `@everyone` is denied View Channel; set `STAFF_ROLE_ID` to also grant a specific staff role view access, otherwise only Administrators can see it). Members with `ManageRoles` permission can click the buttons to decide; the applicant is DMed the outcome. Each user has a 5-minute cooldown between uses of `/postular`.
 - `APPLICATION_LOG_CHANNEL_ID` (legacy/optional) is no longer used by `/postular` — applications now always go to the `postulaciones-staff` channel.
+- Audit log: when staff Approves or Rejects an application, the bot searches the guild for a text channel named exactly `logs-postulaciones` and posts a plain-text line: `[Usuario] se postuló a las [HH:MM]. Resultado: [Aprobado/Rechazado] por [Staff]`. The channel is looked up dynamically by name each time (not auto-created, not configured via env var) — if it's missing or the bot lacks access, a console warning is logged and the decision flow continues normally.
 
 ## User preferences
 
