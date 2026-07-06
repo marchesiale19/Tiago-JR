@@ -14,6 +14,7 @@ A Discord bot that runs a `/postular` slash command, which DMs the user a short 
 - Required env: `DATABASE_URL` — Postgres connection string
 - Required secrets: `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`
 - Optional env: `APPLICATION_LOG_CHANNEL_ID` — channel ID where completed `/postular` submissions get posted
+- Optional env: `LOGS_CHANNEL_ID` — channel ID where a plain-text audit log line is posted every time a staff member Approves or Rejects an application (format: "`[User] se postuló a las [HH:MM]. Resultado: [Aprobado/Rechazado] por [Staff]`")
 
 ## Stack
 

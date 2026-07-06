@@ -31,12 +31,68 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
+const LOGS_CHANNEL_ID = process.env["LOGS_CHANNEL_ID"];
 
 function formatActionTimestamp(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
+}
+
+function formatTimeOfDay(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+async function sendAuditLog(
+  client: Client,
+  params: {
+    applicantUsername: string;
+    startedAt: Date | null;
+    result: "Aprobado" | "Rechazado";
+    staffUsername: string;
+  },
+): Promise<void> {
+  if (!LOGS_CHANNEL_ID) {
+    console.error(
+      "[audit-log] LOGS_CHANNEL_ID is not configured; skipping audit log message.",
+    );
+    return;
+  }
+
+  let channel;
+  try {
+    channel = await client.channels.fetch(LOGS_CHANNEL_ID);
+  } catch (err) {
+    console.error(
+      `[audit-log] ERROR fetching logs channel id=${LOGS_CHANNEL_ID}:`,
+      err,
+    );
+    return;
+  }
+
+  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
+    console.error(
+      `[audit-log] Logs channel id=${LOGS_CHANNEL_ID} was not found or is not a valid text channel. Cannot send audit log.`,
+    );
+    return;
+  }
+
+  const timeLabel = params.startedAt
+    ? formatTimeOfDay(params.startedAt)
+    : "N/A";
+  const message = `${params.applicantUsername} se postuló a las ${timeLabel}. Resultado: ${params.result} por ${params.staffUsername}`;
+
+  try {
+    await channel.send(message);
+  } catch (err) {
+    console.error(
+      `[audit-log] ERROR sending audit log message to channel id=${LOGS_CHANNEL_ID}:`,
+      err,
+    );
+  }
 }
 
 function hasReviewPermission(
@@ -134,8 +190,9 @@ async function handleApprove(
     logger.warn({ err }, "Failed to update application message");
   }
 
+  let applicant;
   try {
-    const applicant = await interaction.client.users.fetch(applicantId);
+    applicant = await interaction.client.users.fetch(applicantId);
     await applicant.send(
       "Buenas noticias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad para indicarte los pasos a seguir y coordinar la siguiente etapa, mantente atento",
     );
@@ -144,6 +201,15 @@ async function handleApprove(
   }
 
   await assignPostuladosRole(interaction, applicantId);
+
+  await sendAuditLog(interaction.client, {
+    applicantUsername: applicant?.username ?? applicantId,
+    startedAt: originalEmbed?.timestamp
+      ? new Date(originalEmbed.timestamp)
+      : null,
+    result: "Aprobado",
+    staffUsername: interaction.user.username,
+  });
 }
 
 async function handleRejectButton(
@@ -248,14 +314,24 @@ async function handleRejectionModalSubmit(
     logger.warn({ err }, "Failed to update application message");
   }
 
+  let applicant;
   try {
-    const applicant = await interaction.client.users.fetch(applicantId);
+    applicant = await interaction.client.users.fetch(applicantId);
     await applicant.send(
       `❌ Tu postulación fue RECHAZADA. Razón: ${reason}`,
     );
   } catch (err) {
     logger.info({ err, applicantId }, "Could not DM applicant about decision");
   }
+
+  await sendAuditLog(interaction.client, {
+    applicantUsername: applicant?.username ?? applicantId,
+    startedAt: originalEmbed?.timestamp
+      ? new Date(originalEmbed.timestamp)
+      : null,
+    result: "Rechazado",
+    staffUsername: interaction.user.username,
+  });
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
