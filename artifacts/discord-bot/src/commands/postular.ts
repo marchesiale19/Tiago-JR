@@ -11,7 +11,11 @@ import {
   type OverwriteResolvable,
   type TextChannel,
 } from "discord.js";
-import { areApplicationsOpen } from "../lib/applications-state";
+import {
+  ApplicationsClosedError,
+  areApplicationsOpen,
+  createApplicationsClosedWaiter,
+} from "../lib/applications-state";
 import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
@@ -241,7 +245,10 @@ export async function execute(
   try {
     dmChannel = await user.createDM();
     await dmChannel.send(
-      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de Trial Helper. Responde cada pregunta con sinceridad. Tendrás hasta 5 minutos para responder cada una.`,
+      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de **Trial Helper**.\n\n` +
+        `Te haré ${QUESTIONS.length} preguntas, una a la vez. Responde cada una con sinceridad.\n\n` +
+        `⏱️ Ten en cuenta que tienes tiempo limitado para responder: cuentas con hasta 5 minutos por pregunta. ` +
+        `Además, si el staff cierra las postulaciones con /cerrar-postulaciones mientras estás respondiendo, tu sesión se cerrará automáticamente y no podrás enviar más respuestas.`,
     );
   } catch (err) {
     logger.warn({ err, userId: user.id }, "Could not open DM with user");
@@ -263,23 +270,52 @@ export async function execute(
   const answers: string[] = [];
 
   for (const question of QUESTIONS) {
+    if (!areApplicationsOpen()) {
+      logger.info(
+        { userId: user.id },
+        "Postulation cancelled: applications closed before next question",
+      );
+      await dmChannel.send(
+        "🔒 Las postulaciones fueron cerradas por el staff. Tu postulación fue cancelada. Podrás intentarlo nuevamente cuando el staff las abra.",
+      );
+      return;
+    }
+
     await dmChannel.send(question);
 
+    const { promise: closedPromise, cancel: cancelClosedWaiter } =
+      createApplicationsClosedWaiter();
+
     try {
-      const collected = await dmChannel.awaitMessages({
-        filter: (msg: Message) => msg.author.id === user.id,
-        max: 1,
-        time: ANSWER_TIMEOUT_MS,
-        errors: ["time"],
-      });
+      const collected = await Promise.race([
+        dmChannel.awaitMessages({
+          filter: (msg: Message) => msg.author.id === user.id,
+          max: 1,
+          time: ANSWER_TIMEOUT_MS,
+          errors: ["time"],
+        }),
+        closedPromise,
+      ]);
       const answer = collected.first()?.content ?? "";
       answers.push(answer);
     } catch (err) {
+      if (err instanceof ApplicationsClosedError) {
+        logger.info(
+          { userId: user.id },
+          "Postulation cancelled: applications closed mid-questionnaire",
+        );
+        await dmChannel.send(
+          "🔒 Las postulaciones fueron cerradas por el staff mientras respondías. Tu postulación fue cancelada. Podrás intentarlo nuevamente cuando el staff las abra.",
+        );
+        return;
+      }
       logger.info({ err, userId: user.id }, "Postulation timed out");
       await dmChannel.send(
         "No recibí una respuesta a tiempo. Tu postulación fue cancelada. Usa /postular de nuevo cuando quieras intentarlo.",
       );
       return;
+    } finally {
+      cancelClosedWaiter();
     }
   }
 
