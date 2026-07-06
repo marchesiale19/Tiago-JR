@@ -31,64 +31,12 @@ client.once(Events.ClientReady, (readyClient) => {
 });
 
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
-const LOGS_CHANNEL_NAME = "logs-postulaciones";
 
 function formatActionTimestamp(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}/${month}/${year}`;
-}
-
-function formatTimeOfDay(date: Date): string {
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
-}
-
-async function sendAuditLog(
-  guild: NonNullable<ButtonInteraction["guild"]>,
-  params: {
-    applicantUsername: string;
-    startedAt: Date | null;
-    result: "Aprobado" | "Rechazado";
-    staffUsername: string;
-  },
-): Promise<void> {
-  let channel;
-  try {
-    await guild.channels.fetch();
-    channel = guild.channels.cache.find(
-      (c) => c.name === LOGS_CHANNEL_NAME && c.isTextBased(),
-    );
-  } catch (err) {
-    console.warn(
-      `[audit-log] WARNING: error while searching for channel "${LOGS_CHANNEL_NAME}" in guild ${guild.id}:`,
-      err,
-    );
-    return;
-  }
-
-  if (!channel || !channel.isTextBased() || channel.isDMBased()) {
-    console.warn(
-      `[audit-log] WARNING: channel "${LOGS_CHANNEL_NAME}" was not found (or is not a valid text channel) in guild ${guild.id}. Skipping audit log message.`,
-    );
-    return;
-  }
-
-  const timeLabel = params.startedAt
-    ? formatTimeOfDay(params.startedAt)
-    : "N/A";
-  const message = `${params.applicantUsername} se postuló a las ${timeLabel}. Resultado: ${params.result} por ${params.staffUsername}`;
-
-  try {
-    await channel.send(message);
-  } catch (err) {
-    console.warn(
-      `[audit-log] WARNING: failed to send audit log message to channel "${LOGS_CHANNEL_NAME}" (id=${channel.id}), likely missing permissions:`,
-      err,
-    );
-  }
 }
 
 function hasReviewPermission(
@@ -197,21 +145,6 @@ async function handleApprove(
   }
 
   await assignPostuladosRole(interaction, applicantId);
-
-  if (interaction.guild) {
-    await sendAuditLog(interaction.guild, {
-      applicantUsername: applicant?.username ?? applicantId,
-      startedAt: originalEmbed?.timestamp
-        ? new Date(originalEmbed.timestamp)
-        : null,
-      result: "Aprobado",
-      staffUsername: interaction.user.username,
-    });
-  } else {
-    console.warn(
-      "[audit-log] WARNING: no guild on approval interaction; skipping audit log message.",
-    );
-  }
 }
 
 async function handleRejectButton(
@@ -324,21 +257,6 @@ async function handleRejectionModalSubmit(
     );
   } catch (err) {
     logger.info({ err, applicantId }, "Could not DM applicant about decision");
-  }
-
-  if (interaction.guild) {
-    await sendAuditLog(interaction.guild, {
-      applicantUsername: applicant?.username ?? applicantId,
-      startedAt: originalEmbed?.timestamp
-        ? new Date(originalEmbed.timestamp)
-        : null,
-      result: "Rechazado",
-      staffUsername: interaction.user.username,
-    });
-  } else {
-    console.warn(
-      "[audit-log] WARNING: no guild on rejection interaction; skipping audit log message.",
-    );
   }
 }
 
