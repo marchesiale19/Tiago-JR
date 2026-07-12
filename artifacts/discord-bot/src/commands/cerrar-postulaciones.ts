@@ -12,6 +12,8 @@ export const data = new SlashCommandBuilder()
   .setDescription("Cierra las postulaciones para el rol de Trial Helper.")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
 
+(data as any).staffOnly = true;
+
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {

@@ -50,6 +50,7 @@ function formatRemainingCooldown(msRemaining: number): string {
   return `${seconds}s`;
 }
 
+
 async function getOrCreateApplicationsChannel(
   interaction: ChatInputCommandInteraction,
 ): Promise<TextChannel | null> {
@@ -209,67 +210,119 @@ export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const user = interaction.user;
-
+await interaction.deferReply({ ephemeral: true });
   if (!interaction.guild) {
-    await interaction.reply({
+      await interaction.editReply({
       content: "Este comando solo se puede usar dentro de un servidor.",
-      ephemeral: true,
     });
     return;
   }
-
   if (!areApplicationsOpen()) {
-    await interaction.reply({
+      await interaction.editReply({
       content:
         "❌ Las postulaciones para Trial Helper están actualmente cerradas. Por favor, espera a que el staff las abra nuevamente.",
-      ephemeral: true,
     });
     return;
   }
 
   const now = Date.now();
-  const lastUsed = lastUsedAt.get(user.id);
+  // Combinamos el ID del servidor y el del usuario
+  const cooldownKey = `${interaction.guildId}-${interaction.user.id}`;
+  const lastUsed = lastUsedAt.get(cooldownKey);
   if (lastUsed !== undefined) {
     const elapsed = now - lastUsed;
     if (elapsed < COOLDOWN_MS) {
-      await interaction.reply({
-        content: `Debes esperar ${formatRemainingCooldown(COOLDOWN_MS - elapsed)} antes de volver a postularte.`,
-        ephemeral: true,
-      });
+      await interaction.editReply({
+  content: `Debes esperar ${formatRemainingCooldown(COOLDOWN_MS - elapsed)} antes de volver a postularte.`,
+  });
       return;
     }
   }
 
-  let dmChannel;
-  try {
-    dmChannel = await user.createDM();
-    await dmChannel.send(
-      `¡Hola ${user.username}! Vamos a comenzar tu postulación para el rol de **Trial Helper**.\n\n` +
-        `Te haré ${QUESTIONS.length} preguntas, una a la vez. Responde cada una con sinceridad.\n\n` +
-        `⏱️ Tienes tiempo para responder hasta que el Staff oficialmente cierre las postulaciones. Si el proceso se cierra mientras estás respondiendo, tu sesión se cancelará automáticamente y no podrás enviar más respuestas.\n\n` +
-        `Si en cualquier momento quieres cancelar tu postulación, responde "cancelar".`,
-    );
-  } catch (err) {
-    logger.warn({ err, userId: user.id }, "Could not open DM with user");
-    await interaction.reply({
-      content:
-        "No pude enviarte un mensaje directo. Revisa tu configuración de privacidad y permite mensajes directos de miembros del servidor.",
-      ephemeral: true,
+  // --- VALIDACIÓN INTELIGENTE ---
+  const checkChannel = await getOrCreateApplicationsChannel(interaction);
+  if (checkChannel) {
+    try {
+      const messages = await checkChannel.messages.fetch({ limit: 100 });
+
+      const existingApplication = messages.find(msg => 
+        msg.author.id === interaction.client.user.id &&
+        msg.embeds.length > 0 &&
+        msg.embeds[0].description?.includes(`<@${user.id}>`) &&
+        // El bot ahora solo bloquea si el título NO contiene las palabras de éxito o fracaso
+        !msg.embeds[0].title?.includes("APROBADA") && 
+        !msg.embeds[0].title?.includes("RECHAZADA")
+      );
+
+      if (existingApplication) {
+        await interaction.editReply({
+          content: "❌ Ya tienes una postulación en revisión. Espera a que el staff tome una decisión.",
+        });
+        return;
+      }
+    } catch (err) {
+      console.error("[postular] Error al buscar duplicados:", err);
+    }
+  }
+  // --------------------------------------------------------
+  // --- NUEVA VALIDACIÓN: Rol de Postulados por nombre ---
+  const member = interaction.member;
+
+  const tieneRolPostulado = (member?.roles as any).cache.some(
+    (role: any) => role.name === "Postulados"
+  );
+
+  if (tieneRolPostulado) {
+    await interaction.editReply({
+      content: "❌ Ya tienes el rol de **Postulados**, por lo que no puedes iniciar otra postulación. Por favor, contacta al staff si crees que esto es un error.",
     });
     return;
   }
+  // -----------------------------------------------------
+  let dmChannel;
+  try {
+    dmChannel = await user.createDM();
+    
+    const introEmbed = new EmbedBuilder()
+    .setTitle("📩 POSTULACIÓN TRIAL HELPER")
+    .setColor("Orange")
+      .setImage("https://i.postimg.cc/BbwL7Ywv/240-sin-titulo-20260614011117.webp")
+    .setDescription(
+      `¡Hola **${user.username}**! Vamos a comenzar tu postulación para el rol de **Trial Helper**.\n\n` +
+      `**¿Qué es un Trial Helper?**\n` +
+      `Es un periodo de \`Prueba\` donde te encargarás de moderar constantemente el servidor, asegurando que todos los usuarios cumplan las reglas en VC y chats.\n\n` +
+      `**Funciones:**\n` +
+      `• +Mute / +Unmute\n` +
+      `• Ensordecer y quitar ensordecimiento\n` +
+      `• Mover a usuarios\n` +
+      `• Responder tickets\n\n` +
+      `🕓 Tienes tiempo para responder hasta que el STAFF oficialmente cierre las postulaciones.\n` +
+      `Si en cualquier momento quieres cancelar tu postulación, escribe "cancelar".`
+    )
+    .setFooter({ text: "¡Mucha suerte!"})
 
-  lastUsedAt.set(user.id, now);
+    await dmChannel.send({ embeds: [introEmbed]})
 
-  await interaction.reply({
+  } catch (err) {
+    lastUsedAt.delete(`${interaction.guildId}-${interaction.user.id}`);
+    logger.warn({ err, userId: user.id }, "Could not open DM with user");
+    await interaction.editReply({
+      content:
+        "No pude enviarte un mensaje directo. Revisa tu configuración de privacidad y permite mensajes directos de miembros del servidor.",
+        });
+    return;
+  }
+
+  lastUsedAt.set(`${interaction.guildId}-${interaction.user.id}`, now);
+  await interaction.editReply({
     content: "Te envié un mensaje directo para continuar con tu postulación.",
-    ephemeral: true,
-  });
+    });
 
   const answers: string[] = [];
-
   for (const question of QUESTIONS) {
     if (!areApplicationsOpen()) {
+      lastUsedAt.delete(`${interaction.guildId}-${interaction.user.id}`);
+
       logger.info(
         { userId: user.id },
         "Postulation cancelled: applications closed before next question",
@@ -296,13 +349,14 @@ export async function execute(
       const answer = collected.first()?.content ?? "";
 
       if (answer.trim().toLowerCase() === "cancelar") {
-        lastUsedAt.delete(user.id);
+        // Al NO borrar el cooldown, el usuario sigue "bloqueado" 
+        // hasta que pasen los 5 minutos originales.
         logger.info(
           { userId: user.id },
           "Postulation cancelled by user via 'cancelar' keyword",
         );
         await dmChannel.send(
-          "La postulación ha sido cancelada correctamente. Podrás volver a postularte mientras el proceso siga abierto.",
+          "La postulación ha sido cancelada correctamente. Podrás volver a postularte cuando termine tu tiempo de espera.",
         );
         return;
       }
@@ -310,7 +364,7 @@ export async function execute(
       answers.push(answer);
     } catch (err) {
       if (err instanceof ApplicationsClosedError) {
-        logger.info(
+        lastUsedAt.delete(`${interaction.guildId}-${interaction.user.id}`);        logger.info(
           { userId: user.id },
           "Postulation cancelled: applications closed mid-questionnaire",
         );
@@ -373,28 +427,56 @@ export async function execute(
     return;
   }
 
-  const embed = new EmbedBuilder()
+  const NIVELES_ROLES = [
+    "Super Miembro", "Fans de Bax", "Super Fans de Bax", "Mega Fans de Bax",
+    "Super Hiper Fan de Bax", "Secret", "OG", "Nivel 90", "Nivel 100"
+  ];
+
+  const nivelRole = (interaction.member?.roles as any).cache
+  .filter((role: any) => NIVELES_ROLES.includes(role.name))
+  .sort((a: any, b: any) => b.position - a.position)
+  .first();
+  
+const embed = new EmbedBuilder()
     .setTitle("📩 Nueva Postulación - Staff")
     .setColor("Yellow")
     .setThumbnail(user.displayAvatarURL())
     .setDescription(`Postulación de <@${user.id}> (${user.username})`)
-    .addFields(
-      QUESTIONS.map((question, index) => ({
+  
+  .addFields(
+
+  
+    {
+          name: "📅 Fecha de ingreso:",
+          value: (interaction.member as any)?.joinedAt
+            ? `<t:${Math.floor((interaction.member as any).joinedAt.getTime() / 1000)}:D>`
+            : "Desconocido"
+        },
+    {
+      name: "⭐ Nivel:",
+      value: nivelRole 
+        ? nivelRole.toString() 
+        : (interaction.guild?.roles.cache.find(r => r.name === "Miembros")?.toString() || "Miembro"),
+      inline: true
+    },
+
+      ...QUESTIONS.map((question, index) => ({
         name: question,
         value: answers[index] || "N/A",
       })),
     )
+  
     .setFooter({ text: "Pendiente de revisión por staff" })
-    .setTimestamp();
-
+    .setTimestamp()
+.setImage("https://i.postimg.cc/s2n6Fjpt/file-000000004804720e90052ae92e4297c3.png")
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(`postular_approve_${user.id}`)
-      .setLabel("Approve")
+      .setLabel("Aceptar")
       .setStyle(ButtonStyle.Success),
     new ButtonBuilder()
       .setCustomId(`postular_reject_${user.id}`)
-      .setLabel("Reject")
+      .setLabel("Rechazar")
       .setStyle(ButtonStyle.Danger),
   );
 
@@ -433,18 +515,22 @@ export async function execute(
     return;
   }
 
-  console.log(
-    `[postular] Sending success confirmation DM to userId=${user.id}...`,
-  );
+    console.log(`[postular] Sending success confirmation DM to userId=${user.id}...`);
   try {
     await dmChannel.send("✅ Tu postulación fue enviada al staff.");
-    console.log(
-      `[postular] Success confirmation DM sent to userId=${user.id}.`,
-    );
+
+    // Cerramos la interacción en el servidor con editReply
+    await interaction.editReply({
+      content: "✅ Tu postulación ha sido enviada correctamente al staff. Revisa tus mensajes directos.",
+    });
+
+    console.log(`[postular] Success confirmation DM sent to userId=${user.id}.`);
   } catch (err) {
-    console.error(
-      `[postular] ERROR sending success confirmation DM to userId=${user.id}:`,
-      err,
-    );
+    console.error(`[postular] ERROR sending success confirmation DM to userId=${user.id}:`, err);
+
+    // Si falla el DM, avisamos por el comando original en el servidor
+    await interaction.editReply({
+      content: "⚠️ Tu postulación fue enviada al staff, pero no pude enviarte el mensaje de confirmación por DM. Revisa tus mensajes privados.",
+    });
   }
-}
+} 

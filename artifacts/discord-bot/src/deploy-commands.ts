@@ -1,5 +1,5 @@
 import { REST, Routes } from "discord.js";
-import { commands } from "./commands";
+import { commands } from "./commands/index.js";
 import { logger } from "./lib/logger";
 
 const token = process.env["DISCORD_BOT_TOKEN"];
