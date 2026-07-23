@@ -1,0 +1,15 @@
+Hello! We need to fix three specific behavior and permission issues regarding staff commands (`/abrir-postulaciones` and `/cerrar-postulaciones`) and the `/help` command. Please review the requirements below carefully and update the code accordingly:
+
+1. Hide Staff Commands from Unauthorized Users (Discord Native Scoping):
+   - Currently, users without the required staff role can still see `/abrir-postulaciones` and `/cerrar-postulaciones` in their slash command menu (even though the bot blocks execution). 
+   - Fix this by configuring the command definitions (`SlashCommandBuilder`) to restrict visibility natively. Specifically, set `.setDefaultMemberPermissions(0)` or configure appropriate base permissions on the command builders so that Discord automatically hides these commands from users who do not have the required management permissions or role hierarchy in the guild.
+
+2. Remove Duplicate/Ephemeral Responses in Staff Commands:
+   - In both `abrir-postulaciones.ts` and `cerrar-postulaciones.ts`, the bot currently sends an ephemeral private confirmation message AND a separate public embed message to the channel.
+   - Change this behavior: eliminate the ephemeral reply completely. When a qualified staff member executes `/abrir-postulaciones` or `/cerrar-postulaciones`, the bot should respond directly and exclusively by sending the public orange announcement embed to the channel (using `interaction.reply({ embeds: [announcementEmbed] })`), with no hidden or duplicate text messages.
+
+3. Align the `/help` Command with Role Hierarchy:
+   - Ensure that the `/help` command strictly filters out staff-only commands (`/abrir-postulaciones` and `/cerrar-postulaciones`) for any user whose highest role is below the `"Moderador [PB]"` role hierarchy threshold, so they are never listed as available to regular members.
+   - Keep all embeds strictly styled in **Orange** color with their respective images and decorations intact.
+
+Please apply these fixes cleanly with full type safety and zero placeholders. Thank you!

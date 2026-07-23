@@ -2,14 +2,16 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   type ChatInputCommandInteraction,
-  type TextChannel,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
 import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("abrir-postulaciones")
-  .setDescription("Abre las postulaciones para el rol de Trial Helper.");
+  .setDescription("Abre las postulaciones para el rol de Trial Helper.")
+  // 0 = nobody by default; Discord hides the command from users who lack
+  // the required role. The in-handler hierarchy check is the real gate.
+  .setDefaultMemberPermissions(0);
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -48,34 +50,20 @@ export async function execute(
     "Applications opened via /abrir-postulaciones",
   );
 
-  // Confirmación privada al staff que ejecutó el comando
-  await interaction.reply({
-    content: "✅ Las postulaciones para Trial Helper han sido ABIERTAS.",
-    ephemeral: true,
-  });
+  const announcementEmbed = new EmbedBuilder()
+    .setTitle("📢 ¡Las postulaciones están ABIERTAS!")
+    .setColor("Orange")
+    .setDescription(
+      "Las postulaciones para el rol de **Trial Helper** han sido abiertas por el staff.\n\n" +
+        "Usa el comando `/postular` para iniciar tu proceso de postulación por mensaje directo.\n\n" +
+        "¡Mucha suerte a todos los participantes! 🍀",
+    )
+    .setTimestamp()
+    .setFooter({ text: `Abierto por ${interaction.user.username}` });
 
-  // Anuncio público en el canal donde se ejecutó el comando
-  if (interaction.channel && "send" in interaction.channel) {
-    const announcementEmbed = new EmbedBuilder()
-      .setTitle("📢 ¡Las postulaciones están ABIERTAS!")
-      .setColor("Orange")
-      .setDescription(
-        "Las postulaciones para el rol de **Trial Helper** han sido abiertas por el staff.\n\n" +
-          "Usa el comando `/postular` para iniciar tu proceso de postulación por mensaje directo.\n\n" +
-          "¡Mucha suerte a todos los participantes! 🍀",
-      )
-      .setTimestamp()
-      .setFooter({ text: `Abierto por ${interaction.user.username}` });
-
-    try {
-      await (interaction.channel as TextChannel).send({
-        embeds: [announcementEmbed],
-      });
-    } catch (err) {
-      logger.warn(
-        { err },
-        "Could not send public applications-open announcement",
-      );
-    }
+  try {
+    await interaction.reply({ embeds: [announcementEmbed] });
+  } catch (err) {
+    logger.warn({ err }, "Could not send applications-open announcement");
   }
 }

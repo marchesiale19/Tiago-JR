@@ -2,7 +2,7 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   ChatInputCommandInteraction,
-  PermissionFlagsBits
+  PermissionFlagsBits,
 } from "discord.js";
 
 export const data = new SlashCommandBuilder()
@@ -10,42 +10,45 @@ export const data = new SlashCommandBuilder()
   .setDescription("Muestra la lista de comandos disponibles.");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const { commands } = await import("./index"); 
+  const { commands } = await import("./index");
 
-  // 1. Lógica para determinar si es Staff por rango de rol
+  // Determine staff status via strict role-hierarchy check against "Moderador [PB]"
   const NOMBRE_ROL_STAFF = "Moderador [PB]";
   const role = interaction.guild?.roles.cache.find(r => r.name === NOMBRE_ROL_STAFF);
   const member = interaction.member;
 
   let esStaff = false;
-  if (member && role && typeof member.permissions !== 'string') {
+  if (member && role && typeof member.permissions !== "string") {
     const highestRole = (member.roles as any).highest;
-    // Es staff si es Administrador O si su rol es mayor o igual al de "Moderador [PB]"
-    esStaff = (member.permissions as any).has(PermissionFlagsBits.Administrator) || 
-              highestRole.position >= role.position;
+    // Admins always qualify; otherwise require role position >= Moderador [PB]
+    esStaff =
+      (member.permissions as any).has(PermissionFlagsBits.Administrator) ||
+      highestRole.position >= role.position;
   }
 
-  // 2. Definimos las 2 categorías
+  // Build category lists
   const categorias: Record<string, string[]> = {
     "📋 Postulaciones": [],
-    "💬 Comandos de Texto": []
+    "💬 Comandos de Texto": [],
   };
 
-  // 3. Clasificamos los Slash Commands (/)
+  // Slash commands — filter out staff-only entries for non-staff members
   commands.forEach((command: any) => {
     if (command.data.name === "help") return;
-    if (command.data.staffOnly === true && !esStaff) return;
+    if ((command.data as any).staffOnly === true && !esStaff) return;
 
     const cat = (command.data as any).category;
 
     if (cat === "Postulaciones" && categorias["📋 Postulaciones"]) {
-      categorias["📋 Postulaciones"].push(`**/${command.data.name}**: ${command.data.description}`);
+      categorias["📋 Postulaciones"].push(
+        `**/${command.data.name}**: ${command.data.description}`,
+      );
     }
   });
 
-  // 4. Añadimos manualmente los comandos de texto activos (!)
+  // Active text commands
   categorias["💬 Comandos de Texto"].push(
-    "**!curiosidad diaria**: Recibe un dato interesante que se actualiza cada 24 horas."
+    "**!curiosidad diaria**: Recibe un dato interesante que se actualiza cada 24 horas.",
   );
 
   const embed = new EmbedBuilder()

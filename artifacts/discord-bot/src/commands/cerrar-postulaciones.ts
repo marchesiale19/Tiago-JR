@@ -2,14 +2,16 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   type ChatInputCommandInteraction,
-  type TextChannel,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
 import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("cerrar-postulaciones")
-  .setDescription("Cierra las postulaciones para el rol de Trial Helper.");
+  .setDescription("Cierra las postulaciones para el rol de Trial Helper.")
+  // 0 = nobody by default; Discord hides the command from users who lack
+  // the required role. The in-handler hierarchy check is the real gate.
+  .setDefaultMemberPermissions(0);
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -48,33 +50,19 @@ export async function execute(
     "Applications closed via /cerrar-postulaciones",
   );
 
-  // Confirmación privada al staff que ejecutó el comando
-  await interaction.reply({
-    content: "🔒 Las postulaciones para Trial Helper han sido CERRADAS.",
-    ephemeral: true,
-  });
+  const announcementEmbed = new EmbedBuilder()
+    .setTitle("🔒 Las postulaciones están CERRADAS")
+    .setColor("Orange")
+    .setDescription(
+      "Las postulaciones para el rol de **Trial Helper** han sido cerradas por el staff.\n\n" +
+        "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
+    )
+    .setTimestamp()
+    .setFooter({ text: `Cerrado por ${interaction.user.username}` });
 
-  // Anuncio público en el canal donde se ejecutó el comando
-  if (interaction.channel && "send" in interaction.channel) {
-    const announcementEmbed = new EmbedBuilder()
-      .setTitle("🔒 Las postulaciones están CERRADAS")
-      .setColor("Orange")
-      .setDescription(
-        "Las postulaciones para el rol de **Trial Helper** han sido cerradas por el staff.\n\n" +
-          "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
-      )
-      .setTimestamp()
-      .setFooter({ text: `Cerrado por ${interaction.user.username}` });
-
-    try {
-      await (interaction.channel as TextChannel).send({
-        embeds: [announcementEmbed],
-      });
-    } catch (err) {
-      logger.warn(
-        { err },
-        "Could not send public applications-closed announcement",
-      );
-    }
+  try {
+    await interaction.reply({ embeds: [announcementEmbed] });
+  } catch (err) {
+    logger.warn({ err }, "Could not send applications-closed announcement");
   }
 }
