@@ -13,6 +13,7 @@ export const data = new SlashCommandBuilder()
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
 
 (data as any).staffOnly = true;
+(data as any).category = "Postulaciones";
 
 export async function execute(
   interaction: ChatInputCommandInteraction,

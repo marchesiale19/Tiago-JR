@@ -23,6 +23,7 @@ export const data = new SlashCommandBuilder()
   .setDescription(
     "Inicia el proceso de postulación al rol de Trial Helper por mensaje directo (DM).",
   );
+(data as any).category = "Postulaciones";
 
 const STAFF_ROLE_ID = process.env["STAFF_ROLE_ID"];
 

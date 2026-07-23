@@ -9,9 +9,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@types/express": "^5.0.6",
+    
     "discord.js": "^14.16.3",
-    "express": "^5.2.1",
+    
     "pino": "^9.14.0"
   },
   "devDependencies": {

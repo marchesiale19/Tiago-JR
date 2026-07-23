@@ -1,4 +1,4 @@
-import "./keep_alive";
+
 import {
   Client,
   Events,
@@ -21,6 +21,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import express from "express";
+
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot funcionando");
+});
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log("Servidor web activo");
+});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
