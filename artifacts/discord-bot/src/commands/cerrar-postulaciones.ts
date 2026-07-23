@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -9,10 +8,7 @@ import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("cerrar-postulaciones")
-  .setDescription("Cierra las postulaciones para el rol de Trial Helper.")
-  // ManageRoles is assigned to Moderador [PB] and above in the server,
-  // so Discord natively shows this command only to qualifying staff.
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
+  .setDescription("Cierra las postulaciones para el rol de Trial Helper.");
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -55,7 +51,7 @@ export async function execute(
     .setTitle("Las postulaciones están CERRADAS")
     .setColor("Red")
     .setDescription(
-      "Las postulaciones para Trial Helper han sido cerradas.\n\n" +
+      "🔒 Las postulaciones para **Trial Helper** han sido cerradas.\n\n" +
         "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
     )
     .setTimestamp()

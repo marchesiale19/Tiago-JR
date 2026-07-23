@@ -1,7 +1,6 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -9,10 +8,7 @@ import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("abrir-postulaciones")
-  .setDescription("Abre las postulaciones para el rol de Trial Helper.")
-  // ManageRoles is assigned to Moderador [PB] and above in the server,
-  // so Discord natively shows this command only to qualifying staff.
-  .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
+  .setDescription("Abre las postulaciones para el rol de Trial Helper.");
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -52,12 +48,12 @@ export async function execute(
   );
 
   const announcementEmbed = new EmbedBuilder()
-    .setTitle("¡Las postulaciones están ABIERTAS!")
+    .setTitle(" 📢 ¡Las postulaciones están ABIERTAS!")
     .setColor("Green")
     .setDescription(
-      "Las postulaciones para Trial Helper han sido abiertas.\n\n" +
-        "Usa el comando /postular para iniciar tu proceso de postulación por mensaje directo.\n\n" +
-        "¡Mucha suerte a todos los participantes!",
+      "Las postulaciones para **Trial Helper** han sido abiertas.\n\n" +
+        "Usa el comando `/postular` para iniciar tu proceso de postulación por mensaje directo.\n\n" +
+        "¡Mucha suerte a todos los participantes! 🍀",
     )
     .setTimestamp()
     .setFooter({ text: `Abierto por ${interaction.user.username}` });
