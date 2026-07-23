@@ -36,15 +36,23 @@ const QUESTIONS = [
   "¿Qué tan activo eres a la semana?",
 ];
 
-const COOLDOWN_MS = 5 * 60 * 1000;
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
 const APPLICATIONS_CHANNEL_NAME = "postulaciones-staff";
 
 const lastUsedAt = new Map<string, number>();
 
 function formatRemainingCooldown(msRemaining: number): string {
   const totalSeconds = Math.ceil(msRemaining / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
+  if (days > 0) {
+    return `${days}d ${hours}h ${minutes}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`;
+  }
   if (minutes > 0) {
     return `${minutes}m ${seconds}s`;
   }

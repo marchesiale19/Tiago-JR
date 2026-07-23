@@ -1,0 +1,17 @@
+You are an expert Discord bot developer building a production-ready Discord bot using TypeScript and `discord.js` v14. I need you to output the complete project structure and the full, production-ready code for every single file one by one in code blocks with their respective file paths, ensuring nothing is truncated or omitted.
+
+CRITICAL REQUIREMENTS & RULES TO PREVENT COMMON ERRORS:
+1. Interaction Handling & Discord API Limits:
+   - Every slash command, button, or modal interaction MUST handle responses properly.
+   - NEVER call `interaction.reply()` or `interaction.followUp()` twice on the same interaction to avoid the fatal Discord API error 40060 ("Interaction has already been acknowledged").
+   - If a command takes time or performs an asynchronous action, use `await interaction.deferReply({ flags: 64 })` (or standard deferral) immediately at the very beginning of the execution function, and then use `interaction.editReply(...)` for the response.
+   - If a command needs to send a public announcement embed while acknowledging the interaction privately, use `interaction.channel.send({ embeds: [embed] })` for the public message and handle the interaction reply separately.
+
+2. Project Architecture & Features:
+   - Maintain a clean TypeScript structure (`src/index.ts`, `src/deploy-commands.ts`, `src/commands/`, etc.).
+   - Include `/abrir-postulaciones` (Staff-only, protected by `PermissionFlagsBits.ManageRoles` or permissions check) which opens applications, saves state, and sends a public embed announcement.
+   - Include `/postular` (User-facing command) with a built-in cooldown system (e.g., 7 days) to prevent spam, tracked properly.
+   - Fully implement button handlers (Accept/Reject) and modals for reviewing applications cleanly.
+   - Implement robust try/catch error handling around all Discord API calls so the bot never crashes on unhandled rejections.
+
+Please provide every single file's full content sequentially now. Do not use placeholders or summaries; write out all code completely.

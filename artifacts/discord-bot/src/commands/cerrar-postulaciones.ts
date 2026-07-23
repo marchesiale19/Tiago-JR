@@ -1,8 +1,10 @@
 import {
   SlashCommandBuilder,
+  EmbedBuilder,
   PermissionFlagsBits,
   PermissionsBitField,
   type ChatInputCommandInteraction,
+  type TextChannel,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
 import { logger } from "../lib/logger";
@@ -43,8 +45,28 @@ export async function execute(
     "Applications closed via /cerrar-postulaciones",
   );
 
+  // Confirmación privada al staff que ejecutó el comando
   await interaction.reply({
     content: "🔒 Las postulaciones para Trial Helper han sido CERRADAS.",
     ephemeral: true,
   });
+
+  // Anuncio público en el canal donde se ejecutó el comando
+  if (interaction.channel && "send" in interaction.channel) {
+    const announcementEmbed = new EmbedBuilder()
+      .setTitle("🔒 Las postulaciones están CERRADAS")
+      .setColor("Red")
+      .setDescription(
+        "Las postulaciones para el rol de **Trial Helper** han sido cerradas por el staff.\n\n" +
+        "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
+      )
+      .setTimestamp()
+      .setFooter({ text: `Cerrado por ${interaction.user.username}` });
+
+    try {
+      await (interaction.channel as TextChannel).send({ embeds: [announcementEmbed] });
+    } catch (err) {
+      logger.warn({ err }, "Could not send public applications-closed announcement");
+    }
+  }
 }

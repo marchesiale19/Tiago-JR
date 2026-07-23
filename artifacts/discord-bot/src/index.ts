@@ -21,17 +21,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import express from "express";
-
-const app = express();
-
-app.get("/", (req, res) => {
-  res.send("Bot funcionando");
-});
-
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Servidor web activo");
-});
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -43,12 +32,11 @@ if (!token) {
 
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds, 
-    GatewayIntentBits.DirectMessages, 
-    GatewayIntentBits.GuildMembers // <--- ¡Añade esto aquí!
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMembers,
   ],
 });
-const cooldowns = new Map<string, Date>();
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.tag }, "Discord bot logged in");
@@ -475,14 +463,9 @@ async function registrarComandos() {
   }
 }
 
-// Llamamos a la función al iniciar
+// Registramos comandos y hacemos login al iniciar
 registrarComandos();
 
-// --- TU CÓDIGO DE LOGIN ---
-client.login(token).catch((err) => {
-  logger.error({ err }, "Failed to log in to Discord");
-  process.exit(1);
-});
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");
   process.exit(1);
