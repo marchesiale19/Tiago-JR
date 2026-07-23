@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -8,7 +9,8 @@ import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("cerrar-postulaciones")
-  .setDescription("Cierra las postulaciones para el rol de Trial Helper.");
+  .setDescription("Cierra las postulaciones para el rol de Trial Helper.")
+  .setDefaultMemberPermissions(PermissionFlagsBits.MentionEveryone);
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
