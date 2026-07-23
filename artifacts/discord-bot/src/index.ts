@@ -364,6 +364,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
       
 
+  if (interaction.isAutocomplete()) {
+    const command = commands.get(interaction.commandName);
+    if (command?.autocomplete) {
+      try {
+        await command.autocomplete(interaction);
+      } catch (err) {
+        logger.error({ err, commandName: interaction.commandName }, "Error handling autocomplete");
+      }
+    }
+    return;
+  }
+
   if (interaction.isButton()) {
     if (interaction.customId.startsWith("postular_")) {
       try {
