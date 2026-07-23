@@ -448,7 +448,7 @@ await interaction.deferReply({ ephemeral: true });
   
 const embed = new EmbedBuilder()
     .setTitle("📩 Nueva Postulación - Staff")
-    .setColor("Yellow")
+    .setColor("Orange")
     .setThumbnail(user.displayAvatarURL())
     .setDescription(`Postulación de <@${user.id}> (${user.username})`)
   

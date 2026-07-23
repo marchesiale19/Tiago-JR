@@ -150,7 +150,7 @@ async function handleApprove(
 
   const updatedEmbed = originalEmbed
     ? EmbedBuilder.from(originalEmbed)
-        .setColor("Green")
+        .setColor("Orange")
         .setTitle("✅ Postulación APROBADA")
     .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
         .setFooter({
@@ -218,7 +218,7 @@ async function handleApprove(
 
     const updatedEmbed = originalEmbed
       ? EmbedBuilder.from(originalEmbed)
-          .setColor("Red")
+          .setColor("Orange")
           .setTitle("❌ Postulación RECHAZADA")
           .addFields({ name: "Razón del rechazo", value: reason })
       .setImage("https://i.postimg.cc/k5NXJHjB/file-000000003dfc720e904bc161db2db57a.png") //

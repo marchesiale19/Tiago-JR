@@ -43,9 +43,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
   });
 
-  // 4. Añadimos manualmente los comandos de texto (!)
+  // 4. Añadimos manualmente los comandos de texto activos (!)
   categorias["💬 Comandos de Texto"].push(
-    "**!hola**: Saluda al bot",
     "**!curiosidad diaria**: Recibe un dato interesante que se actualiza cada 24 horas."
   );
 

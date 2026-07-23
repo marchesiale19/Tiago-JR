@@ -1,0 +1,16 @@
+Hello! You are an expert Discord bot developer working on this TypeScript project using `discord.js` v14. I need you to implement a few specific corrections and design adjustments carefully, without altering or breaking the existing functional logic unless specified below. Please review everything thoroughly and update the code accordingly:
+
+1. Staff Command Permissions & Role Hierarchy (`/abrir-postulaciones` and `/cerrar-postulaciones`):
+   - CRITICAL: Remove the check for generic Discord permissions like `PermissionFlagsBits.ManageRoles` or `Administrator` for the staff-only commands (`/abrir-postulaciones` and `/cerrar-postulaciones`).
+   - Instead, implement a strict role-hierarchy check matching the logic already used in other parts of the bot: check if the executing user's highest role is greater than or equal in position to the specific role named `"Moderador [PB]"` in the server. 
+   - If the user does not possess this role or a higher one, politely block them with an ephemeral reply stating they don't have permission.
+
+2. Aesthetic and Embed Design Consistency (Orange Theme & Decorations):
+   - Ensure that ALL embeds across the entire bot (including `/abrir-postulaciones`, `/cerrar-postulaciones`, `/postular`, and any others) use a consistent **Orange** color (`.setColor("Orange")` or equivalent hex).
+   - Ensure that embeds include their respective images/photos and professional decorations/footers as previously established.
+
+3. Clean up Outdated Commands (`!hola`):
+   - Completely remove any lingering references, descriptions, or handlers for the legacy text command `!hola` (as it has been permanently removed from the project). 
+   - Update the `/help` command classification so that it only reflects active commands properly categorized (Staff/Postulaciones vs Text commands, without mentioning `!hola`).
+
+Please update the relevant source files cleanly, ensuring full TypeScript type safety, zero placeholder code, and robust error handling. Thank you so much for your great work!
