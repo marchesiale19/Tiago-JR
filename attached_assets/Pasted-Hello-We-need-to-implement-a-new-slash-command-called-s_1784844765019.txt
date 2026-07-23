@@ -1,0 +1,118 @@
+Hello! We need to implement a new slash command called `/sanciones` with an interactive autocomplete menu and a beautifully styled Red response embed. Please follow these requirements precisely:
+
+1. Command & Permissions (`/sanciones`):
+   - Register a new slash command named `sanciones` with an option string that has `.setAutocomplete(true)`.
+   - Native Visibility/Permission: Use `.setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers)` (since "Trial Helper" has permissions like mute, deafen, and timeout members, using `MuteMembers` or `ModerateMembers` will natively show the command to Trial Helpers and hide it from regular members). Also keep a role-hierarchy / permission check inside the execution handler as a security safeguard.
+
+2. Autocomplete Choices Structure:
+   - When the user types in the option, provide autocomplete suggestions for all the infractions listed below. 
+   - Important: The autocomplete display name must be **only the infraction name** (clean, without the level headers or extra formatting).
+   - Here is the complete data map for autocomplete choices and their corresponding Levels and Times:
+
+   // NIVEL 1 (Time: 1 MINUTO)
+   - MAL USO DE CANALES -> Nivel 1 | 1 MINUTO
+   - MICROFONO SATURADO -> Nivel 1 | 1 MINUTO
+   - RUIDOS MOLESTOS -> Nivel 1 | 1 MINUTO
+   - PERDER EN EL CONTADOR A PROPÓSITO -> Nivel 1 | 1 MINUTO
+   - USO INNECESARIO DE # PARA EL TAMAÑO DEL TEXTO EN EXCESO CON SPAM -> Nivel 1 | 1 MINUTO
+   - ENTRAR Y SALIR DEL CANAL DE VOZ PARA MOLESTAR A OTROS USUARIOS -> Nivel 1 | 1 MINUTO
+   - SPAM DE REACCIONES SIN CONFIANZA -> Nivel 1 | 1 MINUTO
+
+   // NIVEL 2 (Time: 5 - 10 MINUTOS)
+   - SPAM Y FLOOD -> Nivel 2 | 5 - 10 MINUTOS
+   - HABLAR DURANTE PARTIDA -> Nivel 2 | 5 - 10 MINUTOS
+   - PING INNECESARIO DE STAFF -> Nivel 2 | 5 - 10 MINUTOS
+   - NO TENER EL MISMO NOMBRE DE AMONG US -> Nivel 2 | 5 - 10 MINUTOS
+   - MAL USO DE SUGERENCIA -> Nivel 2 | 5 - 10 MINUTOS
+   - FALTA DE RESPETO ENTRE MIEMBROS -> Nivel 2 | 5 - 10 MINUTOS
+   - QUEDARSE AFK EN UNA PARTIDA Y PERJUDICAR A TU EQUIPO -> Nivel 2 | 5 - 10 MINUTOS
+   - MAL INFORMAR DE UNA REGLA -> Nivel 2 | 5 - 10 MINUTOS
+   - ABANDONAR LA PARTIDA A PROPOSITO -> Nivel 2 | 5 - 10 MINUTOS
+   - MAL USO DE TICKETS -> Nivel 2 | 5 - 10 MINUTOS
+   - PRENDER CAMARA EN AMONG US -> Nivel 2 | 5 - 10 MINUTOS
+   - MAL USO DE PINGS -> Nivel 2 | 5 - 10 MINUTOS
+   - ENTRAR A UNA SALA SIN ESTAR EN EL VC -> Nivel 2 | 5 - 10 MINUTOS
+   - RUIDOS MUY MOLESTOS -> Nivel 2 | 5 - 10 MINUTOS
+   - ENTRAR PARA MOLESTAR A UN CANAL DE VOZ -> Nivel 2 | 5 - 10 MINUTOS
+   - NO RESPETAR EL TURNO DE OTRA PERSONA PARA HABLAR -> Nivel 2 | 5 - 10 MINUTOS
+
+   // NIVEL 3 (Time: 1 HORA - 1 DIA)
+   - FALTA DE RESPETO AL STAFF -> Nivel 3 | 1 HORA - 1 DIA
+   - SACAR SIN PRUEBAS -> Nivel 3 | 1 HORA - 1 DIA
+   - SALIRSE CONSCIENTEMENTE PARA RESETEAR VOTOS -> Nivel 3 | 1 HORA - 1 DIA
+   - REVELAR INFORMACION ESTANDO MUERTO -> Nivel 3 | 1 HORA - 1 DIA
+   - MENTIR AL STAFF -> Nivel 3 | 1 HORA - 1 DIA
+   - PROVOCAR DISCUCIONES -> Nivel 3 | 1 HORA - 1 DIA
+   - PROTEGER QUEDANDO 1 IMPOSTOR -> Nivel 3 | 1 HORA - 1 DIA
+   - SABOTEAR ESTANDO MUERTO -> Nivel 3 | 1 HORA - 1 DIA
+   - DELATAR A TU COMPAÑERO IMPOSTOR -> Nivel 3 | 1 HORA - 1 DIA
+   - FINGIR ROL SIENDO TRIPULANTE -> Nivel 3 | 1 HORA - 1 DIA
+   - SUPLANTACION IDENTIDAD DEL STAFF -> Nivel 3 | 1 HORA - 1 DIA
+   - NOMBRE INAPROPIADO -> Nivel 3 | 1 HORA - 1 DIA
+   - TROLEAR PARTIDAS -> Nivel 3 | 1 HORA - 1 DIA
+   - CASO OMISO ORDENES DEL STAFF -> Nivel 3 | 1 HORA - 1 DIA
+   - INTERFERENCIA A LA MODERACION -> Nivel 3 | 1 HORA - 1 DIA
+   - ACUMULACION DE VARIAS SANCIONES DE 10 MINUTOS (MAS DE 4) -> Nivel 3 | 1 HORA - 1 DIA
+   - COMANDO INAPROPIADOS (?wa,banana,spank,booba,C NSFW) -> Nivel 3 | 1 HORA - 1 DIA
+   - EVADIR SANCION -> Nivel 3 | 1 HORA - 1 DIA
+   - HABLAR DE SANCIONES EN PUBLICO -> Nivel 3 | 1 HORA - 1 DIA
+   - INSULTOS O ATAQUES A FAMILIARES DE UN USUARIO -> Nivel 3 | 1 HORA - 1 DIA
+   - DESEAR MAL A BAX -> Nivel 3 | 1 HORA - 1 DIA
+   - INCOMODAR -> Nivel 3 | 1 HORA - 1 DIA
+   - COMPARTIR PANTALLA EN AMONG US -> Nivel 3 | 1 HORA - 1 DIA
+   - PLAGIAR ARTE, COPIAR, ROBAR O HACER VER ARTE CON IA COMO TUYA -> Nivel 3 | 1 HORA - 1 DIA
+   - REPORTES FALSOS O FALSAS ACUSACIONES -> Nivel 3 | 1 HORA - 1 DIA
+   - COMENTARIOS +18 -> Nivel 3 | 1 HORA - 1 DIA
+   - ENCUBRIMIENTO DE SANCIÓN -> Nivel 3 | 1 HORA - 1 DIA
+   - INCITAR A JUGADORES A ROMPER REGLAS -> Nivel 3 | 1 HORA - 1 DIA
+   - GEMIDOS -> Nivel 3 | 1 HORA - 1 DIA
+   - REVISAR UNA GRABACIÓN PROPIA DURANTE PARTIDA Y QUE INFLUYA EN EL JUEGO -> Nivel 3 | 1 HORA - 1 DIA
+
+   // NIVEL 4 (Time: 1 DIA - 1 SEMANA)
+   - COMENTARIOS PASIVO AGRESIVOS -> Nivel 4 | 1 DIA - 1 SEMANA
+   - EXCLUCIÓN -> Nivel 4 | 1 DIA - 1 SEMANA
+   - DISCRIMINACION -> Nivel 4 | 1 DIA - 1 SEMANA
+   - ACUMULACION DE SANCIONES NIVEL 3 -> Nivel 4 | 1 DIA - 1 SEMANA
+   - RACISMO -> Nivel 4 | 1 DIA - 1 SEMANA
+   - CLASISMO -> Nivel 4 | 1 DIA - 1 SEMANA
+   - MACHISMO SIN CONFIANZA -> Nivel 4 | 1 DIA - 1 SEMANA
+   - INSULTOS AL DM -> Nivel 4 | 1 DIA - 1 SEMANA
+   - DIFAMACION -> Nivel 4 | 1 DIA - 1 SEMANA
+   - XENOFOBIA -> Nivel 4 | 1 DIA - 1 SEMANA
+   - FOCUS -> Nivel 4 | 1 DIA - 1 SEMANA
+   - HOMOFOBIA -> Nivel 4 | 1 DIA - 1 SEMANA
+   - FILTRAR CONVERSACIONES PRIVADAS SIN CONCENTIMIENTO DE LA OTRA PERSONA -> Nivel 4 | 1 DIA - 1 SEMANA
+   - AMENAZAR A UN USUARIO CON COSAS LEVES DENTRO DEL SERVIDOR -> Nivel 4 | 1 DIA - 1 SEMANA
+
+   // NIVEL 5 (Time: 1 SEMANA O BAN)
+   - DOXXEO -> Nivel 5 | 1 SEMANA O BAN
+   - MULTICUENTA -> Nivel 5 | 1 SEMANA O BAN
+   - ACOSO -> Nivel 5 | 1 SEMANA O BAN
+   - METAGAMING -> Nivel 5 | 1 SEMANA O BAN
+   - MOSTRAR COSAS INAPROPIADAS O NSWF -> Nivel 5 | 1 SEMANA O BAN
+   - FOTO INAPROPIADA -> Nivel 5 | 1 SEMANA O BAN
+   - PEDOFILIA -> Nivel 5 | 1 SEMANA O BAN
+   - CONTENIDO GORE -> Nivel 5 | 1 SEMANA O BAN
+   - GRUPO EXTERNO PARA HABLAR MAL DEL STAFF -> Nivel 5 | 1 SEMANA O BAN
+   - CATFISHING -> Nivel 5 | 1 SEMANA O BAN
+   - GROOMING -> Nivel 5 | 1 SEMANA O BAN
+   - NAZISMO -> Nivel 5 | 1 SEMANA O BAN
+   - USO DE HACKS -> Nivel 5 | 1 SEMANA O BAN
+   - COMPARTIR LINKS EXTERNOS -> Nivel 5 | 1 SEMANA O BAN
+   - CONTENIDO NSFW -> Nivel 5 | 1 SEMANA O BAN
+   - ACUMULACIÓN DE INFRACCIONES (20) -> Nivel 5 | 1 SEMANA O BAN
+   - PROMOCIONAR LINKS DE OTROS SERVIDORES -> Nivel 5 | 1 SEMANA O BAN
+   - AMENAZAS REALES O DE MUERTE -> Nivel 5 | 1 SEMANA O BAN
+   - DISTRIBUCIÓN DE MALWARE, VIRUS O ARCHIVOS MALICIOSOS -> Nivel 5 | 1 SEMANA O BAN
+   - VENTA DE ROBUX, DIAMANTES, ESTAFAS, ETC... -> Nivel 5 | 1 SEMANA O BAN
+
+3. Response Embed Design:
+   - When the user selects an infraction and executes the command, the bot must reply with a beautifully styled **Red** embed (`.setColor("Red")`) containing clean fields or text structured like this:
+     * Title: `⚠️ Información de la sanción`
+     * Fields or text blocks:
+       - **Infracción:** [Nombre de la infracción elegida]
+       - **Nivel:** [Número de nivel]
+       - **Tiempo:** [Tiempo correspondiente]
+   - Add a clean footer and timestamp.
+
+Please code this cleanly with full TypeScript type safety and re-register the commands with Discord. Thank you!

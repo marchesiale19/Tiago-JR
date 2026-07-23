@@ -150,7 +150,7 @@ async function handleApprove(
 
   const updatedEmbed = originalEmbed
     ? EmbedBuilder.from(originalEmbed)
-        .setColor("Orange")
+        .setColor("Green")
         .setTitle("✅ Postulación APROBADA")
     .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
         .setFooter({
@@ -218,10 +218,10 @@ async function handleApprove(
 
     const updatedEmbed = originalEmbed
       ? EmbedBuilder.from(originalEmbed)
-          .setColor("Orange")
+          .setColor("Red")
           .setTitle("❌ Postulación RECHAZADA")
           .addFields({ name: "Razón del rechazo", value: reason })
-      .setImage("https://i.postimg.cc/k5NXJHjB/file-000000003dfc720e904bc161db2db57a.png") //
+      .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
           .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el ${now}` })
       : null;
 
