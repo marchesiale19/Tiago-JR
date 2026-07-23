@@ -1,6 +1,7 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
+  PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -9,9 +10,9 @@ import { logger } from "../lib/logger";
 export const data = new SlashCommandBuilder()
   .setName("abrir-postulaciones")
   .setDescription("Abre las postulaciones para el rol de Trial Helper.")
-  // 0 = nobody by default; Discord hides the command from users who lack
-  // the required role. The in-handler hierarchy check is the real gate.
-  .setDefaultMemberPermissions(0);
+  // ManageRoles is assigned to Moderador [PB] and above in the server,
+  // so Discord natively shows this command only to qualifying staff.
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles);
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -51,12 +52,12 @@ export async function execute(
   );
 
   const announcementEmbed = new EmbedBuilder()
-    .setTitle("📢 ¡Las postulaciones están ABIERTAS!")
-    .setColor("Orange")
+    .setTitle("¡Las postulaciones están ABIERTAS!")
+    .setColor("Green")
     .setDescription(
-      "Las postulaciones para el rol de **Trial Helper** han sido abiertas por el staff.\n\n" +
-        "Usa el comando `/postular` para iniciar tu proceso de postulación por mensaje directo.\n\n" +
-        "¡Mucha suerte a todos los participantes! 🍀",
+      "Las postulaciones para Trial Helper han sido abiertas.\n\n" +
+        "Usa el comando /postular para iniciar tu proceso de postulación por mensaje directo.\n\n" +
+        "¡Mucha suerte a todos los participantes!",
     )
     .setTimestamp()
     .setFooter({ text: `Abierto por ${interaction.user.username}` });
