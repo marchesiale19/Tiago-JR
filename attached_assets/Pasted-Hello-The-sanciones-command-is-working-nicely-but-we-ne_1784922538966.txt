@@ -1,0 +1,26 @@
+Hello! The `/sanciones` command is working nicely, but we need to apply three specific patches regarding UI styling, permissions, and the help menu structure. Please implement them precisely:
+
+1. Patch 1: Beautiful Embed Styling for `/sanciones`
+   - Update the response embed to use `.setColor("Red")`.
+   - Title: `⚖️ Información de la sanción`
+   - Fields structure (with emojis strictly on the left):
+     * `📌 **Infracción:**` [Selected infraction name]
+     * `📊 **Nivel:**` [Corresponding level]
+     * `⏳ **Tiempo:**` [Corresponding time]
+   - Keep clean footer and timestamp.
+
+2. Patch 2: Command Permissions for `/sanciones`
+   - Ensure the `/sanciones` command is natively restricted using `.setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers)` (since Trial Helpers have mute/timeout permissions).
+   - Include a robust security check in the execution handler ensuring that users with roles "Trial Helper", "Helper", "Moderador [PB]", or higher in the role hierarchy have access, and denying users below "Trial Helper".
+
+3. Patch 3: Tiered Help Menu System based on Role Hierarchy
+   - Add a new category named `👑 Administración` placed below `📋 Postulaciones` and above `💬 Comandos de Texto`. Include the `/sanciones` command inside the Administration category.
+   - Implement a tiered permission system for the help command based on user roles:
+     * **Tier 1 (Moderador [PB] or higher):** Gets the FULL help menu with all categories and commands.
+     * **Tier 2 (Helper & Trial Helper):** Gets the secondary help menu containing:
+       - `👑 Administración` (including `/sanciones`)
+       - `📋 Postulaciones` (RESTRICTED: Show ONLY the command to apply/postularse, and hide commands related to opening/closing applications)
+       - `💬 Comandos de Texto`
+     * **Tier 3 (Roles lower than Trial Helper):** Gets the restricted help menu that completely excludes the `👑 Administración` category and excludes open/close application commands.
+
+Please write clean, type-safe TypeScript code for these changes and update the bot. Thank you!

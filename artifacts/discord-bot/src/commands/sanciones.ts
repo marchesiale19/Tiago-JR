@@ -309,13 +309,41 @@ export async function execute(
     return;
   }
 
+  // Security check: only Trial Helper, Helper, Moderador [PB], or higher
+  const MINIMUM_ROLE = "Trial Helper";
+  const member = interaction.member;
+  let hasAccess = false;
+
+  if (member && typeof member !== "string" && "roles" in member) {
+    const guild = interaction.guild;
+    if (guild) {
+      await guild.roles.fetch();
+      const minRole = guild.roles.cache.find((r) => r.name === MINIMUM_ROLE);
+      if (minRole) {
+        const memberRoles = (member.roles as any).cache;
+        const highestPosition = Math.max(
+          ...memberRoles.map((r: any) => r.position),
+        );
+        hasAccess = highestPosition >= minRole.position;
+      }
+    }
+  }
+
+  if (!hasAccess) {
+    await interaction.reply({
+      content: "❌ No tienes permiso para usar este comando.",
+      ephemeral: true,
+    });
+    return;
+  }
+
   const embed = new EmbedBuilder()
     .setColor("Red")
-    .setTitle("⚠️ Información de la sanción")
+    .setTitle("⚖️ Información de la sanción")
     .addFields(
-      { name: "Infracción", value: infraction.name, inline: false },
-      { name: "Nivel", value: `Nivel ${infraction.nivel}`, inline: true },
-      { name: "Tiempo", value: infraction.tiempo, inline: true },
+      { name: "📌 **Infracción:**", value: infraction.name, inline: false },
+      { name: "📊 **Nivel:**", value: `Nivel ${infraction.nivel}`, inline: true },
+      { name: "⏳ **Tiempo:**", value: infraction.tiempo, inline: true },
     )
     .setFooter({ text: "Sistema de Sanciones • TIAGO JR" })
     .setTimestamp();
