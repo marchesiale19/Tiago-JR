@@ -1,0 +1,42 @@
+Hello! We are now implementing Phase 2 (Matchmaking Queue, Lobbies, and Supervisor Assignment System) for our Discord competitive system in Tiago JR, strictly following the approved Technical Specification v1.4.
+
+CRITICAL RULES & GUIDELINES:
+1. **Inspect Existing Architecture First:** Before modifying or creating any files, inspect the current project structure (Drizzle ORM + PostgreSQL). Reuse existing abstractions, coding style, utilities, logging, and dependency management. Do not duplicate infrastructure or create parallel systems.
+2. **Schema Verification & Migrations:** Before implementation, verify whether `configuracion_competitiva` and any Phase 2 required schema additions already exist. If missing, create/update them strictly through the Drizzle schema definitions and migration workflow (no manual SQL).
+3. **Strict Separation of Concerns:** Keep persistence operations inside repositories (pure CRUD / data queries). All matchmaking business logic, state transitions, event emissions, and rules must live in dedicated service/controller layers—never inside repositories.
+4. **Scope Limitation:** Implement ONLY Phase 2 features. Do not touch or prematurely implement Phase 3 components.
+5. **Final Delivery Report:** At the end of the implementation, provide a concise report detailing files created, files modified, dependencies added, architectural assumptions made, and how the new modules integrate with Phase 1.
+
+Please execute the following tasks for Phase 2:
+
+1. **Global Queue & Integrity:**
+   - Implement the single global active queue represented by a Lobby entity with state `QUEUE`.
+   - Ensure database-level or query-level integrity so that only **one** global lobby with `QUEUE` state exists at any given time (handling concurrent attempts or startup race conditions by retaining the oldest lobby and cleaning up duplicates).
+
+2. **Derived User Competitive States:**
+   - Ensure user competitive states (`LIBRE`, `EN_COLA`, `EN_LOBBY` / `WAITING_SUPERVISOR`, `EN_PARTIDA`) are dynamically derived from active relations with lobbies and matches rather than stored as permanent redundant flags.
+
+3. **Supervisor Assignment & FIFO Lifecycle:**
+   - Utilize the `supervisores_estado` table.
+   - Implement supervisor availability management (`/supervisor disponible` / `/supervisor ocupado`).
+   - Implement a **deterministic FIFO assignment algorithm** ordered by `ultimo_cambio` ASC when the global queue reaches `max_jugadores`.
+   - Automatically transition a supervisor to busy upon acceptance (`WAITING_SUPERVISOR` ➔ `READY`), and restore their base availability status upon match close (`CLOSED` or `CANCELLED`).
+   - If a supervisor timeout expires or they reject, automatically roll over to the next available supervisor in the FIFO queue, keeping the lobby intact (do not auto-cancel lobbies).
+
+4. **Dynamic Competitive Configuration:**
+   - Integrate and read system parameters (e.g., `max_jugadores`, supervisor timeouts) dynamically from the `configuracion_competitiva` table.
+
+5. **Strict State Machine & Permission Matrix:**
+   - Implement the linear state machine: `QUEUE` ➔ `WAITING_SUPERVISOR` ➔ `READY` ➔ `IN_GAME` ➔ `VALIDATING` ➔ `CLOSED` (or `CANCELLED`).
+   - Enforce transition permissions and roles (e.g., automatic system transitions, supervisor-only actions for ready/start/finish, and staff/system overrides).
+
+6. **Discord Channels Infrastructure:**
+   - When a lobby transitions to `READY`, automatically create a private text channel (`partida-[ID]`) and voice channel (`VC-[ID]`) within a preconfigured fixed Category ID, setting proper permissions for participants and the assigned supervisor. Clean up and delete these channels when the match transitions to `CLOSED`.
+
+7. **Startup Recovery Logic:**
+   - Implement a boot check in `initDatabase()` or bot startup: resolve orphan `QUEUE` lobbies, mark interrupted `WAITING_SUPERVISOR` or `READY` lobbies as `CANCELLED`, and flag active `IN_GAME` crashes with `requires_revision = true` on the match record without introducing ambiguous states.
+
+8. **Centralized Internal Events:**
+   - Use a central typed `EventEmitter` service for internal state changes (e.g., player joined queue, queue full, supervisor accepted) without polluting the persistence layer.
+
+Please write clean, robust, and type-safe code for Phase 2. Thank you!

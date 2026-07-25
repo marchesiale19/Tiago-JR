@@ -35,11 +35,16 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildVoiceStates, // required for voice channel management
   ],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.tag }, "Discord bot logged in");
+  // Run DB init + startup recovery once the client is fully connected
+  import("./database/init")
+    .then(({ initDatabase }) => initDatabase(readyClient))
+    .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
 });
 
 const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000; 
@@ -383,7 +388,42 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (err) {
         logger.error({ err }, "Error handling postulation decision button");
       }
+      return;
     }
+
+    // Supervisor accept/reject buttons (sent via DM)
+    if (interaction.customId.startsWith("lobby_accept_")) {
+      const lobbyId = interaction.customId.slice("lobby_accept_".length);
+      try {
+        const { handleAccept } = await import("./services/SupervisorService");
+        await interaction.deferReply({ ephemeral: true });
+        await handleAccept(interaction.user.id, lobbyId, interaction.client);
+        await interaction.editReply("✅ Has aceptado la supervisión. Se han creado los canales de partida.");
+      } catch (err: any) {
+        logger.error({ err, lobbyId }, "Error handling lobby accept");
+        if (interaction.deferred) {
+          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar la supervisión."}`).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId.startsWith("lobby_reject_")) {
+      const lobbyId = interaction.customId.slice("lobby_reject_".length);
+      try {
+        const { handleReject } = await import("./services/SupervisorService");
+        await interaction.deferReply({ ephemeral: true });
+        await handleReject(interaction.user.id, lobbyId, interaction.client);
+        await interaction.editReply("🔄 Has rechazado la asignación. Se buscará otro supervisor disponible.");
+      } catch (err: any) {
+        logger.error({ err, lobbyId }, "Error handling lobby reject");
+        if (interaction.deferred) {
+          await interaction.editReply("❌ Error al procesar el rechazo.").catch(() => {});
+        }
+      }
+      return;
+    }
+
     return;
   }
 
@@ -477,11 +517,6 @@ async function registrarComandos() {
 
 // Registramos comandos y hacemos login al iniciar
 registrarComandos();
-
-// Initialise the database layer (no-ops gracefully if DATABASE_URL is unset)
-import("./database/init")
-  .then(({ initDatabase }) => initDatabase())
-  .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
 
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");

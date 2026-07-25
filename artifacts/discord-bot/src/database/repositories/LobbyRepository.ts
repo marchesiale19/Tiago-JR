@@ -3,7 +3,7 @@
 // cant_actual is always derived via countParticipants() — never stored.
 // ---------------------------------------------------------------------------
 
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, sql, inArray } from "drizzle-orm";
 import { db } from "../database";
 import {
   lobbysTable,
@@ -26,6 +26,45 @@ export class LobbyRepository {
     return rows[0];
   }
 
+  /** Find the single active QUEUE lobby, if any. */
+  async findQueueLobby(): Promise<Lobby | undefined> {
+    const rows = await db
+      .select()
+      .from(lobbysTable)
+      .where(eq(lobbysTable.status, "queue"))
+      .limit(1);
+    return rows[0];
+  }
+
+  /** Find all lobbies in the given status(es). */
+  async findByStatus(status: LobbyStatus | LobbyStatus[]): Promise<Lobby[]> {
+    const statuses = Array.isArray(status) ? status : [status];
+    return db
+      .select()
+      .from(lobbysTable)
+      .where(inArray(lobbysTable.status, statuses));
+  }
+
+  /** Find the active lobby a user is currently participating in. */
+  async findActiveForUser(discordId: string): Promise<Lobby | undefined> {
+    const activeStatuses: LobbyStatus[] = [
+      "queue", "waiting_supervisor", "ready", "in_game", "validating",
+    ];
+    const rows = await db
+      .select({ lobby: lobbysTable })
+      .from(lobbysTable)
+      .innerJoin(
+        participantesLobbyTable,
+        and(
+          eq(participantesLobbyTable.lobbyId,   lobbysTable.id),
+          eq(participantesLobbyTable.discordId, discordId),
+        ),
+      )
+      .where(inArray(lobbysTable.status, activeStatuses))
+      .limit(1);
+    return rows[0]?.lobby;
+  }
+
   /** Find an open lobby by Discord channel ID. */
   async findByChannelId(channelId: string): Promise<Lobby | undefined> {
     const rows = await db
@@ -42,11 +81,35 @@ export class LobbyRepository {
     return rows[0]!;
   }
 
-  /** Update lobby status. */
+  /** Update lobby status and touch updatedAt. */
   async updateStatus(id: string, status: LobbyStatus): Promise<void> {
     await db
       .update(lobbysTable)
       .set({ status, updatedAt: sql`now()` })
+      .where(eq(lobbysTable.id, id));
+  }
+
+  /** Assign a supervisor and record notification timestamp. */
+  async updateSupervisor(
+    id: string,
+    supervisorId: string,
+    notifiedAt: Date,
+  ): Promise<void> {
+    await db
+      .update(lobbysTable)
+      .set({ supervisorId, supervisorNotifiedAt: notifiedAt, updatedAt: sql`now()` })
+      .where(eq(lobbysTable.id, id));
+  }
+
+  /** Store Discord channel IDs created for this lobby on READY. */
+  async updateChannels(
+    id: string,
+    textChannelId: string,
+    voiceChannelId: string,
+  ): Promise<void> {
+    await db
+      .update(lobbysTable)
+      .set({ textChannelId, voiceChannelId, updatedAt: sql`now()` })
       .where(eq(lobbysTable.id, id));
   }
 
@@ -67,7 +130,7 @@ export class LobbyRepository {
       .where(eq(participantesLobbyTable.lobbyId, lobbyId));
   }
 
-  /** Add a participant to a lobby. Throws on duplicate (same user same lobby). */
+  /** Add a participant to a lobby. Throws on duplicate (same user, same lobby). */
   async addParticipant(data: InsertParticipanteLobby): Promise<ParticipanteLobby> {
     const rows = await db
       .insert(participantesLobbyTable)
@@ -82,7 +145,7 @@ export class LobbyRepository {
       .delete(participantesLobbyTable)
       .where(
         and(
-          eq(participantesLobbyTable.lobbyId, lobbyId),
+          eq(participantesLobbyTable.lobbyId,   lobbyId),
           eq(participantesLobbyTable.discordId, discordId),
         ),
       );

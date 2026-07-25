@@ -11,13 +11,14 @@ import { temporadasTable } from "./temporadas";
 // partidas — individual matches
 // ---------------------------------------------------------------------------
 export const partidasTable = pgTable("partidas", {
-  id:            uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  lobbyId:       uuid("lobby_id").references(() => lobbysTable.id),
-  temporadaId:   integer("temporada_id").references(() => temporadasTable.id),
-  status:        text("status").notNull().default("in_progress"),
-  ganadorEquipo: integer("ganador_equipo"),          // 1 | 2 | NULL (draw / cancelled)
-  createdAt:     timestamp("created_at",  { withTimezone: true }).notNull().defaultNow(),
-  finishedAt:    timestamp("finished_at", { withTimezone: true }),
+  id:               uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  lobbyId:          uuid("lobby_id").references(() => lobbysTable.id),
+  temporadaId:      integer("temporada_id").references(() => temporadasTable.id),
+  status:           text("status").notNull().default("in_progress"),
+  ganadorEquipo:    integer("ganador_equipo"),          // 1 | 2 | NULL (draw / cancelled)
+  requiresRevision: boolean("requires_revision").notNull().default(false), // flagged on crash recovery
+  createdAt:        timestamp("created_at",  { withTimezone: true }).notNull().defaultNow(),
+  finishedAt:       timestamp("finished_at", { withTimezone: true }),
 });
 
 // ---------------------------------------------------------------------------
