@@ -478,6 +478,11 @@ async function registrarComandos() {
 // Registramos comandos y hacemos login al iniciar
 registrarComandos();
 
+// Initialise the database layer (no-ops gracefully if DATABASE_URL is unset)
+import("./database/init")
+  .then(({ initDatabase }) => initDatabase())
+  .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
+
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");
   process.exit(1);

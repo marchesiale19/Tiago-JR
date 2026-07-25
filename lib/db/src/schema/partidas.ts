@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, text, integer, timestamp, uuid, check, unique,
+  pgTable, serial, text, integer, timestamp, uuid, check, unique, index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -60,6 +60,7 @@ export const votosMvpTable = pgTable(
   },
   (t) => [
     check("chk_no_self_vote", sql`${t.votanteId} != ${t.votadoId}`),
+    index("idx_votos_mvp_partida_id").on(t.partidaId),
   ],
 );
 
@@ -79,7 +80,10 @@ export const estadisticasTemporadaTable = pgTable(
     elo:            integer("elo").notNull().default(1000),
     mvpCount:       integer("mvp_count").notNull().default(0),
   },
-  (t) => [unique("uq_estadisticas_temporada").on(t.discordId, t.temporadaId)],
+  (t) => [
+    unique("uq_estadisticas_temporada").on(t.discordId, t.temporadaId),
+    index("idx_estadisticas_temporada_season_elo").on(t.temporadaId, t.elo),
+  ],
 );
 
 // Schemas & types

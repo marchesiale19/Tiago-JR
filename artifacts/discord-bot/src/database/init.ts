@@ -2,19 +2,16 @@
 // init.ts — idempotent database initialisation called on bot startup.
 //
 // Responsibilities:
+//   • Skip cleanly if DATABASE_URL is not configured (Phase 1 — DB optional).
 //   • Verify the connection is reachable.
-//   • Confirm that all expected tables exist (fast sanity check).
-//   • Log a clear error if the schema has not been pushed yet.
+//   • Confirm that all expected tables exist (sanity check; never creates them).
 //
-// This file does NOT drop or recreate tables. Schema changes are applied
-// via `pnpm --filter @workspace/db run push` (drizzle-kit push) before
-// deploying a new bot version.
+// Schema changes are applied via:
+//   pnpm --filter @workspace/db run generate   (create migration file)
+//   pnpm --filter @workspace/db run migrate    (apply to database)
 // ---------------------------------------------------------------------------
 
-import { sql } from "drizzle-orm";
-import { db } from "./database";
 import { logger } from "../lib/logger";
-// Silence unused-import lint if drizzle-orm is only used via template literals
 
 const REQUIRED_TABLES = [
   "usuarios",
@@ -32,18 +29,32 @@ const REQUIRED_TABLES = [
 ] as const;
 
 export async function initDatabase(): Promise<void> {
+  // Phase 1: database is optional — skip gracefully if not configured.
+  if (!process.env["DATABASE_URL"]) {
+    logger.warn(
+      "DATABASE_URL not set — database layer is disabled for this session. " +
+      "Provision a PostgreSQL database and set DATABASE_URL to enable it.",
+    );
+    return;
+  }
+
   logger.info("Initialising database connection…");
+
+  // Lazy import: only pulled in when DATABASE_URL is present, avoiding the
+  // module-level throw in @workspace/db when the env var is missing.
+  const { sql } = await import("drizzle-orm");
+  const { db }  = await import("./database");
 
   // 1. Connectivity check
   try {
     await db.execute(sql`SELECT 1`);
     logger.info("Database connection OK.");
   } catch (err) {
-    logger.error({ err }, "Database connection failed. Is DATABASE_URL correct?");
+    logger.error({ err }, "Database connection failed — is DATABASE_URL correct?");
     throw err;
   }
 
-  // 2. Table presence check (informational — does not create anything)
+  // 2. Table presence check (informational; never creates anything)
   const missingTables: string[] = [];
 
   for (const table of REQUIRED_TABLES) {
@@ -65,9 +76,11 @@ export async function initDatabase(): Promise<void> {
   if (missingTables.length > 0) {
     logger.warn(
       { missingTables },
-      "Some tables are missing. Run `pnpm --filter @workspace/db run push` to apply the schema.",
+      "Some tables are missing. Run:\n" +
+      "  pnpm --filter @workspace/db run generate\n" +
+      "  pnpm --filter @workspace/db run migrate",
     );
   } else {
-    logger.info("All required tables are present.");
+    logger.info("All 12 required tables are present.");
   }
 }

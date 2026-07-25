@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, text, integer, timestamp, uuid,
+  pgTable, serial, text, integer, timestamp, uuid, index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -9,18 +9,22 @@ import { partidasTable } from "./partidas";
 // ---------------------------------------------------------------------------
 // reportes — player or staff reports
 // ---------------------------------------------------------------------------
-export const reportesTable = pgTable("reportes", {
-  id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
-  reportanteId: text("reportante_id").notNull(),   // Discord ID of reporter
-  reportadoId:  text("reportado_id").notNull(),    // Discord ID of reported user
-  partidaId:    uuid("partida_id").references(() => partidasTable.id),
-  motivo:       text("motivo").notNull(),
-  descripcion:  text("descripcion"),
-  status:       text("status").notNull().default("pending"),
-  resueltoFor:  text("resuelto_por"),              // Discord ID of resolving staff
-  createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const reportesTable = pgTable(
+  "reportes",
+  {
+    id:           uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+    reportanteId: text("reportante_id").notNull(),   // Discord ID of reporter
+    reportadoId:  text("reportado_id").notNull(),    // Discord ID of reported user
+    partidaId:    uuid("partida_id").references(() => partidasTable.id),
+    motivo:       text("motivo").notNull(),
+    descripcion:  text("descripcion"),
+    status:       text("status").notNull().default("pending"),
+    resueltoFor:  text("resuelto_por"),              // Discord ID of resolving staff
+    createdAt:    timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt:    timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("idx_reportes_status").on(t.status)],
+);
 
 // ---------------------------------------------------------------------------
 // evidencias — file evidence attached to a report
