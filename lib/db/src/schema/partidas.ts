@@ -1,5 +1,5 @@
 import {
-  pgTable, serial, text, integer, timestamp, uuid, check, unique, index,
+  pgTable, serial, text, integer, timestamp, uuid, check, unique, index, boolean,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
