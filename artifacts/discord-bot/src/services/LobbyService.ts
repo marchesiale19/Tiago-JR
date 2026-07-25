@@ -10,7 +10,7 @@ import {
 import { lobbyRepository } from "../database/repositories/LobbyRepository";
 import { supervisorRepository } from "../database/repositories/SupervisorRepository";
 import {
-  LobbyStatus, LOBBY_TRANSITIONS, type CompetitiveState, CompetitiveState,
+  LobbyStatus, LOBBY_TRANSITIONS, CompetitiveState,
 } from "../database/enums";
 import { getConfig, getConfigInt } from "./ConfigService";
 import { ConfigKey } from "../database/enums";
@@ -145,7 +145,7 @@ export async function deleteMatchChannels(
 
 export async function closeLobby(
   lobbyId: string,
-  newStatus: LobbyStatus.Closed | LobbyStatus.Cancelled,
+  newStatus: "closed" | "cancelled",
   client: Client,
 ): Promise<void> {
   const lobby = await lobbyRepository.findById(lobbyId);

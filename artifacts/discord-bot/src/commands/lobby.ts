@@ -138,7 +138,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       if (!hasStaffPermission(interaction.member)) {
         await interaction.editReply("❌ Solo el staff puede cancelar lobbies."); return;
       }
-      if ([LobbyStatus.Closed, LobbyStatus.Cancelled].includes(lobby.status as LobbyStatus)) {
+      if (([LobbyStatus.Closed, LobbyStatus.Cancelled] as LobbyStatus[]).includes(lobby.status as LobbyStatus)) {
         await interaction.editReply("❌ El lobby ya está cerrado o cancelado."); return;
       }
 
