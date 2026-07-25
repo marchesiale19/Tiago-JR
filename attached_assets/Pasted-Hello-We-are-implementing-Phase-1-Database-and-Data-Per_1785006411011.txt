@@ -1,0 +1,55 @@
+Hello! We are implementing Phase 1 (Database and Data Persistence Layer) for our Discord competitive system in Tiago JR. Please implement the database structure cleanly and modularly, strictly following the architecture and folder layout defined below. 
+
+CRITICAL RULE: Do NOT implement any business logic (ELO calculation, matchmaking, game commands, or active features) during this phase. The sole objective is to build the persistence layer, initialization, data utilities, and CRUD repositories.
+
+Before modifying existing project files, inspect the current project structure and reuse existing database abstractions, coding style, utilities, logging, and dependency management whenever appropriate. Do not duplicate infrastructure that already exists.
+If the project already contains a database layer or a different folder organization, integrate this implementation into the existing architecture instead of creating duplicate structures. Preserve the project's conventions whenever possible.
+
+Please execute the following tasks:
+
+1. Create a modular folder structure for the database (adapting to the existing structure if needed):
+   database/
+   ├── schema/
+   │   ├── usuarios.sql
+   │   ├── temporadas.sql
+   │   ├── lobbys.sql
+   │   ├── partidas.sql
+   │   ├── reportes.sql
+   │   ├── auditoria.sql
+   │   └── indices.sql
+   ├── repositories/
+   │   ├── UserRepository.ts
+   │   ├── MatchRepository.ts
+   │   ├── LobbyRepository.ts
+   │   ├── SeasonRepository.ts
+   │   └── ReportRepository.ts
+   ├── database.ts
+   └── init.ts
+
+2. Design and write the schema files adhering to these structural rules:
+   - Use TEXT for Discord IDs, and UUIDs (or appropriate identifiers) for internal entities.
+   - Do NOT store calculable/derived fields like `winrate`, calculated `liga` (store only `elo`, compute league dynamically), or `cant_actual` in lobbies (derive count from participants table).
+   - In `auditoria`, include fields for module, action, affected user, and optional details.
+   - In `historial_elo`, include a `motivo` field (e.g., victory, abandon, staff reversion).
+   - In `evidencias`, include file metadata (filename, size, mimetype/type) alongside the URL.
+   - In `participantes_partida`, include a status field (playing, abandoned, expelled, finished).
+   - Add indices for `votos_mvp(partida_id)`, `reportes(estado)`, and `estadisticas_temporada(temporada_id, elo DESC)`.
+   - Enforce foreign keys (`PRAGMA foreign_keys = ON;`) and the integrity check preventing a user from voting for themselves (`CHECK (votante_id != votado_id)`).
+
+3. Create TypeScript constants/enums for states (e.g., UserStatus, LobbyStatus, MatchStatus, ReportStatus) so states are never raw unvalidated strings in the business logic.
+
+4. Implement `database.ts` and `init.ts` to cleanly load, execute, and initialize these SQL files on bot startup using SQLite (reusing existing project drivers if available).
+   - The initialization process must be idempotent.
+   - Schema creation must not destroy existing data (additive only, do not drop or recreate tables automatically if they already exist).
+
+5. Create repository classes/interfaces responsible only for database CRUD operations. Repositories must not contain business logic, only persistence operations.
+
+At the end of the implementation, provide a concise report including:
+- Files created.
+- Files modified.
+- Dependencies added (if any).
+- Database schema summary.
+- Any architectural decisions made due to the existing project structure.
+- Any assumptions that should be reviewed before Phase 2.
+
+Please write clean, robust, and type-safe code for this phase. Thank you!
