@@ -1,0 +1,37 @@
+Hello! You are developing the Phase 3 (Match Lifecycle, Result Reporting, Atomic ELO Engine & Audit) for our Discord competitive system in Tiago JR (Drizzle ORM + PostgreSQL).
+
+Context & Constraints:
+- Phases 1 and 2 are fully completed, stable, and approved. Do not modify or rewrite Phase 1 or Phase 2 core architecture (Lobbies, Queue, Supervisor FIFO, Repositories).
+- Strict Architecture: Repositories handle database persistence only. Business logic lives in services. Discord commands handle UI/interaction. Math formulas must NEVER live in repositories or commands.
+
+Your Tasks for Phase 3:
+
+1. Match Creation on Transition (`READY` ➔ `IN_GAME`):
+   - When a lobby transitions from `READY` to `IN_GAME`, create a new record in the `partidas` table with `lobby_id` pointing to the active lobby.
+   - Insert all participating players into `participantes_partida`, mapping their team and capturing their current ELO as `elo_inicio` (snapshot for historical reproducibility).
+
+2. Secure Result Reporting (`/supervisor result`):
+   - Implement or update the `/supervisor result` command.
+   - Restrict execution: The command must verify that the user executing it matches the `supervisor_id` assigned to that specific lobby/match.
+   - Allow reporting structured results: `IMPOSTORES`, `TRIPULANTES`, `EMPATE`, or `CANCELADA`.
+   - Allow optional metadata attachments for evidence/reports using the existing `reportes` table with `tipo_reporte` (`RESULTADO`, `CONDUCTA`, `TECNICO`). Evidences are strictly optional in v1.
+
+3. Elo Engine & Atomic Transaction (`VALIDATING` ➔ `CLOSED`):
+   - Implement `EloService`:
+     * Default initial ELO: 1200.
+     * K-factor: 32.
+     * Team-based calculation using standard ELO win probability, comparing average ELO of Tripulantes vs. Impostores.
+     * `EMPATE`: Results in delta = 0 for all players (no stat changes).
+     * `CANCELADA`: Skips ELO entirely, only logs an audit trail.
+   - Implement atomic closure inside a single PostgreSQL transaction (BEGIN, validate, calculate using `elo_inicio`, insert `historial_elo`, update `estadisticas_temporada` using strictly existing columns without creating new unapproved metrics, update match status to `CLOSED`, COMMIT / ROLLBACK on error):
+     * Guard against double-execution (Idempotency): If a match is already `CLOSED`, reject the operation immediately.
+     * If `requires_revision = true`, keep it in `VALIDATING` for manual Staff intervention. If `requires_revision = false` and no disputes, trigger automatic closure.
+
+4. Typecheck & Verification:
+   - Run the full TypeScript typecheck (`pnpm --filter @workspace/discord-bot run typecheck`) and fix any compilation or wiring errors.
+   - Ensure zero regressions in Phase 1 and 2.
+
+5. Final Delivery Report:
+   - Provide a concise final delivery report detailing created/modified files, database transactions used, and integration points.
+
+Do not implement Phase 4 features or create unapproved database columns. Preserve the existing Drizzle/PostgreSQL architecture. Proceed with Phase 3 implementation.

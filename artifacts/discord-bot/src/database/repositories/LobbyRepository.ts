@@ -65,6 +65,24 @@ export class LobbyRepository {
     return rows[0]?.lobby;
   }
 
+  /** Find the lobby assigned to a specific supervisor in the given status. */
+  async findBySupervisorAndStatus(
+    supervisorId: string,
+    status: LobbyStatus,
+  ): Promise<Lobby | undefined> {
+    const rows = await db
+      .select()
+      .from(lobbysTable)
+      .where(
+        and(
+          eq(lobbysTable.supervisorId, supervisorId),
+          eq(lobbysTable.status, status),
+        ),
+      )
+      .limit(1);
+    return rows[0];
+  }
+
   /** Find an open lobby by Discord channel ID. */
   async findByChannelId(channelId: string): Promise<Lobby | undefined> {
     const rows = await db

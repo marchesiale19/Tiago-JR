@@ -34,6 +34,34 @@ export class MatchRepository {
     return rows[0];
   }
 
+  /** Find the most recent partida associated with a lobby. */
+  async findByLobbyId(lobbyId: string): Promise<Partida | undefined> {
+    const rows = await db
+      .select()
+      .from(partidasTable)
+      .where(eq(partidasTable.lobbyId, lobbyId))
+      .orderBy(desc(partidasTable.createdAt))
+      .limit(1);
+    return rows[0];
+  }
+
+  /** Update the rol of a single participant in a partida. */
+  async updateParticipantRol(
+    partidaId: string,
+    discordId: string,
+    rol: string,
+  ): Promise<void> {
+    await db
+      .update(participantesPartidaTable)
+      .set({ rol })
+      .where(
+        and(
+          eq(participantesPartidaTable.partidaId, partidaId),
+          eq(participantesPartidaTable.discordId, discordId),
+        ),
+      );
+  }
+
   async create(data: InsertPartida): Promise<Partida> {
     const rows = await db.insert(partidasTable).values(data).returning();
     return rows[0]!;

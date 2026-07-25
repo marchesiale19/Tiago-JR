@@ -28,9 +28,10 @@ export const participantesPartidaTable = pgTable("participantes_partida", {
   id:        serial("id").primaryKey(),
   partidaId: uuid("partida_id").notNull().references(() => partidasTable.id, { onDelete: "cascade" }),
   discordId: text("discord_id").notNull(),
-  equipo:    integer("equipo").notNull(),   // 1 | 2
+  equipo:    integer("equipo").notNull(),   // 1 = tripulantes | 2 = impostores
   status:    text("status").notNull().default("playing"),
   rol:       text("rol"),                  // 'impostor' | 'tripulante' | null
+  eloInicio: integer("elo_inicio").notNull().default(1200), // ELO snapshot at match start; used for reproducible ELO calc
 });
 
 // ---------------------------------------------------------------------------
