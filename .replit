@@ -1,4 +1,4 @@
-modules = ["nodejs-24"]
+modules = ["nodejs-24", "postgresql-16"]
 
 [deployment]
 router = "application"
@@ -53,3 +53,4 @@ externalPort = 80
 
 [nix]
 packages = ["python39Packages.clvm-tools"]
+channel = "stable-25_05"
