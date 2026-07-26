@@ -1,0 +1,31 @@
+PHASE 4 CONTINUATION & COMPLETION TASK
+
+READ THE EXISTING CODE FIRST. Do not rewrite unrelated systems, repositories, or services from Phases 1, 2, or 3.
+
+Task: Resume from the previous partial implementation, complete the missing integration points, verify stability, and provide the final compliance report.
+
+1. Inspect & Complete Pending Items:
+- Check the repository state to see what was already written by the previous agent session.
+- Ensure the following missing pieces are correctly implemented:
+  a. `MatchRepository.listPendingRevision()` — to list matches where `requires_revision = true`.
+  b. `MatchService.staffResolveMatch()` — handling staff resolution (Confirm, Modify, Cancel) with full immutability and complete logging via `AuditoriaRepository.log()` (recording actorId, affected partidaId, original status, decision taken, before/after data modifications, and reason).
+  c. Register all new commands properly in `index.ts` via `commands.set()`.
+
+2. Constraints & Rules Check:
+- Seasons: Only one active season; new season stats initialize strictly to DEFAULT_ELO without carrying over old ELO.
+- Leaderboards: Zero storage of derived metrics; winrate is computed purely dynamically (`victorias / partidasJugadas`).
+- Requires Revision: Interrupted/crashed matches are held in VALIDATING with `requires_revision = true` and zero ELO applied until staff resolves them.
+- Architecture: Keep Repository / Service / Command separation intact.
+
+3. Verification:
+- Run the mandatory typecheck:
+  pnpm --filter @workspace/discord-bot run typecheck
+
+4. Final Compliance Report:
+Provide:
+- Full list of modified and created files.
+- Summary of implemented logic (Seasons, Leaderboards, Staff Resolution & Audit).
+- Exact output of the typecheck (must be 0 errors).
+- Explicit confirmation that the negative and positive constraints (no winrate column, clean default ELO, unapplied ELO during revision, complete audit trail) are fully satisfied.
+
+Proceed only with completing and auditing this phase.
