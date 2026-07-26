@@ -1,0 +1,41 @@
+PHASE 6.4 IMPLEMENTATION — EVENT INTEGRATION & REACTIVE UNLOCKS
+
+READ THE EXISTING CODE FIRST.
+
+Do not modify or rewrite stable core systems from Phases 1–5.
+
+Do not touch:
+- EloService
+- closeMatchAtomic
+- existing match schemas
+- season schemas
+- AchievementEvaluator core logic
+
+
+Task:
+Implement the reactive integration layer to evaluate and trigger achievement unlocks for players immediately after a match successfully concludes, maintaining complete isolation from the core ELO and atomic closing mechanism, ensuring strict service boundary separation, and supporting non-blocking execution.
+
+Requirements:
+
+1. Service Extension (`AchievementService`):
+   - Add a method (e.g., `evaluateAndUnlockForPlayers(discordIds: string[])` or equivalent) that accepts an array of player Discord identifiers, evaluates all active achievements for each player using `AchievementEvaluator`, and records eligible unlocks via `AchievementRepository.unlock()`.
+   - Ensure the implementation checks against already unlocked achievements to avoid redundant work.
+
+2. Responsibility Boundary:
+   - `AchievementService` must not depend on match lifecycle concepts or understand what a "match" or "lobby" is. 
+   - The caller (orchestration/command layer) is responsible for resolving match participants and providing their identifiers to `AchievementService`.
+
+3. Integration Boundary & Safety:
+   - Integrate the evaluation call strictly at the orchestration/command layer *after* `closeMatchAtomic` successfully executes.
+   - The achievement processing does not need to block the caller after successful match closure. It should execute with isolated error handling (e.g., wrapped in a defensive `try/catch` or structured as a fire-and-forget background task) so that any failure in the achievement subsystem is caught, logged, and gracefully swallowed without altering, delaying, or reverting the match closure or ELO updates.
+
+4. Restrictions:
+   - Do not modify `closeMatchAtomic` or `EloService`.
+   - Do not create Discord commands in this subphase (UI commands like `/logros` belong to Phase 6.5).
+
+5. Verification:
+   - Run:
+     pnpm --filter @workspace/discord-bot run typecheck
+
+6. Final Report:
+   - Provide created/modified files, reasons for modifications, and exact typecheck output confirming 0 errors.

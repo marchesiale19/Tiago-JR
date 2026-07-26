@@ -44,6 +44,7 @@ import { eventBus }          from "./EventBus";
 import { calculateEloChanges, DEFAULT_ELO, type MatchResultado, type PlayerSlot } from "./EloService";
 import { LobbyStatus, AuditModulo, EloMotivo } from "../database/enums";
 import { logger } from "../lib/logger";
+import { achievementService } from "./AchievementService";
 
 // ── Staff Resolution (requires_revision → CLOSED / CANCELLED) ─────────────
 
@@ -133,6 +134,18 @@ export async function staffResolveMatch(
     { partidaId, lobbyId: partida.lobbyId, decision, resultado },
     "Staff resolved requires_revision match",
   );
+
+  // 6. Fire-and-forget achievement evaluation — isolated from match closure.
+  //    Any failure here is caught and logged; it never affects the result above.
+  void (async () => {
+    try {
+      const participants = await matchRepository.listParticipants(partidaId);
+      const discordIds   = participants.map((p) => p.discordId);
+      await achievementService.evaluateAndUnlockForPlayers(discordIds);
+    } catch (err) {
+      logger.warn({ err, partidaId }, "Achievement evaluation failed after staff resolve — continuing");
+    }
+  })();
 }
 
 // ── Match Creation (READY → IN_GAME) ──────────────────────────────────────
@@ -300,6 +313,19 @@ export async function submitResult(
 
   // 6. Auto-close atomically
   await closeMatchAtomic(lobbyId, partida.id, resultado, impostorIds, actorId);
+
+  // 7. Fire-and-forget achievement evaluation — isolated from match closure.
+  //    Any failure here is caught and logged; it never affects the result above.
+  void (async () => {
+    try {
+      const participants = await matchRepository.listParticipants(partida.id);
+      const discordIds   = participants.map((p) => p.discordId);
+      await achievementService.evaluateAndUnlockForPlayers(discordIds);
+    } catch (err) {
+      logger.warn({ err, matchId: partida.id }, "Achievement evaluation failed after match close — continuing");
+    }
+  })();
+
   return { closed: true, requiresRevision: false, matchId: partida.id };
 }
 

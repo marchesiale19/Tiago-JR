@@ -62,7 +62,54 @@ export class AchievementService {
     return achievementEvaluator.evaluate(discordId, achievements);
   }
 
-  // ── Unlock (entry-point; orchestration rules added in future phases) ───────
+  // ── Evaluate + unlock (batch, post-match) ────────────────────────────────
+
+  /**
+   * Evaluate all active achievements for each player in `discordIds` and
+   * record any newly eligible unlocks.
+   *
+   * Design:
+   *   • Fetches the active catalog once and reuses it across all players.
+   *   • Per player: loads already-unlocked IDs and skips those achievements
+   *     to avoid redundant DB writes.
+   *   • Evaluates only the remaining (not-yet-unlocked) achievements.
+   *   • Calls AchievementRepository.unlock() for every eligible result.
+   *   • Returns void — intended to be called fire-and-forget by the caller.
+   *
+   * Responsibility boundary: this method knows nothing about matches, lobbies,
+   * or ELO. The caller is responsible for resolving which discordIds to pass.
+   */
+  async evaluateAndUnlockForPlayers(discordIds: string[]): Promise<void> {
+    if (discordIds.length === 0) return;
+
+    // Fetch catalog once; share across all players in this batch
+    const activeAchievements = await achievementRepository.listActive();
+    if (activeAchievements.length === 0) return;
+
+    for (const discordId of discordIds) {
+      // Skip achievements already unlocked by this player
+      const unlocked    = await achievementRepository.listByPlayer(discordId);
+      const unlockedIds = new Set(unlocked.map((u) => u.logroId));
+      const pending     = activeAchievements.filter((a) => !unlockedIds.has(a.id));
+      if (pending.length === 0) continue;
+
+      // Evaluate eligibility
+      const results = await achievementEvaluator.evaluate(discordId, pending);
+
+      // Record every newly eligible unlock
+      for (const result of results) {
+        if (result.eligible && !result.unsupported) {
+          await achievementRepository.unlock({
+            discordId,
+            logroId:  result.achievementId,
+            metadata: null,
+          });
+        }
+      }
+    }
+  }
+
+  // ── Unlock (single-record entry-point) ────────────────────────────────────
 
   /**
    * Attempt to unlock a single achievement for a player.
