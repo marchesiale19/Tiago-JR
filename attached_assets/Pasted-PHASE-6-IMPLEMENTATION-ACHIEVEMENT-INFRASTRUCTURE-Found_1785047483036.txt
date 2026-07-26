@@ -1,0 +1,50 @@
+PHASE 6 IMPLEMENTATION — ACHIEVEMENT INFRASTRUCTURE (Foundation Only)
+
+READ THE EXISTING CODE FIRST. Do not modify or rewrite stable core systems from Phases 1–5 (do not touch EloService, closeMatchAtomic, or existing match schemas).
+
+Task: Implement the foundational infrastructure for the player achievement and progression system. No large sets of achievements, rules, automatic triggers, or display commands yet — focus purely on database schemas, repositories, service structure, and types.
+
+Requirements:
+
+1. Database Schemas (`lib/db/src/schema/logros.ts` or corresponding schema files, ensuring proper export registration in central database schema indexes if required):
+   - `logros` table (Catalog):
+     - `id`: serial primary key
+     - `codigo`: text, unique, not null (e.g., "VICTORIAS_100")
+     - `nombre`: text, not null
+     - `descripcion`: text, not null
+     - `tipo`: text, not null (e.g., "VICTORIAS", "PARTIDAS", "MVP")
+     - `valor`: integer, not null (e.g., 100)
+     - `activo`: boolean, not null default true
+     - `createdAt`: timestamp with timezone, not null default now()
+   - `logros_jugador` table (Player Unlocks):
+     - `id`: serial primary key
+     - `discordId`: text, not null
+     - `logroId`: integer, not null references `logros(id)` on delete cascade
+     - `obtenidoAt`: timestamp with timezone, not null default now()
+     - `metadata`: jsonb("metadata") optional
+   - Add unique constraint / index on (`discordId`, `logroId`) to prevent duplicate achievement unlocks.
+   - Export corresponding Zod schemas and inferred TypeScript types.
+
+2. Repositories:
+   - Create `AchievementRepository` inside `artifacts/discord-bot/src/database/repositories/AchievementRepository.ts`:
+     - Method to list active achievements.
+     - Method to list achievements unlocked by a specific `discordId`.
+     - Method to record a player achievement unlock safely (idempotent / ignore duplicates).
+
+3. Service Layer:
+   - Create `AchievementService` inside `artifacts/discord-bot/src/services/AchievementService.ts`:
+     - Responsible for structuring the evaluation architecture and orchestrating calls to `AchievementRepository`.
+     - Important: At this phase, `AchievementService` must only establish the structural framework. Do not implement achievement rules, condition logic, or automatic unlock triggers yet.
+
+4. Architecture Rules:
+   - Strictly maintain: Repository -> Service separation.
+   - Do not modify `EloService`, `closeMatchAtomic`, or any Phase 1-5 files (except for minimal required schema exports/registrations).
+
+5. Verification:
+   - Run:
+     pnpm --filter @workspace/discord-bot run typecheck
+
+6. Final Report:
+   - Full list of created and modified files.
+   - Reason for every modified file.
+   - Exact typecheck output confirming 0 errors.
