@@ -54,3 +54,8 @@ externalPort = 80
 [nix]
 packages = ["python39Packages.clvm-tools"]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+DISCORD_CLIENT_ID = "1523175163816841319"

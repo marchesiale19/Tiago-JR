@@ -1,52 +1,56 @@
-# Tiagojr Discord Bot
+# Discord Bot Project
 
-A Discord bot for a gaming community (Spanish-language) with commands for applications, matchmaking queues, lobbies, sanctions, and more.
+A Discord bot for competitive gaming — matchmaking, lobbies, sanctions, and ranking — built with discord.js, Express, and PostgreSQL.
 
 ## Stack
 
-- **Discord bot** — `discord.js` v14, TypeScript, `tsx` watch mode
-- **Database** — Replit built-in PostgreSQL via Drizzle ORM
-- **API server** — Express 5, TypeScript (optional companion service)
-- **Package manager** — pnpm workspaces
+- **Discord bot** (`artifacts/discord-bot`) — discord.js v14, TypeScript, tsx watch
+- **API server** (`artifacts/api-server`) — Express 5, esbuild, pino logging
+- **Database** (`lib/db`) — PostgreSQL 16 via Drizzle ORM
+- **Shared libs** — `lib/api-spec`, `lib/api-zod`, `lib/api-client-react`
 
-## Project structure
+## Commands
 
-```
-artifacts/
-  discord-bot/   — the bot (main service)
-  api-server/    — HTTP API companion
-lib/
-  db/            — shared Drizzle schema & client (@workspace/db)
-  api-zod/       — shared Zod schemas
-  api-spec/      — API spec
-  api-client-react/ — React API client
-```
-
-## Running the bot
-
-The **Discord Bot** workflow runs automatically: `pnpm --filter @workspace/discord-bot run dev`
-
-## Required secrets
-
-| Secret | Where to find it |
+| Command | Purpose |
 |---|---|
-| `DISCORD_BOT_TOKEN` | Discord Developer Portal → Your App → **Bot** tab → Token |
-| `DISCORD_CLIENT_ID` | Discord Developer Portal → Your App → **General Information** → Application ID |
+| `/sanciones` | Issue or view player sanctions |
+| `/cola` | Join/leave the matchmaking queue |
+| `/lobby` | Manage active lobbies |
+| `/postular` | Apply for a staff/supervisor role |
+| `/abrir-postulaciones` | Open applications (staff) |
+| `/cerrar-postulaciones` | Close applications (staff) |
+| `/supervisor` | Supervisor management |
+| `/help` | Show help |
+
+## Running
+
+The **Discord Bot** workflow runs automatically (`pnpm --filter @workspace/discord-bot run dev`).
+
+The **API Server** workflow also runs automatically (`pnpm --filter @workspace/api-server run dev`).
+
+## Required Secrets
+
+| Key | Where to find it |
+|---|---|
+| `DISCORD_BOT_TOKEN` | Discord Developer Portal → Bot → Token |
+| `DISCORD_CLIENT_ID` | Discord Developer Portal → General Information → Application ID |
+| `DATABASE_URL` | Managed automatically by Replit (PostgreSQL 16) |
+
+## Optional Environment Variables
+
+| Key | Default | Purpose |
+|---|---|---|
+| `STAFF_ROLE_ID` | — | Discord role ID granted to staff; used by `/postular` |
+| `LOG_LEVEL` | `info` | Pino log level (`debug`, `info`, `warn`, `error`) |
 
 ## Database
 
-Replit's built-in PostgreSQL is used. Schema is managed with Drizzle Kit.
+Schema managed by Drizzle Kit. To push schema changes to the database:
 
-To push schema changes: `pnpm --filter @workspace/db run push`
-
-## Slash commands
-
-Commands auto-register on startup via `registrarComandos()`. Manually re-register with:
-
-```
-pnpm --filter @workspace/discord-bot run deploy-commands
+```sh
+pnpm --filter @workspace/db run push
 ```
 
-## User preferences
+## User Preferences
 
-<!-- Add any preferences here -->
+_(none yet)_
