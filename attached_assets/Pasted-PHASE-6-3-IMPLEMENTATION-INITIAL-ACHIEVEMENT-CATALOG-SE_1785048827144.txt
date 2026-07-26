@@ -1,0 +1,43 @@
+PHASE 6.3 IMPLEMENTATION — INITIAL ACHIEVEMENT CATALOG SEED
+
+READ THE EXISTING CODE FIRST.
+
+Do not modify or rewrite stable core systems from Phases 1–5.
+
+Do not touch:
+- EloService
+- closeMatchAtomic
+- existing match schemas
+- season schemas
+- AchievementEvaluator core logic
+
+
+Task:
+Implement a controlled initial seed mechanism to populate the `logros` catalog table with a small, strictly validated set of core achievements, adhering strictly to the project's existing conventions.
+
+Requirements:
+
+1. Inspect Existing Conventions:
+   - Inspect the existing project structure and conventions for database initialization, migrations, or seed scripts before choosing where to place the seed logic.
+   - Follow the existing repository structure. Do not create a parallel or custom seed system if an established pattern already exists.
+
+2. Initial Seed Data:
+   Insert the following base achievements into the `logros` table (ensure idempotency using `codigo` as unique constraint/target to avoid duplicate inserts on re-runs):
+   - code: `PRIMERA_VICTORIA`, name: "Primera Victoria", description: "Gana tu primera partida competitiva.", tipo: "VICTORIAS", valor: 1, activo: true
+   - code: `VICTORIAS_10`, name: "Veterano de Guerra", description: "Alcanza 10 victorias competitivas.", tipo: "VICTORIAS", valor: 10, activo: true
+   - code: `PARTIDAS_50`, name: "Constancia", description: "Juega un total de 50 partidas.", tipo: "PARTIDAS", valor: 50, activo: true
+   - code: `MVP_5`, name: "Jugador Más Valioso", description: "Obtén 5 reconocimientos como MVP.", tipo: "MVP", valor: 5, activo: true
+
+3. Safety & Idempotency:
+   - Verify that the seed logic can run safely multiple times without creating duplicate rows or throwing constraint violations.
+
+4. Restrictions:
+   - Do not add complex achievement types (e.g., streaks, peak ELO, seasons count).
+   - Do not implement automatic match triggers or Discord commands in this subphase.
+
+5. Verification:
+   - Run:
+     pnpm --filter @workspace/discord-bot run typecheck
+
+6. Final Report:
+   - Provide created/modified files, reasons for modifications, and exact typecheck output confirming 0 errors.

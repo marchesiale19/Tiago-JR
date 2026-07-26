@@ -32,6 +32,9 @@ const REQUIRED_TABLES = [
   // Phase 2
   "configuracion_competitiva",
   "supervisores_estado",
+  // Phase 6
+  "logros",
+  "logros_jugador",
 ] as const;
 
 export async function initDatabase(client?: Client): Promise<void> {
@@ -88,7 +91,16 @@ export async function initDatabase(client?: Client): Promise<void> {
 
   logger.info(`All ${REQUIRED_TABLES.length} required tables are present.`);
 
-  // 3. Startup recovery (requires Discord client for channel cleanup)
+  // 3. Achievement catalog seed (idempotent — skips existing rows)
+  try {
+    const { seedLogros } = await import("./seedLogros");
+    await seedLogros();
+    logger.info("Achievement catalog seed completed.");
+  } catch (err) {
+    logger.error({ err }, "Achievement catalog seed failed — continuing without seed");
+  }
+
+  // 4. Startup recovery (requires Discord client for channel cleanup)
   if (client) {
     const { runRecovery } = await import("../services/RecoveryService");
     try {
