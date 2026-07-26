@@ -4,7 +4,7 @@
 // No ELO calculation logic lives here — only persistence.
 // ---------------------------------------------------------------------------
 
-import { eq, and, desc, count, sql } from "drizzle-orm";
+import { eq, and, desc, asc, count, sql } from "drizzle-orm";
 import { db } from "../database";
 import {
   partidasTable,
@@ -113,6 +113,24 @@ export class MatchRepository {
           eq(participantesPartidaTable.discordId, discordId),
         ),
       );
+  }
+
+  /**
+   * List all partidas currently held for staff revision:
+   *   requires_revision = true AND status = 'in_progress'.
+   * Ordered oldest-first so staff resolves in creation order.
+   */
+  async listPendingRevision(): Promise<Partida[]> {
+    return db
+      .select()
+      .from(partidasTable)
+      .where(
+        and(
+          eq(partidasTable.requiresRevision, true),
+          eq(partidasTable.status, "in_progress"),
+        ),
+      )
+      .orderBy(asc(partidasTable.createdAt));
   }
 
   // ── ELO history ───────────────────────────────────────────────────────────

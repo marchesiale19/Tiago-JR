@@ -45,6 +45,96 @@ import { calculateEloChanges, DEFAULT_ELO, type MatchResultado, type PlayerSlot 
 import { LobbyStatus, AuditModulo, EloMotivo } from "../database/enums";
 import { logger } from "../lib/logger";
 
+// ── Staff Resolution (requires_revision → CLOSED / CANCELLED) ─────────────
+
+export type StaffDecision = "confirm" | "modify" | "cancel";
+
+/**
+ * Staff resolution path for matches held with requires_revision = true.
+ *
+ * Decisions:
+ *   confirm — approve the supervisor's original result; execute closeMatchAtomic.
+ *   modify  — apply a corrected resultado/impostors; execute closeMatchAtomic.
+ *   cancel  — close as CANCELADA; no ELO or season-stats changes.
+ *
+ * Validation runs before any state mutation:
+ *   • Partida must exist, have requiresRevision=true, and not be closed.
+ *   • Partida must have an associated lobbyId.
+ *   • For confirm/modify, impostorIds (if provided) are verified against participantes_partida.
+ *   • For IMPOSTORES/TRIPULANTES outcomes, at least one impostor is required.
+ *
+ * A complete audit entry is written before closeMatchAtomic is invoked.
+ */
+export async function staffResolveMatch(
+  partidaId: string,
+  decision:  StaffDecision,
+  resultado: MatchResultado,
+  impostorIds: string[],
+  actorId:   string,
+  notas?:    string,
+): Promise<void> {
+  // 1. Load and validate partida
+  const partida = await matchRepository.findById(partidaId);
+  if (!partida) throw new Error("Partida no encontrada.");
+  if (!partida.requiresRevision) {
+    throw new Error("Esta partida no tiene la bandera requires_revision activa.");
+  }
+  if (partida.status === "closed" || partida.status === "cancelled") {
+    throw new Error("Esta partida ya está cerrada y no puede ser modificada.");
+  }
+  if (!partida.lobbyId) {
+    throw new Error("Esta partida no tiene lobby asociado — no se puede cerrar automáticamente.");
+  }
+
+  // 2. For non-cancel decisions: validate impostorIds against participantes_partida
+  if (decision !== "cancel" && impostorIds.length > 0) {
+    const participants = await matchRepository.listParticipants(partidaId);
+    const validIds     = new Set(participants.map((p) => p.discordId));
+    const invalidIds   = impostorIds.filter((id) => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new Error(
+        `Los siguientes IDs no pertenecen a esta partida: ${invalidIds.join(", ")}`,
+      );
+    }
+  }
+
+  // 3. For competitive outcomes: require at least one impostor
+  if (
+    decision !== "cancel" &&
+    (resultado === "IMPOSTORES" || resultado === "TRIPULANTES") &&
+    impostorIds.length === 0
+  ) {
+    throw new Error(
+      "Debes especificar al menos un impostor para resultados IMPOSTORES o TRIPULANTES.",
+    );
+  }
+
+  // 4. Mandatory audit entry BEFORE any mutation
+  await auditoriaRepository.log({
+    modulo:       AuditModulo.Matchmaking,
+    accion:       `staff_resolve_${decision}`,
+    realizadoPor: actorId,
+    detalles:     {
+      partidaId,
+      lobbyId:        partida.lobbyId,
+      decision,
+      resultado,
+      impostorIds,
+      notas:          notas ?? null,
+      previousStatus: partida.status,
+    },
+  });
+
+  // 5. Execute atomic closure (bypasses submitResult state-machine;
+  //    directly applies ELO, stats, and closes both partida + lobby rows)
+  await closeMatchAtomic(partida.lobbyId, partidaId, resultado, impostorIds, actorId);
+
+  logger.info(
+    { partidaId, lobbyId: partida.lobbyId, decision, resultado },
+    "Staff resolved requires_revision match",
+  );
+}
+
 // ── Match Creation (READY → IN_GAME) ──────────────────────────────────────
 
 /**

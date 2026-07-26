@@ -1,0 +1,45 @@
+PHASE 4 IMPLEMENTATION — SEASONS, LEADERBOARDS & STAFF REVIEW
+
+READ THE EXISTING CODE FIRST. Do not rewrite unrelated systems.
+Reuse existing repositories (SeasonRepository, ReportRepository, AuditoriaRepository, MatchRepository) and schema definitions. Do not introduce duplicate database access patterns.
+
+Task: Implement the operational layer for Seasons, Leaderboards, and Staff Review (`requires_revision`).
+
+Requirements:
+
+1. Seasons Management
+- Implement the operational flow for creating a new season.
+- Ensure that opening a new season automatically closes the currently active season (setting activa = false and updating fecha_fin).
+- Ensure that player stats in new seasons (`estadisticas_temporada`) initialize strictly with DEFAULT_ELO (typically 1200) without carrying over ELO from previous seasons.
+
+2. Leaderboards / Rankings
+- Implement leaderboard command(s)/query handling.
+- Support querying by active season or specific season ID.
+- Render player stats using raw base columns (ELO, partidasJugadas, victorias, derrotas).
+- Compute winrate strictly on the fly (victorias / partidasJugadas). 
+- STRICT CONSTRAINT: Do not add or store a winrate column in the database schema.
+
+3. Staff Review & requires_revision Resolution
+- Implement staff command(s) or flow to list matches currently held with `requires_revision = true` (status VALIDATING).
+- Implement staff resolution actions:
+  a. Confirm: Approve the original result and execute the normal atomic match close (`closeMatchAtomic`).
+  b. Modify: Apply a corrected result/impostor assignment dictated by staff, then execute the atomic match close.
+  c. Cancel: Close the match as `CANCELADA` without applying ELO changes or season stats.
+- STRICT CONSTRAINT: Since `requires_revision` matches have not applied ELO yet, ensure staff actions execute the appropriate closure path safely.
+- Mandatory Audit: Every staff intervention must log a complete audit entry via `AuditoriaRepository.log()` containing: actorId, affected partidaId, original status, decision taken (confirm/modify/cancel), before/after data modifications, and reason/notes.
+
+4. Constraints:
+- Do not modify Phase 1, Phase 2, or Phase 3 stable core logic (such as pure ELO math in EloService).
+- Keep Repository / Service / Command separation.
+- Do not move business logic into repositories.
+- Preserve existing behavior for normal match flows.
+
+5. Verification:
+- Run:
+  pnpm --filter @workspace/discord-bot run typecheck
+
+6. Final report:
+Provide:
+- Files modified / created.
+- Summary of implemented logic for Seasons, Leaderboards, and Staff Resolution.
+- Typecheck result.
