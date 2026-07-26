@@ -5,6 +5,7 @@ import {
 import { setAvailable, setUnavailable }    from "../services/SupervisorService";
 import { startMatch, submitResult }        from "../services/MatchService";
 import { lobbyRepository }                 from "../database/repositories/LobbyRepository";
+import { matchRepository }                 from "../database/repositories/MatchRepository";
 import { supervisorRepository }            from "../database/repositories/SupervisorRepository";
 import { LobbyStatus }                     from "../database/enums";
 import type { MatchResultado }             from "../services/EloService";
@@ -184,6 +185,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
           "❌ Debes especificar al menos **impostor1** para resultados de IMPOSTORES o TRIPULANTES.",
         );
         return;
+      }
+
+      // Validate that every provided impostor ID belongs to this match's participants
+      if (impostorIds.length > 0) {
+        const partida = await matchRepository.findByLobbyId(lobby.id);
+        if (!partida) {
+          await interaction.editReply("❌ No se encontró una partida activa para este lobby.");
+          return;
+        }
+        const participants = await matchRepository.listParticipants(partida.id);
+        const validIds = new Set(participants.map((p) => p.discordId));
+        const invalidIds = impostorIds.filter((id) => !validIds.has(id));
+        if (invalidIds.length > 0) {
+          await interaction.editReply(
+            `❌ Los siguientes usuarios no están en esta partida y no pueden ser impostores: ${invalidIds.map((id) => `<@${id}>`).join(", ")}`,
+          );
+          return;
+        }
       }
 
       const notas = interaction.options.getString("notas") ?? undefined;

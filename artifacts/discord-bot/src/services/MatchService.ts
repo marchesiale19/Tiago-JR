@@ -164,10 +164,22 @@ export async function submitResult(
     throw new Error("Esta partida ya está cerrada. No se puede reportar el resultado de nuevo.");
   }
 
-  // 3. Transition lobby IN_GAME → VALIDATING
+  // 3. Validate impostorIds against actual match participants (before any state change)
+  if (impostorIds.length > 0) {
+    const participants = await matchRepository.listParticipants(partida.id);
+    const validIds = new Set(participants.map((p) => p.discordId));
+    const invalidIds = impostorIds.filter((id) => !validIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new Error(
+        `Los siguientes IDs no pertenecen a esta partida y no pueden ser asignados como impostores: ${invalidIds.join(", ")}`,
+      );
+    }
+  }
+
+  // 4. Transition lobby IN_GAME → VALIDATING
   await transitionTo(lobbyId, LobbyStatus.Validating);
 
-  // 4. Optional: create a resultado report if notas were supplied
+  // 5. Optional: create a resultado report if notas were supplied
   if (notas) {
     try {
       await reportRepository.create({
@@ -184,7 +196,7 @@ export async function submitResult(
     }
   }
 
-  // 5. requires_revision check — keep in VALIDATING for staff if flagged
+  // 6. requires_revision check — keep in VALIDATING for staff if flagged
   if (partida.requiresRevision) {
     logger.warn({ lobbyId, matchId: partida.id }, "Match requires_revision=true — holding in VALIDATING");
     await auditoriaRepository.log({
