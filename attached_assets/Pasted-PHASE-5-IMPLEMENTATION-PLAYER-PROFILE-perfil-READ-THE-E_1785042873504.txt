@@ -1,0 +1,187 @@
+PHASE 5 IMPLEMENTATION — PLAYER PROFILE (/perfil)
+
+READ THE EXISTING CODE FIRST.
+
+Do not rewrite or modify stable core systems from Phases 1, 2, 3, or 4.
+
+Do not touch:
+- EloService
+- closeMatchAtomic
+- ELO calculation logic
+- database schemas
+- previous phase business rules
+
+Task:
+Implement the player competitive profile command (/perfil) and the minimum required repository/service support.
+
+---
+
+## 1. Data Sources (STRICT)
+
+### Season Summary
+
+Use `estadisticas_temporada` as the source for seasonal statistics:
+
+- elo
+- partidasJugadas
+- victorias
+- derrotas
+- abandonos
+- mvpCount
+
+Rules:
+
+- Compute winrate only at runtime:
+  `victorias / partidasJugadas`
+
+- Never create or store a winrate database column.
+
+- Seasonal statistics must always be scoped by `temporadaId`.
+
+- Never merge competitive statistics between different seasons.
+
+---
+
+### ELO Evolution
+
+Use `historial_elo` through existing methods such as:
+
+`MatchRepository.listEloHistory()`
+
+Display:
+
+- previous ELO
+- new ELO
+- ELO delta
+- reason
+- date
+
+Do not modify how ELO changes are generated.
+
+---
+
+### Match History Context
+
+Use the existing relationship between:
+
+- `partidas`
+- `participantes_partida`
+
+Before adding repository methods:
+
+- Inspect existing implementations.
+- Add only the minimum required queries.
+- Do not duplicate existing repository logic.
+- Do not invent database fields.
+
+---
+
+# 2. Discord Command — `/perfil`
+
+Create:
+
+`/perfil`
+
+Features:
+
+- Optional target user parameter.
+- Default target is the command executor.
+
+Display:
+
+- Current season statistics.
+- Current ELO.
+- Wins.
+- Losses.
+- Dynamic winrate.
+- MVP count.
+- Recent ELO changes.
+- Recent match history if available.
+
+If existing repositories allow retrieving leaderboard position:
+
+- Display it.
+
+Do not create unnecessary ranking systems.
+
+---
+
+## Discord Style Requirements
+
+Follow the existing `/ranking` pattern:
+
+- `SlashCommandBuilder`
+- `EmbedBuilder`
+- Gold color style
+- Footer formatting
+- Timestamp
+- Error handling with existing logger patterns
+
+Handle users without statistics or history gracefully.
+
+---
+
+# 3. Architecture Rules
+
+Maintain strict:
+
+Repository → Service → Command
+
+separation.
+
+Repositories:
+- Database access only.
+
+Services:
+- Business logic only.
+
+Commands:
+- Discord interaction handling only.
+
+Do not move business logic between layers.
+
+---
+
+# 4. Absolute Restrictions
+
+Do NOT:
+
+- Add database migrations.
+- Add new derived columns.
+- Store winrate.
+- Modify EloService.
+- Modify closeMatchAtomic.
+- Modify previous phase systems.
+- Refactor unrelated code.
+
+---
+
+# 5. Verification
+
+Run:
+
+pnpm --filter @workspace/discord-bot run typecheck
+
+The task is not complete without a successful typecheck.
+
+---
+
+# 6. Final Report
+
+Provide:
+
+- Exact files created.
+- Exact files modified.
+- Reason for every modified file.
+- Summary of `/perfil` implementation.
+- Summary of repository/service changes.
+- Exact typecheck output.
+
+Explicitly confirm:
+
+- No winrate column was added.
+- No ELO logic was modified.
+- No previous phase behavior changed.
+- Repository / Service / Command separation was preserved.
+
+Proceed only with implementing and auditing this phase.

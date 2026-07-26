@@ -22,6 +22,19 @@ import {
 } from "@workspace/db";
 import { type MatchStatus, type ParticipantStatus } from "../enums";
 
+export interface PlayerMatchSummary {
+  id:            string;
+  lobbyId:       string | null;
+  temporadaId:   number | null;
+  status:        string;
+  ganadorEquipo: number | null;
+  requiresRevision: boolean;
+  createdAt:     Date;
+  finishedAt:    Date | null;
+  rol:           string | null;
+  equipo:        number;
+}
+
 export class MatchRepository {
   // ── Partidas ──────────────────────────────────────────────────────────────
 
@@ -131,6 +144,32 @@ export class MatchRepository {
         ),
       )
       .orderBy(asc(partidasTable.createdAt));
+  }
+
+  /**
+   * List recent partidas for a player, joined with their participant row.
+   * Ordered newest-first. Used by /perfil for match history context.
+   */
+  async listByPlayer(discordId: string, limit = 5): Promise<PlayerMatchSummary[]> {
+    const rows = await db
+      .select({
+        id:               partidasTable.id,
+        lobbyId:          partidasTable.lobbyId,
+        temporadaId:      partidasTable.temporadaId,
+        status:           partidasTable.status,
+        ganadorEquipo:    partidasTable.ganadorEquipo,
+        requiresRevision: partidasTable.requiresRevision,
+        createdAt:        partidasTable.createdAt,
+        finishedAt:       partidasTable.finishedAt,
+        rol:              participantesPartidaTable.rol,
+        equipo:           participantesPartidaTable.equipo,
+      })
+      .from(participantesPartidaTable)
+      .innerJoin(partidasTable, eq(participantesPartidaTable.partidaId, partidasTable.id))
+      .where(eq(participantesPartidaTable.discordId, discordId))
+      .orderBy(desc(partidasTable.createdAt))
+      .limit(limit);
+    return rows;
   }
 
   // ── ELO history ───────────────────────────────────────────────────────────
