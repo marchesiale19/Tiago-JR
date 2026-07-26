@@ -2,7 +2,7 @@
 // SeasonRepository — CRUD for `temporadas` and `estadisticas_temporada`.
 // ---------------------------------------------------------------------------
 
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sum } from "drizzle-orm";
 import { db } from "../database";
 import {
   temporadasTable,
@@ -97,6 +97,35 @@ export class SeasonRepository {
       .where(eq(estadisticasTemporadaTable.temporadaId, temporadaId))
       .orderBy(desc(estadisticasTemporadaTable.elo))
       .limit(limit);
+  }
+
+  // ── Lifetime aggregates ───────────────────────────────────────────────────
+
+  /**
+   * Sum `victorias`, `partidas_jugadas`, and `mvp_count` across ALL seasons
+   * for a player. Used by the achievement evaluator for lifetime metric checks.
+   * Returns zeroes when the player has no stats rows yet.
+   */
+  async getLifetimeStats(discordId: string): Promise<{
+    victorias:       number;
+    partidasJugadas: number;
+    mvpCount:        number;
+  }> {
+    const rows = await db
+      .select({
+        victorias:       sum(estadisticasTemporadaTable.victorias),
+        partidasJugadas: sum(estadisticasTemporadaTable.partidasJugadas),
+        mvpCount:        sum(estadisticasTemporadaTable.mvpCount),
+      })
+      .from(estadisticasTemporadaTable)
+      .where(eq(estadisticasTemporadaTable.discordId, discordId));
+
+    const row = rows[0];
+    return {
+      victorias:       Number(row?.victorias       ?? 0),
+      partidasJugadas: Number(row?.partidasJugadas ?? 0),
+      mvpCount:        Number(row?.mvpCount        ?? 0),
+    };
   }
 }
 

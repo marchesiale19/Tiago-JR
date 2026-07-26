@@ -1,0 +1,133 @@
+PHASE 6.2 IMPLEMENTATION — ACHIEVEMENT EVALUATION ENGINE
+
+READ THE EXISTING CODE FIRST.
+
+Do not modify or rewrite stable core systems from Phases 1–5.
+
+Do not touch:
+- EloService
+- closeMatchAtomic
+- existing match schemas
+- season schemas
+
+
+Task:
+Implement the achievement evaluation engine architecture.
+
+The goal is to evaluate structured achievement requirements using existing player statistics without introducing automatic event triggers yet.
+
+
+1. Evaluation Architecture:
+
+Create a dedicated evaluation layer.
+
+Preferred structure:
+
+AchievementService
+        |
+        -> AchievementEvaluator
+                |
+                -> reads player metrics
+                -> compares against achievement definitions
+                -> returns evaluation results
+
+
+2. Achievement Evaluation:
+
+Support generic structured requirements based on:
+
+- achievement.tipo
+- achievement.valor
+
+
+The evaluator must support metric types such as:
+
+- VICTORIAS
+- PARTIDAS
+- MVP
+
+
+Evaluation rule:
+
+playerMetric >= achievement.valor
+
+
+Do not hardcode individual achievements.
+
+Do not create achievement-specific conditions.
+
+
+3. Evaluation Result:
+
+Return structured evaluation data.
+
+Example:
+
+{
+  achievementId,
+  eligible,
+  currentValue,
+  requiredValue
+}
+
+
+Do not return only boolean values.
+
+
+4. Data Access:
+
+Use repositories only.
+
+Allowed:
+- SeasonRepository
+- MatchRepository
+- AchievementRepository
+
+
+No direct database queries from services.
+
+
+5. Unlock Flow:
+
+This phase only prepares eligibility evaluation.
+
+Do not implement automatic unlock triggers.
+
+Do not call AchievementRepository.unlock() from events, commands, profiles, or match flows.
+
+Unlock orchestration belongs to future phases.
+
+
+6. Unknown Types:
+
+If an unsupported achievement.tipo is found:
+
+- return unsupported state
+- do not guess behavior
+- do not fail silently
+
+
+7. Restrictions:
+
+Do not:
+- create Discord commands
+- create automatic match listeners
+- create achievement seeds/catalog entries
+- modify Phase 1-5 systems
+
+
+8. Verification:
+
+Run:
+
+pnpm --filter @workspace/discord-bot run typecheck
+
+
+9. Final Report:
+
+Provide:
+
+- created files
+- modified files
+- reason for each modification
+- exact typecheck output
