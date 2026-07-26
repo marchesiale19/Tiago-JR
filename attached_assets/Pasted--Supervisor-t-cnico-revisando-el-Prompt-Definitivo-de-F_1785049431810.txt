@@ -1,0 +1,172 @@
+🕶️☕ **Supervisor técnico revisando el Prompt Definitivo de Fase 6.5 (versión final).**
+
+Auditoría completada. El contrato quedó correctamente blindado y mantiene la línea arquitectónica de toda la Fase 6: **la interfaz consume un dominio preparado; nunca crea lógica propia**.
+
+La versión con controles de privacidad está aprobada.
+
+---
+
+# Auditoría Final — Fase 6.5
+
+## 1. Capa de servicio (`AchievementService`)
+
+✅ **Aprobado**
+
+La responsabilidad queda correctamente ubicada:
+
+```text
+/logros
+   |
+   ↓
+AchievementService
+   |
+   ├── AchievementRepository
+   ├── AchievementEvaluator
+   └── Summary estructurado
+```
+
+El comando recibe algo ya preparado:
+
+```ts
+{
+  nombre,
+  descripcion,
+  unlocked,
+  currentValue,
+  requiredValue
+}
+```
+
+y únicamente decide cómo mostrarlo.
+
+---
+
+# 2. Separación de presentación y negocio
+
+✅ **Aprobado**
+
+El comando NO debe contener:
+
+❌ consultas SQL
+❌ acceso a repositorios
+❌ comparación de valores
+❌ cálculo de progreso
+❌ reglas tipo `if (victorias >= 10)`
+
+Debe limitarse a:
+
+```text
+Usuario ejecuta /logros
+          ↓
+Servicio devuelve resumen
+          ↓
+Embed Discord
+```
+
+---
+
+# 3. Privacidad de usuarios objetivo
+
+✅ **Aprobado**
+
+La regla añadida es importante:
+
+```text
+/logros
+ ├── Sin usuario:
+ │       muestra datos propios
+ │
+ └── Con usuario:
+         muestra únicamente información pública
+```
+
+Esto deja preparado el terreno para futuros comandos como:
+
+* `/perfil`
+* `/ranking`
+* `/estadisticas`
+
+sin mezclar información privada con pública.
+
+---
+
+# 4. Embed y experiencia de usuario
+
+✅ **Aprobado**
+
+La representación propuesta es adecuada:
+
+Ejemplo:
+
+```text
+🏆 Logros de Ale
+
+✅ Primera Victoria
+Gana tu primera partida competitiva.
+Progreso: 1/1
+
+🔒 Veterano de Guerra
+Alcanza 10 victorias competitivas.
+Progreso: 6/10
+```
+
+Simple, escalable y fácil de paginar en el futuro.
+
+---
+
+# 5. Restricciones críticas
+
+✅ Todas mantenidas:
+
+No tocar:
+
+* `EloService`
+* `closeMatchAtomic`
+* `AchievementEvaluator`
+* listeners existentes
+
+No introducir:
+
+* lógica de negocio en comandos
+* acceso directo a DB
+* duplicación de evaluación
+
+---
+
+# Veredicto Oficial
+
+🟢 **Fase 6.5 — Contrato Técnico Definitivo Congelado y aprobado.**
+
+Estado final antes de ejecución:
+
+```text
+🟢 Fase 3 — Cierre atómico + ELO
+🟢 Fase 4 — Temporadas + auditoría
+🟢 Fase 5 — Perfil competitivo
+
+🟢 Fase 6.1 — Infraestructura de logros
+🟢 Fase 6.2 — Motor de evaluación
+🟢 Fase 6.3 — Catálogo inicial
+🟢 Fase 6.4 — Integración reactiva
+🟡 Fase 6.5 — Comando /logros listo para implementación
+```
+
+---
+
+El prompt está listo para enviarse al Agent. 🕶️☕
+
+Si el Agent respeta este contrato, al finalizar la Fase 6.5 tendremos un sistema de logros completo:
+
+```text
+Catálogo
+   ↓
+Evaluador
+   ↓
+Desbloqueos automáticos
+   ↓
+Persistencia
+   ↓
+Consulta pública mediante Discord
+```
+
+con la arquitectura intacta y sin deuda técnica introducida en el núcleo competitivo.
