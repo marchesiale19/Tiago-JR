@@ -18,12 +18,74 @@ import type { Logro, LogroJugador } from "@workspace/db";
 
 export type { EvaluationResult };
 
+// ── Summary type (consumed by the presentation layer) ────────────────────────
+
+export interface AchievementSummaryItem {
+  achievementId: number;
+  codigo:        string;
+  nombre:        string;
+  descripcion:   string;
+  /** Whether the player has already unlocked this achievement. */
+  unlocked:      boolean;
+  /** Player's current metric value for this achievement type. */
+  currentValue:  number;
+  /** Threshold required to unlock (achievement.valor). */
+  requiredValue: number;
+  /** True when achievement.tipo is not handled by the evaluator. */
+  unsupported:   boolean;
+}
+
 export class AchievementService {
   // ── Catalog queries ───────────────────────────────────────────────────────
 
   /** Return all active achievements from the catalog. */
   async getActiveAchievements(): Promise<Logro[]> {
     return achievementRepository.listActive();
+  }
+
+  // ── Player summary (presentation layer entry-point) ───────────────────────
+
+  /**
+   * Aggregate the full achievement picture for one player.
+   *
+   * Returns one `AchievementSummaryItem` per active achievement containing:
+   *   • catalog metadata (nombre, descripcion)
+   *   • unlock status (whether the player already has it)
+   *   • progress values (currentValue / requiredValue) from the evaluator
+   *
+   * The command layer must call only this method — no direct repo or evaluator
+   * access from commands.
+   *
+   * @param discordId Discord snowflake of the player to summarise.
+   */
+  async getPlayerAchievementSummary(discordId: string): Promise<AchievementSummaryItem[]> {
+    // Fetch catalog and unlock list in parallel
+    const [activeAchievements, unlocked] = await Promise.all([
+      achievementRepository.listActive(),
+      achievementRepository.listByPlayer(discordId),
+    ]);
+
+    if (activeAchievements.length === 0) return [];
+
+    const unlockedIds = new Set(unlocked.map((u) => u.logroId));
+
+    // Evaluate for progress values (currentValue) across the full catalog
+    const results    = await achievementEvaluator.evaluate(discordId, activeAchievements);
+    const resultMap  = new Map(results.map((r) => [r.achievementId, r]));
+
+    return activeAchievements.map((logro): AchievementSummaryItem => {
+      const result = resultMap.get(logro.id);
+      return {
+        achievementId: logro.id,
+        codigo:        logro.codigo,
+        nombre:        logro.nombre,
+        descripcion:   logro.descripcion,
+        unlocked:      unlockedIds.has(logro.id),
+        currentValue:  result?.currentValue  ?? 0,
+        requiredValue: result?.requiredValue ?? logro.valor,
+        unsupported:   result?.unsupported   === true,
+      };
+    });
   }
 
   // ── Player queries ────────────────────────────────────────────────────────

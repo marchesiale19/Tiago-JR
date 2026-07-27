@@ -1,0 +1,44 @@
+PHASE 6.5 IMPLEMENTATION — DISCORD /logros COMMAND & PRESENTATION LAYER
+
+READ THE EXISTING CODE FIRST.
+
+Do not modify or rewrite stable core systems from Phases 1–5.
+
+Do not touch:
+- EloService
+- closeMatchAtomic
+- existing match schemas
+- season schemas
+- AchievementEvaluator core logic
+
+
+Task:
+Implement the `/logros` Discord command to allow players to view their achievement catalog, unlocked milestones, and current progress, while strictly separating UI presentation from business logic and enforcing data privacy rules for target users.
+
+Requirements:
+
+1. Service Extension / Query Support (`AchievementService`):
+   - Expose a clean query method (e.g., `getPlayerAchievementSummary(discordId: string)`) that aggregates:
+     - The full active achievement catalog.
+     - The list of achievements unlocked by the player.
+     - The evaluation/progress status for each achievement (returning structured summary items with clear states, `currentValue`, `requiredValue`, and `unlocked` status).
+   - The service remains solely responsible for data coordination; no database queries inside the command layer.
+
+2. Discord Command (`/logros`):
+   - Implement the slash command `/logros` supporting an optional target user option.
+   - Privacy & Scope Rules:
+     - If no target user is provided, default to the command author.
+     - If an optional target user is provided, only expose publicly intended achievement information.
+   - The command file must be purely a presentation layer: it calls `AchievementService`, receives structured summary data, and formats it cleanly into a Discord Embed with clear visual indicators (e.g., emojis for unlocked vs locked achievements, progress counters like `5/10`).
+
+3. Restrictions:
+   - Do not query the database directly from command handlers.
+   - Do not modify core ELO or match-closing mechanisms (`EloService`, `closeMatchAtomic`).
+   - Do not alter the automated event listener or repository layers unnecessarily.
+
+4. Verification:
+   - Run:
+     pnpm --filter @workspace/discord-bot run typecheck
+
+5. Final Report:
+   - Provide created/modified files, reasons for modifications, and exact typecheck output confirming 0 errors.

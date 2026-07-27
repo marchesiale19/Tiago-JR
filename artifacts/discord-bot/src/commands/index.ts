@@ -15,6 +15,7 @@ import * as temporada from "./temporada";
 import * as ranking from "./ranking";
 import * as revision from "./revision";
 import * as perfil from "./perfil";
+import * as logros from "./logros";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -34,6 +35,7 @@ commands.set(temporada.data.name,          temporada);
 commands.set(ranking.data.name,            ranking);
 commands.set(revision.data.name,           revision);
 commands.set(perfil.data.name,             perfil);
+commands.set(logros.data.name,             logros);
 
 // help is imported piecemeal to avoid re-exporting its internal helpers
 commands.set(helpData.name, { data: helpData, execute: helpExecute });
