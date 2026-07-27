@@ -151,7 +151,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         return;
       }
 
-      await staffResolveMatch(partidaId, decision, resultado, impostorIds, interaction.user.id, notas);
+      await staffResolveMatch(partidaId, decision, resultado, impostorIds, interaction.user.id, notas, interaction.client);
 
       const resultLabel: Record<string, string> = {
         IMPOSTORES:  "🔴 Impostores ganan",
@@ -185,7 +185,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       const partidaId = interaction.options.getString("partida_id", true).trim();
       const notas     = interaction.options.getString("notas") ?? undefined;
 
-      await staffResolveMatch(partidaId, "cancel", "CANCELADA", [], interaction.user.id, notas);
+      await staffResolveMatch(partidaId, "cancel", "CANCELADA", [], interaction.user.id, notas, interaction.client);
 
       await interaction.editReply({
         embeds: [

@@ -213,6 +213,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         impostorIds,
         interaction.user.id,
         notas,
+        interaction.client,
       );
 
       if (output.requiresRevision) {

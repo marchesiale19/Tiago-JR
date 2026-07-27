@@ -18,6 +18,18 @@ import type { Logro, LogroJugador } from "@workspace/db";
 
 export type { EvaluationResult };
 
+// ── Notification-facing types ─────────────────────────────────────────────
+
+/**
+ * One newly-unlocked achievement for a single player, returned by
+ * evaluateAndUnlockForPlayers so the caller can trigger notifications
+ * without this service touching Discord.
+ */
+export interface NewlyUnlockedAchievement {
+  discordId:   string;
+  achievement: Logro;
+}
+
 // ── Summary type (consumed by the presentation layer) ────────────────────────
 
 export interface AchievementSummaryItem {
@@ -136,17 +148,26 @@ export class AchievementService {
    *     to avoid redundant DB writes.
    *   • Evaluates only the remaining (not-yet-unlocked) achievements.
    *   • Calls AchievementRepository.unlock() for every eligible result.
-   *   • Returns void — intended to be called fire-and-forget by the caller.
+   *   • Returns the list of achievements newly unlocked in this evaluation
+   *     batch so callers can trigger notifications without coupling this
+   *     service to Discord delivery.
    *
    * Responsibility boundary: this method knows nothing about matches, lobbies,
-   * or ELO. The caller is responsible for resolving which discordIds to pass.
+   * ELO, or Discord. The caller is responsible for resolving which discordIds
+   * to pass and for acting on the returned unlock list.
    */
-  async evaluateAndUnlockForPlayers(discordIds: string[]): Promise<void> {
-    if (discordIds.length === 0) return;
+  async evaluateAndUnlockForPlayers(
+    discordIds: string[],
+  ): Promise<NewlyUnlockedAchievement[]> {
+    if (discordIds.length === 0) return [];
 
     // Fetch catalog once; share across all players in this batch
     const activeAchievements = await achievementRepository.listActive();
-    if (activeAchievements.length === 0) return;
+    if (activeAchievements.length === 0) return [];
+
+    // Map for O(1) catalog lookups when building the return list
+    const catalogMap = new Map(activeAchievements.map((a) => [a.id, a]));
+    const newlyUnlocked: NewlyUnlockedAchievement[] = [];
 
     for (const discordId of discordIds) {
       // Skip achievements already unlocked by this player
@@ -158,7 +179,7 @@ export class AchievementService {
       // Evaluate eligibility
       const results = await achievementEvaluator.evaluate(discordId, pending);
 
-      // Record every newly eligible unlock
+      // Record every newly eligible unlock and collect for return
       for (const result of results) {
         if (result.eligible && !result.unsupported) {
           await achievementRepository.unlock({
@@ -166,9 +187,15 @@ export class AchievementService {
             logroId:  result.achievementId,
             metadata: null,
           });
+          const logro = catalogMap.get(result.achievementId);
+          if (logro) {
+            newlyUnlocked.push({ discordId, achievement: logro });
+          }
         }
       }
     }
+
+    return newlyUnlocked;
   }
 
   // ── Unlock (single-record entry-point) ────────────────────────────────────

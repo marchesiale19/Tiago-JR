@@ -45,6 +45,7 @@ import { calculateEloChanges, DEFAULT_ELO, type MatchResultado, type PlayerSlot 
 import { LobbyStatus, AuditModulo, EloMotivo } from "../database/enums";
 import { logger } from "../lib/logger";
 import { achievementService } from "./AchievementService";
+import { achievementNotificationService } from "./AchievementNotificationService";
 
 // ── Staff Resolution (requires_revision → CLOSED / CANCELLED) ─────────────
 
@@ -67,12 +68,13 @@ export type StaffDecision = "confirm" | "modify" | "cancel";
  * A complete audit entry is written before closeMatchAtomic is invoked.
  */
 export async function staffResolveMatch(
-  partidaId: string,
-  decision:  StaffDecision,
-  resultado: MatchResultado,
+  partidaId:   string,
+  decision:    StaffDecision,
+  resultado:   MatchResultado,
   impostorIds: string[],
-  actorId:   string,
-  notas?:    string,
+  actorId:     string,
+  notas?:      string,
+  client?:     Client,
 ): Promise<void> {
   // 1. Load and validate partida
   const partida = await matchRepository.findById(partidaId);
@@ -135,13 +137,17 @@ export async function staffResolveMatch(
     "Staff resolved requires_revision match",
   );
 
-  // 6. Fire-and-forget achievement evaluation — isolated from match closure.
-  //    Any failure here is caught and logged; it never affects the result above.
+  // 6. Fire-and-forget achievement evaluation + notification — isolated from
+  //    match closure. Any failure is caught and logged; it never reverts the
+  //    ELO or stat changes committed above.
   void (async () => {
     try {
-      const participants = await matchRepository.listParticipants(partidaId);
-      const discordIds   = participants.map((p) => p.discordId);
-      await achievementService.evaluateAndUnlockForPlayers(discordIds);
+      const participants  = await matchRepository.listParticipants(partidaId);
+      const discordIds    = participants.map((p) => p.discordId);
+      const newlyUnlocked = await achievementService.evaluateAndUnlockForPlayers(discordIds);
+      if (client && newlyUnlocked.length > 0) {
+        await achievementNotificationService.notifyPlayers(client, newlyUnlocked);
+      }
     } catch (err) {
       logger.warn({ err, partidaId }, "Achievement evaluation failed after staff resolve — continuing");
     }
@@ -257,6 +263,7 @@ export async function submitResult(
   impostorIds: string[],
   actorId:     string,
   notas?:      string,
+  client?:     Client,
 ): Promise<SubmitResultOutput> {
   // 1. Find the associated partida
   const partida = await matchRepository.findByLobbyId(lobbyId);
@@ -314,13 +321,17 @@ export async function submitResult(
   // 6. Auto-close atomically
   await closeMatchAtomic(lobbyId, partida.id, resultado, impostorIds, actorId);
 
-  // 7. Fire-and-forget achievement evaluation — isolated from match closure.
-  //    Any failure here is caught and logged; it never affects the result above.
+  // 7. Fire-and-forget achievement evaluation + notification — isolated from
+  //    match closure. Any failure is caught and logged; it never reverts the
+  //    ELO or stat changes committed above.
   void (async () => {
     try {
-      const participants = await matchRepository.listParticipants(partida.id);
-      const discordIds   = participants.map((p) => p.discordId);
-      await achievementService.evaluateAndUnlockForPlayers(discordIds);
+      const participants  = await matchRepository.listParticipants(partida.id);
+      const discordIds    = participants.map((p) => p.discordId);
+      const newlyUnlocked = await achievementService.evaluateAndUnlockForPlayers(discordIds);
+      if (client && newlyUnlocked.length > 0) {
+        await achievementNotificationService.notifyPlayers(client, newlyUnlocked);
+      }
     } catch (err) {
       logger.warn({ err, matchId: partida.id }, "Achievement evaluation failed after match close — continuing");
     }
