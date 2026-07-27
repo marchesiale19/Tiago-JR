@@ -1,78 +1,69 @@
 // ---------------------------------------------------------------------------
 // AchievementEvaluator — Stateless evaluation layer.
 //
-// Architecture:
+// Architecture (Phase 7.4):
 //   AchievementService
 //     └─> AchievementEvaluator
-//           ├─ reads player metrics via SeasonRepository / MatchRepository
-//           ├─ compares against achievement definitions (tipo + valor)
-//           └─ returns structured EvaluationResult[]
+//           ├─> AchievementContextBuilder   (single async context build)
+//           │     ├─> SeasonRepository      (lifetime stats — legacy path)
+//           │     └─> MatchRepository       (peakElo, winStreak — advanced)
+//           └─> AchievementConditionRegistry (tipo → handler dispatch)
 //
-// Rules:
-//   • No DB calls directly — only through the three permitted repositories.
-//   • No achievement-specific hardcoding — driven purely by `tipo` + `valor`.
-//   • Unknown `tipo` values yield { unsupported: true } — never silent failures.
-//   • Does NOT call AchievementRepository.unlock() — unlock belongs to future phases.
+// Phase 7.4 changes vs. Phase 6:
+//   • Internal `fetchMetrics` replaced by `AchievementContextBuilder.build()`.
+//     The context is fetched once per `evaluate()` call (same number of round
+//     trips for legacy tipos; new data is fetched in parallel via allSettled).
+//   • Hard-coded switch replaced by `CONDITION_REGISTRY` lookup.
+//   • Per-handler try/catch provides fault isolation: an advanced condition
+//     failure marks only that achievement as unsupported; other achievements
+//     in the same batch continue unaffected.
+//   • Structured log emitted on any condition handler error (7.4.7).
+//
+// Backward compatibility guarantee:
+//   • Public API (evaluate signature, EvaluationResult shape) is unchanged.
+//   • Legacy tipos VICTORIAS / PARTIDAS / MVP produce identical results.
+//   • Unknown tipos still return { unsupported: true, eligible: false }.
+//   • Failure of advanced metric fetches never blocks legacy evaluation.
 // ---------------------------------------------------------------------------
 
-import { seasonRepository } from "../database/repositories/SeasonRepository";
 import type { Logro } from "@workspace/db";
+import { logger }     from "../lib/logger";
+import { achievementContextBuilder } from "./AchievementContextBuilder";
+import { CONDITION_REGISTRY }        from "./AchievementConditionRegistry";
 
-// ── Result type ──────────────────────────────────────────────────────────────
+// ── Result type (public, re-exported by AchievementService) ─────────────────
 
 export interface EvaluationResult {
   /** PK of the `logros` row that was evaluated. */
   achievementId: number;
-  /** true when playerMetric >= achievement.valor */
+  /** true when the condition is satisfied */
   eligible:      boolean;
   /** The player's current metric value for this achievement type. */
   currentValue:  number;
   /** The threshold required to unlock (achievement.valor). */
   requiredValue: number;
   /**
-   * Set to true when achievement.tipo is not recognised by the evaluator.
+   * Set to true when the achievement tipo has no registered handler, or when
+   * a handler threw an error during evaluation.
    * eligible will always be false in this case.
    */
   unsupported?:  true;
 }
 
-// ── Supported metric types ───────────────────────────────────────────────────
-
-const SUPPORTED_TIPOS = ["VICTORIAS", "PARTIDAS", "MVP"] as const;
-type SupportedTipo = (typeof SUPPORTED_TIPOS)[number];
-
-function isSupportedTipo(tipo: string): tipo is SupportedTipo {
-  return (SUPPORTED_TIPOS as readonly string[]).includes(tipo);
-}
-
-// ── Player metric snapshot (fetched once per evaluation call) ─────────────────
-
-interface PlayerMetrics {
-  victorias:       number;
-  partidasJugadas: number;
-  mvpCount:        number;
-}
-
-async function fetchMetrics(discordId: string): Promise<PlayerMetrics> {
-  return seasonRepository.getLifetimeStats(discordId);
-}
-
-function resolveMetric(metrics: PlayerMetrics, tipo: SupportedTipo): number {
-  switch (tipo) {
-    case "VICTORIAS": return metrics.victorias;
-    case "PARTIDAS":  return metrics.partidasJugadas;
-    case "MVP":       return metrics.mvpCount;
-  }
-}
-
-// ── Public API ───────────────────────────────────────────────────────────────
+// ── Evaluator ────────────────────────────────────────────────────────────────
 
 export class AchievementEvaluator {
   /**
    * Evaluate a list of achievements for one player.
    *
-   * Fetches the player's lifetime metrics once, then evaluates every
-   * achievement against the generic rule: playerMetric >= achievement.valor.
+   * Builds a full AchievementContext once via AchievementContextBuilder, then
+   * dispatches each achievement to its registered condition handler.
+   *
+   * Fault isolation (7.4.6):
+   *   • Advanced metric failures in the context builder default to 0 and are
+   *     logged — they never prevent legacy evaluation.
+   *   • Per-handler exceptions are caught individually; the affected
+   *     achievement is marked unsupported while all others proceed normally.
    *
    * @param discordId   Discord snowflake of the player to evaluate.
    * @param achievements List of active `Logro` rows from the catalog.
@@ -84,10 +75,14 @@ export class AchievementEvaluator {
   ): Promise<EvaluationResult[]> {
     if (achievements.length === 0) return [];
 
-    const metrics = await fetchMetrics(discordId);
+    // Build context once; advanced metric failures are handled inside the builder.
+    const context = await achievementContextBuilder.build(discordId);
 
     return achievements.map((logro): EvaluationResult => {
-      if (!isSupportedTipo(logro.tipo)) {
+      const handler = CONDITION_REGISTRY.get(logro.tipo);
+
+      // Unknown tipo — preserve legacy unsupported behaviour
+      if (!handler) {
         return {
           achievementId: logro.id,
           eligible:      false,
@@ -97,14 +92,28 @@ export class AchievementEvaluator {
         };
       }
 
-      const currentValue = resolveMetric(metrics, logro.tipo);
-
-      return {
-        achievementId: logro.id,
-        eligible:      currentValue >= logro.valor,
-        currentValue,
-        requiredValue: logro.valor,
-      };
+      // Per-handler fault isolation — satisfies 7.4.6 & 7.4.7
+      try {
+        return handler(logro, context);
+      } catch (err) {
+        // Structured log: achievement id, condition type, player id, error (7.4.7)
+        logger.warn(
+          {
+            err,
+            achievementId: logro.id,
+            conditionType: logro.tipo,
+            discordId,
+          },
+          "AchievementEvaluator: condition handler threw — marking achievement unsupported",
+        );
+        return {
+          achievementId: logro.id,
+          eligible:      false,
+          currentValue:  0,
+          requiredValue: logro.valor,
+          unsupported:   true,
+        };
+      }
     });
   }
 }

@@ -1,0 +1,65 @@
+PHASE 7.4 IMPLEMENTATION — ADVANCED ACHIEVEMENT RULES & CONDITIONS
+
+READ THE EXISTING CODE FIRST.
+
+Do not modify or rewrite stable core systems from Phases 1–5 or critical services (EloService, closeMatchAtomic, AchievementRewardService, AchievementNotificationService).
+
+Task:
+Evolve the achievement evaluation engine to support advanced conditions (such as win streaks, ELO peak milestones, and event-driven criteria) by building an extensible condition architecture without hardcoding rules, breaking backward compatibility, contaminating the core match closure flow, mixing evaluation logic with direct persistence, or risking existing achievement evaluations.
+
+Requirements:
+
+1. Extensible Condition Architecture & Backward Compatibility (7.4.1):
+   - Refactor or abstract evaluation rules away from rigid, hardcoded statements inside `AchievementEvaluator`.
+   - Introduce a structured condition representation or modular evaluator path (e.g., condition types, targets, and comparators).
+   - **Backward Compatibility Requirement:** Existing achievement evaluation behavior must remain unchanged. New condition architecture must support incremental migration, and no existing achievement definitions should require immediate rewriting.
+
+2. Context Preparation & Performance (7.4.2):
+   - Prevent `AchievementEvaluator` from executing multiple direct database queries per check.
+   - Introduce or leverage contextual data builders (e.g., `AchievementContextBuilder` aggregating stats, peaks, streaks, and seasonal info) so the evaluator receives prepared context.
+
+3. Advanced Condition Scope (7.4.3 & 7.4.4):
+   - **Win Streaks:** Support streak-based milestone evaluations utilizing historical match context via prepared builders.
+   - **ELO Thresholds / Milestones:** Evaluate lifetime or peak milestones (e.g., `peakEloReached` / "reached X ELO for the first time") rather than volatile current-state checks.
+   - **Triggers:** Preserve asynchronous, non-blocking evaluation isolation triggered on match completion.
+
+4. Architectural Boundaries, Isolation & Restrictions:
+   - Zero modifications to:
+     - EloService
+     - closeMatchAtomic
+     - AchievementRewardService
+     - AchievementNotificationService
+   - **Persistence Isolation:** New condition implementations must be isolated from persistence logic. Evaluators must decide rule compliance but must not directly mutate achievement unlock state (delegating persistence exclusively to `AchievementService`).
+   - Every new evaluator path must preserve asynchronous isolation and clean separation of concerns.
+
+5. Migration Safety (7.4.5):
+   - New advanced conditions must be opt-in.
+   - Existing achievement definitions without advanced condition metadata must continue using the legacy evaluation path.
+   - No database migration should invalidate existing achievement records or player history.
+
+6. Rollback Safety & Fault Isolation (7.4.6):
+   - If advanced condition evaluation fails for any reason, the legacy evaluation path and overall check flow must remain available and unaffected.
+   - Advanced condition errors must be caught gracefully and must never prevent existing achievements from being evaluated or disrupt the match resolution lifecycle.
+
+7. Observability Requirement (7.4.7):
+   - Advanced evaluator failures must provide structured logs identifying:
+     - achievement identifier
+     - condition type
+     - player identifier
+     - error context
+   - Logging must never expose sensitive data.
+
+8. Testing Safety (7.4.8):
+   - Existing achievement evaluation tests must remain passing.
+   - Advanced condition tests must not replace legacy evaluation coverage.
+
+9. Change Scope Control (7.4.9):
+   - Any modification outside achievement evaluation boundaries must be strictly justified in the final report.
+   - Unrelated refactors are forbidden during this phase.
+
+10. Verification:
+    - Run:
+      pnpm --filter @workspace/discord-bot run typecheck
+
+11. Final Report:
+    - Provide created/modified files, architectural changes for extensibility, backward compatibility & migration strategy, reasons for modifications, observability implementation, test coverage validation, scope control confirmation, and exact typecheck output confirming 0 errors.

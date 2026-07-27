@@ -4,7 +4,7 @@
 // No ELO calculation logic lives here — only persistence.
 // ---------------------------------------------------------------------------
 
-import { eq, and, desc, asc, count, sql } from "drizzle-orm";
+import { eq, and, desc, asc, count, sql, inArray } from "drizzle-orm";
 import { db } from "../database";
 import {
   partidasTable,
@@ -221,6 +221,57 @@ export class MatchRepository {
     return rows
       .map((r) => ({ discordId: r.discordId, votes: Number(r.votes) }))
       .sort((a, b) => b.votes - a.votes);
+  }
+
+  // ── Achievement context queries ───────────────────────────────────────────
+
+  /**
+   * Return the all-time peak ELO ever recorded for a player in `historial_elo`.
+   * Used by AchievementContextBuilder for ELO_PEAK condition evaluation.
+   * Returns 0 when the player has no ELO history.
+   */
+  async getPeakElo(discordId: string): Promise<number> {
+    const rows = await db
+      .select({ peak: sql<number>`MAX(${historialEloTable.eloNuevo})` })
+      .from(historialEloTable)
+      .where(eq(historialEloTable.discordId, discordId));
+    return Number(rows[0]?.peak ?? 0);
+  }
+
+  /**
+   * Return the player's current consecutive-victory win streak.
+   *
+   * Queries the most recent competitive ELO events (victory / defeat /
+   * abandon / expulsion) ordered newest-first and counts the leading
+   * unbroken run of 'victory' entries. Administrative events (staff_reversion,
+   * season_reset) are excluded so they do not disrupt a player's streak.
+   *
+   * Returns 0 when no history exists or when the streak is broken immediately.
+   */
+  async getCurrentWinStreak(discordId: string): Promise<number> {
+    const competitiveMotivos = ["victory", "defeat", "abandon", "expulsion"] as const;
+
+    const rows = await db
+      .select({ motivo: historialEloTable.motivo })
+      .from(historialEloTable)
+      .where(
+        and(
+          eq(historialEloTable.discordId, discordId),
+          inArray(historialEloTable.motivo, [...competitiveMotivos]),
+        ),
+      )
+      .orderBy(desc(historialEloTable.createdAt))
+      .limit(100);
+
+    let streak = 0;
+    for (const row of rows) {
+      if (row.motivo === "victory") {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
   }
 }
 
