@@ -103,5 +103,7 @@ export const ConfigKey = {
   SupervisorTimeoutSeconds: "SUPERVISOR_TIMEOUT_SECONDS",
   CategoryId:               "CATEGORY_ID",
   SupervisorRoleId:         "SUPERVISOR_ROLE_ID",
+  SupervisionChannelId:     "SUPERVISION_CHANNEL_ID",
+  RankedVcCategoryId:       "RANKED_VC_CATEGORY_ID",
 } as const;
 export type ConfigKey = (typeof ConfigKey)[keyof typeof ConfigKey];

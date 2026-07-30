@@ -1,0 +1,1159 @@
+# REPLIT AGENT TASK
+
+## Ranked System Refactor (Full Workflow Replacement)
+
+
+
+You are working on an EXISTING Discord.js + TypeScript competitive bot.
+
+
+
+This project already has:
+
+
+
+- EloService
+
+- Match history
+
+- Achievements
+
+- Rankings
+
+- Profiles
+
+- Matchmaking
+
+- Statistics
+
+- Competitive core
+
+
+
+These systems are already complete.
+
+
+
+DO NOT rewrite them.
+
+
+
+DO NOT duplicate them.
+
+
+
+DO NOT replace them.
+
+
+
+Reuse the existing competitive logic whenever possible.
+
+
+
+The only objective is replacing the workflow surrounding ranked matches.
+
+
+
+--------------------------------------------------
+
+GENERAL RULES
+
+--------------------------------------------------
+
+
+
+- Reuse existing services whenever possible.
+
+- Delete obsolete code instead of leaving dead code.
+
+- Keep backwards compatibility with the competitive core.
+
+- Do not touch Elo calculations.
+
+- Do not touch ranking calculations.
+
+- Do not touch achievements.
+
+- Do not touch statistics.
+
+- Do not touch player history.
+
+- Only modify the orchestration around matches.
+
+
+
+--------------------------------------------------
+
+REMOVE OBSOLETE COMMANDS
+
+--------------------------------------------------
+
+
+
+Delete every command that belongs to the old workflow.
+
+
+
+Examples include:
+
+
+
+- old lobby commands
+
+- old review commands
+
+- old season administration
+
+- obsolete queue commands
+
+
+
+After this refactor, ONLY keep commands required by the new ranked workflow.
+
+
+
+--------------------------------------------------
+
+MATCH SEARCH
+
+--------------------------------------------------
+
+
+
+Rename
+
+
+
+/cola unirse
+
+
+
+to
+
+
+
+/buscar partida
+
+
+
+Available for every player.
+
+
+
+The command can ONLY be executed while the player is connected to one of these voice channels:
+
+
+
+「🎙」among us 1
+
+「🎙」among us 2
+
+「🎙」among us 3
+
+...
+
+
+
+If not connected:
+
+
+
+Return an ephemeral error.
+
+
+
+--------------------------------------------------
+
+MATCHMAKING
+
+--------------------------------------------------
+
+
+
+Keep the existing matchmaking algorithm.
+
+
+
+Keep the existing ELO balancing.
+
+
+
+Never modify the balancing logic.
+
+
+
+The queue must always search for exactly:
+
+
+
+14 players.
+
+
+
+--------------------------------------------------
+
+PRIVATE RANKED VC
+
+--------------------------------------------------
+
+
+
+After matchmaking:
+
+
+
+Create (only if necessary):
+
+
+
+「🎙」ranked 1
+
+
+
+「🎙」ranked 2
+
+
+
+...
+
+
+
+Each VC:
+
+
+
+Maximum users: 15
+
+
+
+If an unused Ranked VC already exists:
+
+
+
+Reuse it.
+
+
+
+Never delete Ranked voice channels.
+
+
+
+--------------------------------------------------
+
+AUTOMATIC MOVE
+
+--------------------------------------------------
+
+
+
+Immediately move the 14 matched players into the Ranked VC.
+
+
+
+No confirmation.
+
+
+
+No buttons.
+
+
+
+No acceptance.
+
+
+
+Fully automatic.
+
+
+
+--------------------------------------------------
+
+SUPERVISOR REQUEST
+
+--------------------------------------------------
+
+
+
+Immediately send an embed requesting supervision.
+
+
+
+Mention these roles:
+
+
+
+- Supervisor
+
+- Trial Helper
+
+- Helper
+
+- Moderador [PB]
+
+- Moderador
+
+
+
+This MUST be a real role mention (ping).
+
+
+
+The embed contains:
+
+
+
+Green button
+
+
+
+"Accept Supervision"
+
+
+
+The first eligible user pressing the button becomes the supervisor.
+
+
+
+--------------------------------------------------
+
+SUPERVISOR
+
+--------------------------------------------------
+
+
+
+The supervisor is ALSO a player.
+
+
+
+Final lobby size:
+
+
+
+14 queued players
+
+
+
++
+
+
+
+1 supervisor
+
+
+
+=
+
+
+
+15 total players
+
+
+
+The supervisor:
+
+
+
+- gains ELO
+
+- loses ELO
+
+- appears in statistics
+
+- receives the questionnaire
+
+- counts as a normal participant
+
+
+
+--------------------------------------------------
+
+MATCH STATUS
+
+--------------------------------------------------
+
+
+
+Create:
+
+
+
+/partida estado
+
+
+
+Available ONLY to registered players of that match.
+
+
+
+Display:
+
+
+
+Supervisor
+
+
+
+Voice Channel
+
+
+
+Match Code
+
+
+
+Map
+
+
+
+Current Status
+
+
+
+Player Count
+
+
+
+Player List
+
+
+
+--------------------------------------------------
+
+REGISTER MATCH
+
+--------------------------------------------------
+
+
+
+Supervisor command:
+
+
+
+/registrar partida
+
+
+
+Required fields:
+
+
+
+- Match Code
+
+- Map
+
+
+
+Save both values.
+
+
+
+--------------------------------------------------
+
+VOICE COMMANDS
+
+--------------------------------------------------
+
+
+
+Supervisor only.
+
+
+
+Commands:
+
+
+
+/mute sala
+
+
+
+/unmute sala
+
+
+
+Mute/unmute every member currently inside that Ranked VC.
+
+
+
+Only affect that match.
+
+
+
+--------------------------------------------------
+
+FINISH MATCH
+
+--------------------------------------------------
+
+
+
+Supervisor command:
+
+
+
+/finalizar partida
+
+
+
+Fields:
+
+
+
+Winner
+
+
+
+(Crewmates / Impostors)
+
+
+
+Optional Leavers
+
+
+
+DO NOT publish results yet.
+
+
+
+--------------------------------------------------
+
+PLAYER QUESTIONNAIRE
+
+--------------------------------------------------
+
+
+
+Every registered participant receives a DM.
+
+
+
+Including:
+
+
+
+Supervisor.
+
+
+
+The questionnaire expires after:
+
+
+
+15 minutes.
+
+
+
+Questions:
+
+
+
+Among Us ID
+
+
+
+Role received
+
+
+
+Examples:
+
+
+
+Crewmate
+
+
+
+Engineer
+
+
+
+Scientist
+
+
+
+Guardian Angel
+
+
+
+Shapeshifter
+
+
+
+Impostor
+
+
+
+etc.
+
+
+
+MVP Vote
+
+
+
+The DM MUST clearly state:
+
+
+
+"If you do not answer within 15 minutes, you will automatically be considered as having abandoned the match."
+
+
+
+--------------------------------------------------
+
+LEAVER DETECTION
+
+--------------------------------------------------
+
+
+
+Any player that does not answer the questionnaire within 15 minutes:
+
+
+
+Automatically becomes a Leaver.
+
+
+
+--------------------------------------------------
+
+MVP
+
+--------------------------------------------------
+
+
+
+Wait until:
+
+
+
+- every player answered
+
+
+
+OR
+
+
+
+- questionnaires expired
+
+
+
+Then calculate MVP.
+
+
+
+Tie:
+
+
+
+Every tied player becomes MVP.
+
+
+
+Split MVP reward equally.
+
+
+
+Reuse the current reward system whenever possible.
+
+
+
+--------------------------------------------------
+
+PUBLIC RESULTS
+
+--------------------------------------------------
+
+
+
+Only after questionnaires finish.
+
+
+
+Publish ONE public embed containing:
+
+
+
+Winner
+
+
+
+Map
+
+
+
+Match Code
+
+
+
+Supervisor
+
+
+
+Players
+
+
+
+Roles received
+
+
+
+MVP(s)
+
+
+
+Leavers
+
+
+
+Nothing is published before this moment.
+
+
+
+--------------------------------------------------
+
+PLAY AGAIN
+
+--------------------------------------------------
+
+
+
+After results:
+
+
+
+Send another embed.
+
+
+
+Buttons:
+
+
+
+Play Again
+
+
+
+Leave
+
+
+
+Players pressing Leave:
+
+
+
+Automatically disconnected from the Ranked VC.
+
+
+
+Players pressing Play Again:
+
+
+
+Remain connected.
+
+
+
+--------------------------------------------------
+
+SUPERVISOR REPLACEMENT
+
+--------------------------------------------------
+
+
+
+Command:
+
+
+
+/supervisor inactivo
+
+
+
+The bot sends another embed.
+
+
+
+Mention:
+
+
+
+- Supervisor
+
+- Trial Helper
+
+- Helper
+
+- Moderador [PB]
+
+- Moderador
+
+
+
+Green button:
+
+
+
+Accept Supervision
+
+
+
+First eligible user becomes the new supervisor.
+
+
+
+The previous supervisor is released.
+
+
+
+The match continues normally.
+
+
+
+--------------------------------------------------
+
+COMPETITIVE CORE
+
+--------------------------------------------------
+
+
+
+Do NOT modify:
+
+
+
+- EloService
+
+- rankings
+
+- achievements
+
+- history
+
+- player profiles
+
+- statistics
+
+- balancing algorithm
+
+
+
+Only integrate this new workflow around the existing competitive core.
+
+
+
+--------------------------------------------------
+
+CLEANUP
+
+--------------------------------------------------
+
+
+
+After finishing:
+
+
+
+- Remove obsolete commands.
+
+- Remove dead services.
+
+- Remove unused handlers.
+
+- Remove unreachable code.
+
+- Remove obsolete slash commands.
+
+
+
+The codebase should end cleaner than before.
+
+
+
+--------------------------------------------------
+
+FINAL FLOW
+
+--------------------------------------------------
+
+
+
+Player joins public Among Us VC
+
+
+
+↓
+
+
+
+Player executes /buscar partida
+
+
+
+↓
+
+
+
+Queue reaches 14 balanced players
+
+
+
+↓
+
+
+
+Bot creates/reuses Ranked VC
+
+
+
+↓
+
+
+
+Bot moves players automatically
+
+
+
+↓
+
+
+
+Bot pings staff roles
+
+
+
+↓
+
+
+
+First eligible staff accepts supervision
+
+
+
+↓
+
+
+
+Supervisor joins as player #15
+
+
+
+↓
+
+
+
+Supervisor executes /registrar partida
+
+
+
+↓
+
+
+
+Match is played
+
+
+
+↓
+
+
+
+Supervisor executes /finalizar partida
+
+
+
+↓
+
+
+
+Bot sends DM questionnaire to all 15 players
+
+
+
+↓
+
+
+
+Bot waits until all forms are answered or expire
+
+
+
+↓
+
+
+
+Bot calculates MVP
+
+
+
+↓
+
+
+
+Bot publishes match results
+
+
+
+↓
+
+
+
+Bot sends Play Again / Leave buttons
+
+
+
+↓
+
+
+
+Leaving players are automatically disconnected
+
+
+
+--------------------------------------------------
+
+IMPORTANT
+
+--------------------------------------------------
+
+
+
+Do not create a parallel ranked system.
+
+
+
+Refactor the existing implementation.
+
+
+
+Reuse existing services.
+
+
+
+Reuse existing ELO logic.
+
+
+
+Reuse existing matchmaking.
+
+
+
+Delete obsolete code.
+
+
+
+Keep the architecture clean and consistent.
+
+
+
+--------------------------------------------------
+
+IMPLEMENTATION CONSTRAINTS
+
+--------------------------------------------------
+
+
+
+Before modifying any file:
+
+
+
+- Inspect the existing competitive architecture.
+
+- Identify reusable services.
+
+- Reuse current matchmaking, ELO, statistics, achievements and history systems.
+
+- Avoid creating duplicate implementations.
+
+
+
+During the refactor:
+
+
+
+- Prefer adapting existing classes over creating new ones.
+
+- Remove obsolete implementations only after confirming they are no longer referenced.
+
+- Keep dependency injection and project architecture consistent with the existing codebase.
+
+- Preserve compile-time type safety.
+
+- Preserve existing persistence models whenever possible.
+
+
+
+After implementation:
+
+
+
+- Update slash command registration.
+
+- Remove obsolete command registrations.
+
+- Remove dead imports.
+
+- Remove unused services.
+
+- Remove obsolete events.
+
+- Remove obsolete handlers.
+
+
+
+Finally:
+
+
+
+- Run the TypeScript typecheck.
+
+- Resolve every compilation error.
+
+- Ensure the project builds successfully.
+
+- Ensure no orphaned files from the old workflow remain.
+
+
+
+The final result must be a single coherent ranked system, not two systems coexisting.
+
+
+
+--------------------------------------------------
+
+DO NOT CHANGE BUSINESS LOGIC
+
+--------------------------------------------------
+
+
+
+The competitive core is considered production-ready.
+
+
+
+Do NOT redesign or replace:
+
+
+
+- EloService
+
+- Match balancing
+
+- Ranking calculations
+
+- Achievement calculations
+
+- Player statistics
+
+- Player history
+
+
+
+Only adapt the orchestration layer around ranked matches.
+
+
+
+If an existing component already solves part of the requested functionality, reuse it instead of creating a new one.

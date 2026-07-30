@@ -8,10 +8,12 @@ import { ConfigKey } from "../database/enums";
 import { logger } from "../lib/logger";
 
 const DEFAULTS: Array<{ clave: string; valor: string; descripcion: string }> = [
-  { clave: ConfigKey.MaxPlayers,               valor: "10",  descripcion: "Número de jugadores requeridos para llenar la cola" },
-  { clave: ConfigKey.SupervisorTimeoutSeconds, valor: "120", descripcion: "Segundos que tiene un supervisor para aceptar antes del rollover" },
-  { clave: ConfigKey.CategoryId,               valor: "",    descripcion: "ID de la categoría de Discord donde se crean los canales de partida" },
-  { clave: ConfigKey.SupervisorRoleId,         valor: "",    descripcion: "ID del rol de Discord que identifica supervisores" },
+  { clave: ConfigKey.MaxPlayers,               valor: "14",  descripcion: "Número de jugadores requeridos para llenar la cola (siempre 14)" },
+  { clave: ConfigKey.SupervisorTimeoutSeconds, valor: "120", descripcion: "Segundos de timeout para supervisión (legacy)" },
+  { clave: ConfigKey.CategoryId,               valor: "",    descripcion: "ID de la categoría de Discord (legacy)" },
+  { clave: ConfigKey.SupervisorRoleId,         valor: "",    descripcion: "ID del rol de supervisor (legacy)" },
+  { clave: ConfigKey.SupervisionChannelId,     valor: "",    descripcion: "ID del canal donde se publican solicitudes de supervisión y resultados" },
+  { clave: ConfigKey.RankedVcCategoryId,       valor: "",    descripcion: "ID de la categoría donde se crean los canales de voz ranked" },
 ];
 
 /** In-memory cache: reloaded lazily after each write. */

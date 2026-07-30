@@ -1,0 +1,345 @@
+You are performing a full reverse-engineering and technical documentation audit of this repository.
+
+Your task is NOT to summarize the project.
+
+Your task is to generate the complete technical documentation of the Competitive System exactly as implemented in the source code.
+
+This documentation will become the project's official technical reference and QA manual.
+
+========================
+GENERAL RULES
+========================
+
+• Inspect the ENTIRE repository.
+• Read every relevant file.
+• Follow every import and every function call.
+• Trace execution paths across the entire project.
+• Do NOT assume behavior.
+• Do NOT invent features.
+• If something is partially implemented, explicitly state it.
+• If something is missing, explicitly state it.
+• Every statement must be supported by the actual code.
+
+========================
+FILES TO ANALYZE
+========================
+
+Analyze every file related directly or indirectly to the competitive ecosystem, including but not limited to:
+
+- Core
+- Competitive
+- Elo
+- Matchmaking
+- Matches
+- Seasons
+- Rankings
+- Player Profiles
+- Rewards
+- Achievements
+- Statistics
+- Repositories
+- Commands
+- Discord interactions
+- Event handlers
+- Services
+- Platform
+- APIs
+- Governance
+- Extensions
+- Integrations
+- Telemetry
+
+Continue recursively until every dependency relevant to the competitive system has been analyzed.
+
+========================
+FOR EVERY CLASS
+========================
+
+Explain:
+
+- Purpose
+- Responsibilities
+- Constructor dependencies
+- Public methods
+- Internal workflow
+- Data flow
+- Inputs
+- Outputs
+- Side effects
+- Validation logic
+- Error handling
+- Related entities
+- Related repositories
+- Related services
+- Related events
+- Who calls this class
+- Which classes it calls
+
+========================
+COMPLETE EXECUTION FLOW
+========================
+
+Document every step of a competitive match.
+
+Start from the very first Discord interaction.
+
+Example:
+
+Player executes a command
+
+↓
+
+Discord Interaction
+
+↓
+
+Command
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+Validation
+
+↓
+
+Matchmaking
+
+↓
+
+Match creation
+
+↓
+
+Acceptance
+
+↓
+
+Game
+
+↓
+
+Result submission
+
+↓
+
+Validation
+
+↓
+
+Atomic match closure
+
+↓
+
+ELO calculation
+
+↓
+
+Season update
+
+↓
+
+Achievements
+
+↓
+
+Rewards
+
+↓
+
+Statistics
+
+↓
+
+Leaderboard
+
+↓
+
+Audit
+
+↓
+
+Notifications
+
+↓
+
+Persistence
+
+↓
+
+API updates
+
+↓
+
+Completion
+
+Do not skip any intermediate step.
+
+========================
+BUSINESS RULES
+========================
+
+Document every business rule found in the code.
+
+Examples:
+
+- ELO calculation
+- Match cancellation
+- Queue restrictions
+- Match validation
+- MVP rules
+- Reward rules
+- Achievement rules
+- Ranking rules
+- Season rules
+- Permission rules
+- Anti-abuse protections
+- Atomicity guarantees
+
+========================
+STATE MACHINES
+========================
+
+Document every state transition.
+
+Examples:
+
+Queue
+
+Idle
+Searching
+Matched
+Accepted
+Cancelled
+
+Match
+
+Created
+Waiting
+Running
+Finished
+Closed
+Archived
+
+Include every valid transition.
+
+========================
+ASCII DIAGRAMS
+========================
+
+Generate architecture diagrams for:
+
+Overall architecture
+
+Service interactions
+
+Repository interactions
+
+Match lifecycle
+
+Competitive lifecycle
+
+Platform interaction
+
+API interaction
+
+Governance interaction
+
+========================
+QA MANUAL
+========================
+
+Generate a COMPLETE manual for manually testing the system.
+
+Do NOT stop at a few tests.
+
+Generate every meaningful test case you can derive from the implementation.
+
+For every test include:
+
+- Test ID
+- Objective
+- Preconditions
+- Steps
+- Expected result
+- Services involved
+- Files involved
+- Failure conditions
+
+Include:
+
+Happy paths
+
+Boundary cases
+
+Invalid inputs
+
+Concurrency
+
+Race conditions
+
+Duplicate requests
+
+Queue edge cases
+
+Season edge cases
+
+Leaderboard updates
+
+Achievement unlocks
+
+Reward granting
+
+Permission validation
+
+Repository consistency
+
+Rollback behavior
+
+Atomic operations
+
+Error recovery
+
+API behavior
+
+Platform behavior
+
+Plugin behavior (if applicable)
+
+Governance behavior (if applicable)
+
+========================
+OUTPUT
+========================
+
+Produce a single Markdown document named:
+
+SYSTEM_COMPETITIVE_DOCUMENTATION.md
+
+Organize it professionally with:
+
+- Table of Contents
+- Numbered sections
+- Cross references
+- ASCII diagrams
+- QA checklist
+- Architecture overview
+- Component documentation
+- Complete execution flow
+- Business rules
+- State machines
+- Data flow
+- Dependency map
+- Testing guide
+
+The document should be as comprehensive as necessary.
+
+It is acceptable if the final document exceeds hundreds of pages.
+
+Accuracy is far more important than brevity.

@@ -1,21 +1,23 @@
 // ---------------------------------------------------------------------------
-// LobbyService — state machine transitions and Discord channel lifecycle.
-// All transitions are validated here; no business logic leaks into repositories.
+// LobbyService — lobby state machine transitions.
+//
+// In the new ranked workflow there are no private text channels per match.
+// The Ranked VC lifecycle is managed by RankedVCService.
+// This service owns:
+//   • State machine validation and transitions.
+//   • Queue lobby creation.
+//   • Derived user competitive state.
+//   • Lobby closure (status update + supervisor state cleanup).
 // ---------------------------------------------------------------------------
 
-import {
-  Client, Guild, ChannelType, PermissionFlagsBits,
-  EmbedBuilder, TextChannel, VoiceChannel,
-} from "discord.js";
-import { lobbyRepository } from "../database/repositories/LobbyRepository";
+import { Client } from "discord.js";
+import { lobbyRepository }      from "../database/repositories/LobbyRepository";
 import { supervisorRepository } from "../database/repositories/SupervisorRepository";
 import {
   LobbyStatus, LOBBY_TRANSITIONS, CompetitiveState,
 } from "../database/enums";
-import { getConfig, getConfigInt } from "./ConfigService";
-import { ConfigKey } from "../database/enums";
 import { eventBus } from "./EventBus";
-import { logger } from "../lib/logger";
+import { logger }   from "../lib/logger";
 import type { Lobby } from "@workspace/db";
 
 // ── State machine ──────────────────────────────────────────────────────────
@@ -27,10 +29,7 @@ export function validateTransition(from: LobbyStatus, to: LobbyStatus): void {
   }
 }
 
-export async function transitionTo(
-  lobbyId: string,
-  newStatus: LobbyStatus,
-): Promise<Lobby> {
+export async function transitionTo(lobbyId: string, newStatus: LobbyStatus): Promise<Lobby> {
   const lobby = await lobbyRepository.findById(lobbyId);
   if (!lobby) throw new Error(`Lobby ${lobbyId} not found`);
 
@@ -42,29 +41,23 @@ export async function transitionTo(
 
 // ── Queue lobby management ─────────────────────────────────────────────────
 
-export async function getOrCreateQueueLobby(
-  guildId: string,
-  creadorId: string,
-): Promise<Lobby> {
+export async function getOrCreateQueueLobby(guildId: string, creadorId: string): Promise<Lobby> {
   const existing = await lobbyRepository.findQueueLobby();
   if (existing) return existing;
 
-  const maxJugadores = await getConfigInt(ConfigKey.MaxPlayers, 10);
   const lobby = await lobbyRepository.create({
     creadorId,
     guildId,
     status:       LobbyStatus.Queue,
-    maxJugadores,
+    maxJugadores: 14,
   });
-  logger.info({ lobbyId: lobby.id, maxJugadores }, "New QUEUE lobby created");
+  logger.info({ lobbyId: lobby.id }, "New QUEUE lobby created (max 14)");
   return lobby;
 }
 
 // ── Derived user competitive state ─────────────────────────────────────────
 
-export async function getUserCompetitiveState(
-  discordId: string,
-): Promise<CompetitiveState> {
+export async function getUserCompetitiveState(discordId: string): Promise<CompetitiveState> {
   const lobby = await lobbyRepository.findActiveForUser(discordId);
   if (!lobby) return CompetitiveState.Libre;
 
@@ -78,75 +71,12 @@ export async function getUserCompetitiveState(
   }
 }
 
-// ── Discord channel lifecycle ──────────────────────────────────────────────
-
-export async function createMatchChannels(
-  lobbyId: string,
-  guild: Guild,
-  supervisorId: string,
-  participantIds: string[],
-): Promise<{ textChannelId: string; voiceChannelId: string }> {
-  const categoryId = await getConfig(ConfigKey.CategoryId);
-  const shortId    = lobbyId.slice(0, 8);
-
-  const permissionOverwrites = [
-    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
-    { id: supervisorId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.Connect] },
-    ...participantIds.map((id) => ({
-      id,
-      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.Connect],
-    })),
-  ];
-
-  const textCh = await guild.channels.create({
-    name:                `partida-${shortId}`,
-    type:                ChannelType.GuildText,
-    parent:              categoryId || undefined,
-    permissionOverwrites,
-  });
-
-  const voiceCh = await guild.channels.create({
-    name:                `VC-${shortId}`,
-    type:                ChannelType.GuildVoice,
-    parent:              categoryId || undefined,
-    permissionOverwrites,
-  });
-
-  await lobbyRepository.updateChannels(lobbyId, textCh.id, voiceCh.id);
-  logger.info({ lobbyId, textChannelId: textCh.id, voiceChannelId: voiceCh.id }, "Match channels created");
-
-  return { textChannelId: textCh.id, voiceChannelId: voiceCh.id };
-}
-
-export async function deleteMatchChannels(
-  lobby: Lobby,
-  client: Client,
-): Promise<void> {
-  const guildId = lobby.guildId;
-  if (!guildId) return;
-
-  try {
-    const guild = await client.guilds.fetch(guildId);
-    if (lobby.textChannelId) {
-      const ch = guild.channels.cache.get(lobby.textChannelId);
-      if (ch) await ch.delete("Lobby closed");
-    }
-    if (lobby.voiceChannelId) {
-      const ch = guild.channels.cache.get(lobby.voiceChannelId);
-      if (ch) await ch.delete("Lobby closed");
-    }
-    logger.info({ lobbyId: lobby.id }, "Match channels deleted");
-  } catch (err) {
-    logger.warn({ err, lobbyId: lobby.id }, "Failed to delete match channels");
-  }
-}
-
 // ── Lobby closure (CLOSED or CANCELLED) ───────────────────────────────────
 
 export async function closeLobby(
-  lobbyId: string,
-  newStatus: "closed" | "cancelled",
-  client: Client,
+  lobbyId:   string,
+  newStatus: LobbyStatus.Closed | LobbyStatus.Cancelled,
+  _client:   Client,
 ): Promise<void> {
   const lobby = await lobbyRepository.findById(lobbyId);
   if (!lobby) return;
@@ -154,20 +84,11 @@ export async function closeLobby(
   validateTransition(lobby.status as LobbyStatus, newStatus);
   await lobbyRepository.updateStatus(lobbyId, newStatus);
 
-  // Restore supervisor availability if one was assigned
+  // Release supervisor record if one was tracked
   if (lobby.supervisorId) {
-    await supervisorRepository.setOcupado(lobby.supervisorId, false);
-    logger.info({ supervisorId: lobby.supervisorId }, "Supervisor availability restored");
+    await supervisorRepository.setOcupado(lobby.supervisorId, false).catch(() => {});
   }
 
-  // Clean up Discord channels
-  if (lobby.textChannelId || lobby.voiceChannelId) {
-    await deleteMatchChannels(lobby, client);
-  }
-
-  eventBus.emit("lobby:cancelled", {
-    lobbyId,
-    supervisorId: lobby.supervisorId ?? null,
-  });
+  eventBus.emit("lobby:cancelled", { lobbyId, supervisorId: lobby.supervisorId ?? null });
   logger.info({ lobbyId, status: newStatus }, "Lobby closed");
 }

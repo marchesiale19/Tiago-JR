@@ -1,200 +1,201 @@
 // ---------------------------------------------------------------------------
-// SupervisorService — FIFO supervisor assignment, timeout, rollover.
-// Availability is managed here; state transitions are delegated to LobbyService.
+// SupervisorService — Supervision request embed + button-based acceptance.
+//
+// New flow (replaces FIFO DM assignment):
+//   1. sendSupervisionRequest() — posts a public embed in the supervision channel
+//      mentioning the supervisor roles.  Any eligible staff member can press the
+//      "Accept Supervision" button.
+//   2. handleSupervisionAccept() — called from index.ts when the button is pressed.
+//      First eligible press wins; lobby transitions immediately to InGame.
+//
+// "Eligible" = the pressing user has at least one of the named supervisor roles.
 // ---------------------------------------------------------------------------
 
 import {
   Client, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle,
+  type Guild, type GuildMember,
 } from "discord.js";
-import { supervisorRepository } from "../database/repositories/SupervisorRepository";
-import { lobbyRepository } from "../database/repositories/LobbyRepository";
-import { LobbyStatus } from "../database/enums";
-import { getConfigInt } from "./ConfigService";
-import { ConfigKey } from "../database/enums";
-import { transitionTo, createMatchChannels } from "./LobbyService";
-import { eventBus } from "./EventBus";
-import { logger } from "../lib/logger";
+import { lobbyRepository }  from "../database/repositories/LobbyRepository";
+import { LobbyStatus }      from "../database/enums";
+import { transitionTo }     from "./LobbyService";
+import { startMatch }       from "./MatchService";
+import { getConfig }        from "./ConfigService";
+import { ConfigKey }        from "../database/enums";
+import { eventBus }         from "./EventBus";
+import { logger }           from "../lib/logger";
 
-// In-memory timeout registry (reset on restart; recovery handles stale states)
-const pendingTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
+// Role names that are allowed to supervise (in hierarchical order)
+export const SUPERVISOR_ROLE_NAMES = [
+  "Moderador",
+  "Moderador [PB]",
+  "Helper",
+  "Trial Helper",
+  "Supervisor",
+] as const;
 
-// ── Availability management ────────────────────────────────────────────────
+// ── Public API ─────────────────────────────────────────────────────────────
 
-export async function setAvailable(discordId: string): Promise<void> {
-  await supervisorRepository.setDisponible(discordId, true);
-  logger.info({ discordId }, "Supervisor marked disponible");
-}
-
-export async function setUnavailable(discordId: string): Promise<void> {
-  await supervisorRepository.setDisponible(discordId, false);
-  logger.info({ discordId }, "Supervisor marked no disponible");
-}
-
-// ── FIFO assignment ────────────────────────────────────────────────────────
-
-export async function assignNextSupervisor(
-  lobbyId: string,
-  client: Client,
+/**
+ * Post a supervision request embed in the configured supervision channel.
+ * Mentions all supervisor roles and provides a green "Accept Supervision" button.
+ */
+export async function sendSupervisionRequest(
+  lobbyId:    string,
+  guildId:    string,
+  vcId:       string,
+  vcName:     string,
+  client:     Client,
 ): Promise<void> {
-  const supervisor = await supervisorRepository.findNextAvailable();
-
-  if (!supervisor) {
-    logger.warn({ lobbyId }, "No available supervisors — lobby remains in WAITING_SUPERVISOR");
-    // Notify original text channel if stored
-    const lobby = await lobbyRepository.findById(lobbyId);
-    if (lobby?.channelId && lobby.guildId) {
-      try {
-        const guild = await client.guilds.fetch(lobby.guildId);
-        const ch = guild.channels.cache.get(lobby.channelId);
-        if (ch?.isTextBased()) {
-          await (ch as any).send(
-            "⚠️ No hay supervisores disponibles en este momento. La cola permanecerá en espera.",
-          );
-        }
-      } catch { /* best effort */ }
-    }
+  const supervisionChannelId = await getConfig(ConfigKey.SupervisionChannelId);
+  if (!supervisionChannelId) {
+    logger.warn({ lobbyId }, "SUPERVISION_CHANNEL_ID not configured — supervision request not sent");
     return;
   }
 
-  // Mark supervisor occupied and record assignment on lobby
-  await supervisorRepository.setOcupado(supervisor.discordId, true);
-  await lobbyRepository.updateSupervisor(lobbyId, supervisor.discordId, new Date());
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) return;
 
-  // Notify supervisor via DM
-  try {
-    const user = await client.users.fetch(supervisor.discordId);
-    const lobby = await lobbyRepository.findById(lobbyId);
-    const count = lobby ? await lobbyRepository.countParticipants(lobby.id) : 0;
+  // Resolve role mentions
+  await guild.roles.fetch();
+  const roleMentions = SUPERVISOR_ROLE_NAMES
+    .map((name) => {
+      const role = guild.roles.cache.find((r) => r.name === name);
+      return role ? `<@&${role.id}>` : name;
+    })
+    .join(" ");
 
-    const embed = new EmbedBuilder()
-      .setColor("Yellow")
-      .setTitle("🎯 Solicitud de supervisión")
-      .setDescription(`Se necesita un supervisor para una partida con **${count} jugadores**.`)
-      .addFields({ name: "Lobby ID", value: lobbyId, inline: true })
-      .setTimestamp();
+  const participantCount = await lobbyRepository.countParticipants(lobbyId);
 
-    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId(`lobby_accept_${lobbyId}`)
-        .setLabel("✅ Aceptar")
-        .setStyle(ButtonStyle.Success),
-      new ButtonBuilder()
-        .setCustomId(`lobby_reject_${lobbyId}`)
-        .setLabel("❌ Rechazar")
-        .setStyle(ButtonStyle.Danger),
-    );
+  const embed = new EmbedBuilder()
+    .setColor("Green")
+    .setTitle("🎮 Se necesita un supervisor")
+    .setDescription(
+      `${roleMentions}\n\n` +
+      `Una partida de **${participantCount} jugadores** está lista en el canal <#${vcId}>.\n\n` +
+      "El primer supervisor en aceptar se unirá como **jugador #15** y tendrá acceso a los comandos de partida.",
+    )
+    .addFields(
+      { name: "Lobby ID",  value: `\`${lobbyId.slice(0, 8)}\``,  inline: true },
+      { name: "Canal",     value: `<#${vcId}>`,                  inline: true },
+    )
+    .setTimestamp();
 
-    await user.send({ embeds: [embed], components: [row] });
-    logger.info({ lobbyId, supervisorId: supervisor.discordId }, "Supervisor notified");
-    eventBus.emit("supervisor:notified", { lobbyId, supervisorId: supervisor.discordId });
-  } catch (err) {
-    logger.error({ err, supervisorId: supervisor.discordId }, "Could not DM supervisor — rolling over");
-    await rollOver(lobbyId, supervisor.discordId, client);
-    return;
-  }
-
-  // Start timeout
-  startTimeout(lobbyId, supervisor.discordId, client);
-}
-
-function startTimeout(
-  lobbyId: string,
-  supervisorId: string,
-  client: Client,
-): void {
-  cancelTimeout(lobbyId);
-
-  getConfigInt(ConfigKey.SupervisorTimeoutSeconds, 120).then((seconds) => {
-    const timer = setTimeout(async () => {
-      logger.warn({ lobbyId, supervisorId }, "Supervisor acceptance timed out — rolling over");
-      eventBus.emit("supervisor:timed_out", { lobbyId, supervisorId });
-      await rollOver(lobbyId, supervisorId, client);
-    }, seconds * 1000);
-    pendingTimeouts.set(lobbyId, timer);
-  });
-}
-
-export function cancelTimeout(lobbyId: string): void {
-  const timer = pendingTimeouts.get(lobbyId);
-  if (timer) {
-    clearTimeout(timer);
-    pendingTimeouts.delete(lobbyId);
-  }
-}
-
-/** Called when supervisor rejects or times out — free them up and try next. */
-async function rollOver(
-  lobbyId: string,
-  supervisorId: string,
-  client: Client,
-): Promise<void> {
-  cancelTimeout(lobbyId);
-  await supervisorRepository.setOcupado(supervisorId, false);
-  // Clear supervisor from lobby so next assignment is clean
-  await lobbyRepository.updateSupervisor(lobbyId, "", new Date());
-  eventBus.emit("supervisor:rejected", { lobbyId, supervisorId });
-  await assignNextSupervisor(lobbyId, client);
-}
-
-// ── Accept / Reject handlers ───────────────────────────────────────────────
-
-export async function handleAccept(
-  supervisorId: string,
-  lobbyId: string,
-  client: Client,
-): Promise<void> {
-  const lobby = await lobbyRepository.findById(lobbyId);
-
-  if (!lobby) throw new Error("Lobby not found");
-  if (lobby.status !== LobbyStatus.WaitingSupervisor) {
-    throw new Error("Lobby is no longer awaiting a supervisor");
-  }
-  if (lobby.supervisorId !== supervisorId) {
-    throw new Error("You are not the assigned supervisor for this lobby");
-  }
-
-  cancelTimeout(lobbyId);
-
-  // Transition to READY
-  await transitionTo(lobbyId, LobbyStatus.Ready);
-
-  // Create Discord channels
-  const guild = await client.guilds.fetch(lobby.guildId!);
-  await guild.members.fetch(); // ensure member cache is populated
-  const participants = await lobbyRepository.listParticipants(lobbyId);
-  const participantIds = participants.map((p) => p.discordId);
-
-  const { textChannelId } = await createMatchChannels(
-    lobbyId, guild, supervisorId, participantIds,
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`supervision_accept_${lobbyId}`)
+      .setLabel("✅ Aceptar Supervisión")
+      .setStyle(ButtonStyle.Success),
   );
 
-  // Notify in the new channel
-  try {
-    const ch = guild.channels.cache.get(textChannelId);
-    if (ch?.isTextBased()) {
-      const embed = new EmbedBuilder()
-        .setColor("Green")
-        .setTitle("✅ ¡Partida lista!")
-        .setDescription("El supervisor ha aceptado. La partida puede comenzar cuando el supervisor lo indique.")
-        .addFields({ name: "Supervisor", value: `<@${supervisorId}>`, inline: true })
-        .setTimestamp();
-      await (ch as any).send({ embeds: [embed] });
-    }
-  } catch { /* best effort */ }
+  const channel = guild.channels.cache.get(supervisionChannelId);
+  if (!channel?.isTextBased()) {
+    logger.warn({ supervisionChannelId }, "Supervision channel not found or not text-based");
+    return;
+  }
 
-  eventBus.emit("supervisor:accepted", { lobbyId, supervisorId });
-  logger.info({ lobbyId, supervisorId }, "Supervisor accepted — lobby READY");
+  await (channel as any).send({ embeds: [embed], components: [row] });
+  logger.info({ lobbyId, supervisionChannelId }, "Supervision request posted");
 }
 
-export async function handleReject(
+/**
+ * Handle a "Accept Supervision" button press.
+ * Validates eligibility, transitions the lobby, starts the match.
+ * Returns the match ID on success.
+ */
+export async function handleSupervisionAccept(
   supervisorId: string,
-  lobbyId: string,
-  client: Client,
+  lobbyId:      string,
+  member:       GuildMember,
+  client:       Client,
+): Promise<void> {
+  // Check eligibility
+  if (!hasSupervisionRole(member)) {
+    throw new Error("No tienes ninguno de los roles de supervisor requeridos.");
+  }
+
+  // Load and validate lobby
+  const lobby = await lobbyRepository.findById(lobbyId);
+  if (!lobby) throw new Error("Lobby no encontrado.");
+  if (lobby.status !== LobbyStatus.WaitingSupervisor) {
+    throw new Error("Este lobby ya tiene un supervisor asignado o no está disponible.");
+  }
+
+  // Claim the lobby
+  await lobbyRepository.updateSupervisor(lobbyId, supervisorId, new Date());
+  await transitionTo(lobbyId, LobbyStatus.Ready);
+
+  // Move supervisor into the Ranked VC
+  if (lobby.voiceChannelId) {
+    try {
+      await member.voice.setChannel(lobby.voiceChannelId, "Supervisor joining ranked match");
+    } catch {
+      // Not fatal — supervisor might not be in a VC; they can join manually
+    }
+  }
+
+  // Start the match (READY → IN_GAME, creates partida, snapshots ELOs)
+  await startMatch(lobbyId, supervisorId, client);
+
+  eventBus.emit("supervisor:accepted", { lobbyId, supervisorId });
+  logger.info({ lobbyId, supervisorId }, "Supervision accepted — match started");
+}
+
+/** Post a NEW supervision request for an ongoing match (supervisor replacement). */
+export async function sendReplacementSupervisionRequest(
+  matchId:    string,
+  lobbyId:    string,
+  guildId:    string,
+  client:     Client,
 ): Promise<void> {
   const lobby = await lobbyRepository.findById(lobbyId);
-  if (!lobby || lobby.supervisorId !== supervisorId) return;
-  if (lobby.status !== LobbyStatus.WaitingSupervisor) return;
+  if (!lobby) throw new Error("Lobby no encontrado.");
 
-  logger.info({ lobbyId, supervisorId }, "Supervisor rejected assignment");
-  await rollOver(lobbyId, supervisorId, client);
+  const vcId   = lobby.voiceChannelId ?? "";
+  const vcName = vcId ? `<#${vcId}>` : "—";
+
+  const supervisionChannelId = await getConfig(ConfigKey.SupervisionChannelId);
+  if (!supervisionChannelId) throw new Error("SUPERVISION_CHANNEL_ID no configurado.");
+
+  const guild = await client.guilds.fetch(guildId).catch(() => null);
+  if (!guild) throw new Error("Servidor no encontrado.");
+
+  await guild.roles.fetch();
+  const roleMentions = SUPERVISOR_ROLE_NAMES
+    .map((name) => {
+      const role = guild.roles.cache.find((r) => r.name === name);
+      return role ? `<@&${role.id}>` : name;
+    })
+    .join(" ");
+
+  const embed = new EmbedBuilder()
+    .setColor("Yellow")
+    .setTitle("⚠️ Supervisor inactivo — Se necesita reemplazo")
+    .setDescription(
+      `${roleMentions}\n\n` +
+      `El supervisor de la partida \`${matchId.slice(0, 8)}\` está inactivo.\n` +
+      `Canal: ${vcName}\n\n` +
+      "El primer supervisor en aceptar tomará el control de la partida.",
+    )
+    .setTimestamp();
+
+  const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`supervision_accept_${lobbyId}`)
+      .setLabel("✅ Aceptar Supervisión")
+      .setStyle(ButtonStyle.Success),
+  );
+
+  const channel = guild.channels.cache.get(supervisionChannelId);
+  if (!channel?.isTextBased()) throw new Error("Canal de supervisión no encontrado.");
+
+  await (channel as any).send({ embeds: [embed], components: [row] });
+  logger.info({ lobbyId, matchId }, "Replacement supervision request posted");
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+export function hasSupervisionRole(member: GuildMember): boolean {
+  return member.roles.cache.some((role) =>
+    (SUPERVISOR_ROLE_NAMES as readonly string[]).includes(role.name),
+  );
 }

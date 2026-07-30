@@ -16,7 +16,10 @@ export const partidasTable = pgTable("partidas", {
   temporadaId:      integer("temporada_id").references(() => temporadasTable.id),
   status:           text("status").notNull().default("in_progress"),
   ganadorEquipo:    integer("ganador_equipo"),          // 1 | 2 | NULL (draw / cancelled)
-  requiresRevision: boolean("requires_revision").notNull().default(false), // flagged on crash recovery
+  requiresRevision: boolean("requires_revision").notNull().default(false),
+  supervisorId:     text("supervisor_id"),              // Discord ID of the supervising player
+  codigoPartida:    text("codigo_partida"),             // Among Us match code from /registrar
+  mapa:             text("mapa"),                       // Map name from /registrar
   createdAt:        timestamp("created_at",  { withTimezone: true }).notNull().defaultNow(),
   finishedAt:       timestamp("finished_at", { withTimezone: true }),
 });
@@ -25,13 +28,16 @@ export const partidasTable = pgTable("partidas", {
 // participantes_partida — players inside a running match
 // ---------------------------------------------------------------------------
 export const participantesPartidaTable = pgTable("participantes_partida", {
-  id:        serial("id").primaryKey(),
-  partidaId: uuid("partida_id").notNull().references(() => partidasTable.id, { onDelete: "cascade" }),
-  discordId: text("discord_id").notNull(),
-  equipo:    integer("equipo").notNull(),   // 1 = tripulantes | 2 = impostores
-  status:    text("status").notNull().default("playing"),
-  rol:       text("rol"),                  // 'impostor' | 'tripulante' | null
-  eloInicio: integer("elo_inicio").notNull().default(1200), // ELO snapshot at match start; used for reproducible ELO calc
+  id:                     serial("id").primaryKey(),
+  partidaId:              uuid("partida_id").notNull().references(() => partidasTable.id, { onDelete: "cascade" }),
+  discordId:              text("discord_id").notNull(),
+  equipo:                 integer("equipo").notNull(),   // 1 = tripulantes | 2 = impostores
+  status:                 text("status").notNull().default("playing"),
+  rol:                    text("rol"),                  // 'impostor' | 'tripulante' | null
+  eloInicio:              integer("elo_inicio").notNull().default(1200),
+  roleAmongUs:            text("role_among_us"),        // In-game role from questionnaire (Crewmate, Impostor, etc.)
+  amountUsId:             text("among_us_id"),           // Among Us username from questionnaire
+  questionnaireAnswered:  boolean("questionnaire_answered").notNull().default(false),
 });
 
 // ---------------------------------------------------------------------------

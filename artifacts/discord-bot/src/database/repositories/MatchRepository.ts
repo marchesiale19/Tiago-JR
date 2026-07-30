@@ -128,6 +128,37 @@ export class MatchRepository {
       );
   }
 
+  /** Update match code and map from /registrar partida. */
+  async updateMatchDetails(
+    id:      string,
+    details: { codigoPartida?: string; mapa?: string; supervisorId?: string },
+  ): Promise<void> {
+    await db
+      .update(partidasTable)
+      .set({
+        ...(details.codigoPartida !== undefined && { codigoPartida: details.codigoPartida }),
+        ...(details.mapa          !== undefined && { mapa:          details.mapa          }),
+        ...(details.supervisorId  !== undefined && { supervisorId:  details.supervisorId  }),
+      })
+      .where(eq(partidasTable.id, id));
+  }
+
+  /** Find the active in_progress match supervised by a specific user. */
+  async findActiveMatchBySupervisor(supervisorId: string): Promise<Partida | undefined> {
+    const rows = await db
+      .select()
+      .from(partidasTable)
+      .where(
+        and(
+          eq(partidasTable.supervisorId, supervisorId),
+          eq(partidasTable.status, "in_progress"),
+        ),
+      )
+      .orderBy(desc(partidasTable.createdAt))
+      .limit(1);
+    return rows[0];
+  }
+
   /**
    * List all partidas currently held for staff revision:
    *   requires_revision = true AND status = 'in_progress'.
