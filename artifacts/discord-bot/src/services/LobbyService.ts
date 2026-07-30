@@ -75,7 +75,7 @@ export async function getUserCompetitiveState(discordId: string): Promise<Compet
 
 export async function closeLobby(
   lobbyId:   string,
-  newStatus: LobbyStatus.Closed | LobbyStatus.Cancelled,
+  newStatus: (typeof LobbyStatus)["Closed"] | (typeof LobbyStatus)["Cancelled"],
   _client:   Client,
 ): Promise<void> {
   const lobby = await lobbyRepository.findById(lobbyId);

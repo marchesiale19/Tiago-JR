@@ -12,6 +12,7 @@ import {
   TextInputStyle,
   type ButtonInteraction,
   type ModalSubmitInteraction,
+  type GuildMember,
   REST,
   Routes
 } from "discord.js";
@@ -391,16 +392,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Supervisor accept/reject buttons (sent via DM)
-    if (interaction.customId.startsWith("lobby_accept_")) {
-      const lobbyId = interaction.customId.slice("lobby_accept_".length);
+    // Supervisor accept button (posted in supervision channel)
+    if (interaction.customId.startsWith("supervision_accept_")) {
+      const lobbyId = interaction.customId.slice("supervision_accept_".length);
+      const member = interaction.member as GuildMember | null;
+      if (!member) {
+        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
+        return;
+      }
       try {
-        const { handleAccept } = await import("./services/SupervisorService");
+        const { handleSupervisionAccept } = await import("./services/SupervisorService");
         await interaction.deferReply({ ephemeral: true });
-        await handleAccept(interaction.user.id, lobbyId, interaction.client);
-        await interaction.editReply("✅ Has aceptado la supervisión. Se han creado los canales de partida.");
+        await handleSupervisionAccept(interaction.user.id, lobbyId, member, interaction.client);
+        await interaction.editReply("✅ Has aceptado la supervisión. La partida ha comenzado.");
       } catch (err: any) {
-        logger.error({ err, lobbyId }, "Error handling lobby accept");
+        logger.error({ err, lobbyId }, "Error handling supervision accept");
         if (interaction.deferred) {
           await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar la supervisión."}`).catch(() => {});
         }
@@ -408,17 +414,73 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.customId.startsWith("lobby_reject_")) {
-      const lobbyId = interaction.customId.slice("lobby_reject_".length);
+    // In-game supervisor replacement button (supervision_replace_<lobbyId>)
+    if (interaction.customId.startsWith("supervision_replace_")) {
+      const lobbyId = interaction.customId.slice("supervision_replace_".length);
+      const member = interaction.member as GuildMember | null;
+      if (!member) {
+        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
+        return;
+      }
       try {
-        const { handleReject } = await import("./services/SupervisorService");
+        const { handleSupervisionReplace } = await import("./services/SupervisorService");
         await interaction.deferReply({ ephemeral: true });
-        await handleReject(interaction.user.id, lobbyId, interaction.client);
-        await interaction.editReply("🔄 Has rechazado la asignación. Se buscará otro supervisor disponible.");
+        await handleSupervisionReplace(interaction.user.id, lobbyId, member, interaction.client);
+        await interaction.editReply("✅ Has tomado el control de la partida como supervisor de reemplazo.");
       } catch (err: any) {
-        logger.error({ err, lobbyId }, "Error handling lobby reject");
+        logger.error({ err, lobbyId }, "Error handling supervision replace");
         if (interaction.deferred) {
-          await interaction.editReply("❌ Error al procesar el rechazo.").catch(() => {});
+          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar el reemplazo."}`).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    // Questionnaire open button (sent via DM to each participant)
+    if (interaction.customId.startsWith("q_open_")) {
+      const [matchId, discordId] = interaction.customId.slice("q_open_".length).split("_");
+      if (matchId && discordId) {
+        try {
+          const { openQuestionnaireModal } = await import("./services/QuestionnaireService");
+          await openQuestionnaireModal(interaction, matchId, discordId);
+        } catch (err) {
+          logger.error({ err }, "Error opening questionnaire modal");
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Error al abrir el cuestionario.", ephemeral: true }).catch(() => {});
+          }
+        }
+      }
+      return;
+    }
+
+    // Post-match play-again / leave buttons
+    if (interaction.customId.startsWith("play_again_")) {
+      const matchId = interaction.customId.slice("play_again_".length);
+      try {
+        const { handlePlayAgain } = await import("./services/QuestionnaireService");
+        await interaction.deferReply({ ephemeral: true });
+        await handlePlayAgain(matchId, interaction.user.id, interaction.client);
+        await interaction.editReply("🎮 ¡Quedas en el canal para la próxima partida!");
+      } catch (err) {
+        logger.error({ err }, "Error handling play again");
+        if (interaction.deferred) {
+          await interaction.editReply("❌ Error al procesar la acción.").catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId.startsWith("leave_match_")) {
+      const matchId = interaction.customId.slice("leave_match_".length);
+      try {
+        const { handleLeaveMatch } = await import("./services/QuestionnaireService");
+        await interaction.deferReply({ ephemeral: true });
+        await handleLeaveMatch(matchId, interaction.user.id, interaction.client);
+        await interaction.editReply("🚪 Has salido del canal de voz.");
+      } catch (err) {
+        logger.error({ err }, "Error handling leave match");
+        if (interaction.deferred) {
+          await interaction.editReply("❌ Error al procesar la salida.").catch(() => {});
         }
       }
       return;
@@ -447,7 +509,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
         }
       }
+      return;
     }
+
+    // Questionnaire form submit (q_form_<matchId>_<discordId>)
+    if (interaction.customId.startsWith("q_form_")) {
+      const rest = interaction.customId.slice("q_form_".length);
+      const underscoreIdx = rest.indexOf("_");
+      if (underscoreIdx !== -1) {
+        const matchId   = rest.slice(0, underscoreIdx);
+        const discordId = rest.slice(underscoreIdx + 1);
+        try {
+          const { recordAnswer } = await import("./services/QuestionnaireService");
+          await recordAnswer(interaction, matchId, discordId, interaction.client);
+        } catch (err) {
+          logger.error({ err }, "Error recording questionnaire answer");
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Error al registrar tu respuesta.", ephemeral: true }).catch(() => {});
+          }
+        }
+      }
+      return;
+    }
+
     return;
   }
 

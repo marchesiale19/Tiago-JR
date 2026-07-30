@@ -82,7 +82,7 @@ export async function startMatch(
   const lobbyParticipants = await lobbyRepository.listParticipants(lobbyId);
 
   for (const lp of lobbyParticipants) {
-    const user      = await userRepository.findOrCreate(lp.discordId);
+    const user      = await userRepository.upsert({ discordId: lp.discordId, username: lp.discordId });
     const eloInicio = user?.elo ?? DEFAULT_ELO;
     await matchRepository.addParticipant({
       partidaId: partida.id,
@@ -93,7 +93,7 @@ export async function startMatch(
   }
 
   // Add supervisor as participant #15
-  const supervisorUser = await userRepository.findOrCreate(supervisorId);
+  const supervisorUser = await userRepository.upsert({ discordId: supervisorId, username: supervisorId });
   await matchRepository.addParticipant({
     partidaId: partida.id,
     discordId: supervisorId,

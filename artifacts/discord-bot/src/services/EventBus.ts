@@ -15,7 +15,8 @@ export interface QueueFullPayload          { lobbyId: string; guildId: string; p
 export interface SupervisorNotifiedPayload { lobbyId: string; supervisorId: string; }
 export interface SupervisorAcceptedPayload { lobbyId: string; supervisorId: string; }
 export interface SupervisorRejectedPayload { lobbyId: string; supervisorId: string; }
-export interface SupervisorTimedOutPayload { lobbyId: string; supervisorId: string; }
+export interface SupervisorTimedOutPayload  { lobbyId: string; supervisorId: string; }
+export interface SupervisorReplacedPayload { lobbyId: string; supervisorId: string; }
 export interface LobbyReadyPayload         { lobbyId: string; guildId: string; supervisorId: string; participantIds: string[]; }
 export interface MatchStartedPayload       { lobbyId: string; matchId: string; }
 export interface MatchFinishedPayload      { lobbyId: string; matchId: string; }
@@ -31,6 +32,7 @@ export interface BotEvents {
   "supervisor:accepted":    [SupervisorAcceptedPayload];
   "supervisor:rejected":    [SupervisorRejectedPayload];
   "supervisor:timed_out":   [SupervisorTimedOutPayload];
+  "supervisor:replaced":    [SupervisorReplacedPayload];
   "lobby:ready":            [LobbyReadyPayload];
   "match:started":          [MatchStartedPayload];
   "match:finished":         [MatchFinishedPayload];

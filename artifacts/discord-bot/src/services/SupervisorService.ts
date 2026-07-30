@@ -16,6 +16,7 @@ import {
   type Guild, type GuildMember,
 } from "discord.js";
 import { lobbyRepository }  from "../database/repositories/LobbyRepository";
+import { matchRepository }  from "../database/repositories/MatchRepository";
 import { LobbyStatus }      from "../database/enums";
 import { transitionTo }     from "./LobbyService";
 import { startMatch }       from "./MatchService";
@@ -180,7 +181,7 @@ export async function sendReplacementSupervisionRequest(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`supervision_accept_${lobbyId}`)
+      .setCustomId(`supervision_replace_${lobbyId}`)
       .setLabel("✅ Aceptar Supervisión")
       .setStyle(ButtonStyle.Success),
   );
@@ -190,6 +191,51 @@ export async function sendReplacementSupervisionRequest(
 
   await (channel as any).send({ embeds: [embed], components: [row] });
   logger.info({ lobbyId, matchId }, "Replacement supervision request posted");
+}
+
+/**
+ * Handle a "Replace Supervisor" button press on an in-game lobby.
+ * Reassigns the supervisor without restarting the match.
+ */
+export async function handleSupervisionReplace(
+  supervisorId: string,
+  lobbyId:      string,
+  member:       GuildMember,
+  client:       Client,
+): Promise<void> {
+  if (!hasSupervisionRole(member)) {
+    throw new Error("No tienes ninguno de los roles de supervisor requeridos.");
+  }
+
+  const lobby = await lobbyRepository.findById(lobbyId);
+  if (!lobby) throw new Error("Lobby no encontrado.");
+  if (lobby.status !== LobbyStatus.InGame) {
+    throw new Error("Esta partida no está en curso o ya tiene un supervisor activo.");
+  }
+
+  // Reassign supervisor on lobby
+  await lobbyRepository.updateSupervisor(lobbyId, supervisorId, new Date());
+
+  // Reassign supervisor on the active match record
+  const partida = await matchRepository.findByLobbyId(lobbyId);
+  if (partida) {
+    await matchRepository.updateMatchDetails(partida.id, { supervisorId });
+  }
+
+  // Move new supervisor into the Ranked VC if possible
+  if (lobby.voiceChannelId) {
+    try {
+      await member.voice.setChannel(lobby.voiceChannelId, "Replacement supervisor joining ranked match");
+    } catch {
+      // Not fatal — supervisor can join manually
+    }
+  }
+
+  eventBus.emit("supervisor:replaced", { lobbyId, supervisorId });
+  logger.info({ lobbyId, supervisorId }, "Supervisor replaced in-game");
+
+  // Suppress unused-variable warning for client (kept for API symmetry)
+  void client;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
