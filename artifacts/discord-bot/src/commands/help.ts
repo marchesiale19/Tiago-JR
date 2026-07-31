@@ -9,10 +9,11 @@ const ROLE_HELPER       = "Helper";
 const ROLE_TRIAL_HELPER = "Trial Helper";
 const ROLE_SUPERVISOR   = "Supervisor";
 
-// Tier 1 = Moderador [PB] or higher
-// Tier 2 = Helper, Trial Helper, or Supervisor
-// Tier 3 = everyone else
-type Tier = 1 | 2 | 3;
+// Tier 1 = Moderador [PB] or higher          → sees everything
+// Tier 2 = Helper or Trial Helper             → sees Supervisión + Administración
+// Tier 2S = Supervisor only                   → sees Supervisión, NOT Administración
+// Tier 3 = everyone else                      → ranked + stats only
+type Tier = 1 | 2 | "2S" | 3;
 
 function getUserTier(interaction: ChatInputCommandInteraction): Tier {
   const guild  = interaction.guild;
@@ -32,16 +33,17 @@ function getUserTier(interaction: ChatInputCommandInteraction): Tier {
   const modRole        = guild.roles.cache.find((r) => r.name === ROLE_MODERADOR);
   const trialRole      = guild.roles.cache.find((r) => r.name === ROLE_TRIAL_HELPER);
   const helperRole     = guild.roles.cache.find((r) => r.name === ROLE_HELPER);
-  const supervisorRole = guild.roles.cache.find((r) => r.name === ROLE_SUPERVISOR);
 
+  // Tier 1: Moderador [PB] or higher in the hierarchy
   if (modRole && highestPosition >= modRole.position) return 1;
 
-  // Check if user has Supervisor role directly
-  const hasSupervisor = memberRolesCache.some((r: any) => r.name === ROLE_SUPERVISOR);
-  if (hasSupervisor) return 2;
+  // Tier 2: Trial Helper or Helper (or any role at/above their position)
+  const adminMinPosition = trialRole?.position ?? helperRole?.position;
+  if (adminMinPosition != null && highestPosition >= adminMinPosition) return 2;
 
-  const tier2MinPosition = trialRole?.position ?? helperRole?.position ?? supervisorRole?.position;
-  if (tier2MinPosition != null && highestPosition >= tier2MinPosition) return 2;
+  // Tier 2S: Supervisor only — supervision access but no administration
+  const hasSupervisor = memberRolesCache.some((r: any) => r.name === ROLE_SUPERVISOR);
+  if (hasSupervisor) return "2S";
 
   return 3;
 }
@@ -88,8 +90,8 @@ export async function execute(
     ].join("\n"),
   });
 
-  // ── 👮 Supervisión (Tier 1 & 2 only) ─────────────────────────────────────
-  if (tier <= 2) {
+  // ── 👮 Supervisión (Tier 1, 2, and 2S) ───────────────────────────────────
+  if (tier === 1 || tier === 2 || tier === "2S") {
     embed.addFields({
       name: "👮 Supervisión",
       value: [
@@ -102,8 +104,8 @@ export async function execute(
     });
   }
 
-  // ── 👑 Administración (Tier 1 & 2 only) ──────────────────────────────────
-  if (tier <= 2) {
+  // ── 👑 Administración (Tier 1 & 2 only — NOT Supervisor) ─────────────────
+  if (tier === 1 || tier === 2) {
     embed.addFields({
       name: "👑 Administración",
       value: [
