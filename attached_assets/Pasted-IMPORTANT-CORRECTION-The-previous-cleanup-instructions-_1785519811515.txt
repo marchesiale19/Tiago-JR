@@ -1,0 +1,105 @@
+IMPORTANT CORRECTION
+
+The previous cleanup instructions were intentionally limited to the Ranked System only.
+
+DO NOT treat "unused" as "safe to delete".
+
+This repository contains multiple independent subsystems.
+
+Only the Ranked System should be refactored.
+
+--------------------------------------------------
+PROTECTED SYSTEMS (DO NOT MODIFY OR DELETE)
+--------------------------------------------------
+
+The following systems are OUT OF SCOPE and must remain fully intact:
+
+• Staff Application System (Trial Helper applications)
+• Application slash commands
+• Application DM questionnaires
+• Application review workflow
+• Staff application channels
+• Staff application services
+• Staff application repositories
+• Staff application database schema
+• Staff recruitment logic
+
+Preserve every command, service, repository, handler, database schema, event listener and integration required by the Staff Application System.
+
+--------------------------------------------------
+ONLY CLEAN THE OLD RANKED WORKFLOW
+--------------------------------------------------
+
+Only remove code that belongs EXCLUSIVELY to the obsolete Ranked implementation.
+
+Examples:
+
+✓ old queue commands
+✓ old lobby commands
+✓ old ranked review commands
+✓ old season administration commands
+✓ obsolete ranked handlers
+✓ obsolete ranked services
+✓ unreachable ranked-only code
+
+--------------------------------------------------
+BEFORE DELETING ANYTHING
+--------------------------------------------------
+
+For EVERY file, command or service you plan to remove, verify ALL of the following:
+
+1. It is NOT used by the new Ranked System.
+2. It is NOT used by the Staff Application System.
+3. It is NOT used by any other independent subsystem.
+4. It belongs exclusively to the obsolete Ranked workflow.
+
+Only if ALL four conditions are true may it be deleted.
+
+If there is ANY uncertainty, KEEP IT.
+
+--------------------------------------------------
+DO NOT DELETE SHARED INFRASTRUCTURE
+--------------------------------------------------
+
+Do NOT delete:
+
+- shared repositories
+- shared utilities
+- shared Discord handlers
+- shared event listeners
+- shared database models
+- shared schemas
+- shared helpers
+- shared services
+
+even if they are also used by Ranked.
+
+Only remove components that are exclusive to the obsolete Ranked implementation.
+
+--------------------------------------------------
+REPORT BEFORE CLEANUP
+--------------------------------------------------
+
+Before deleting anything, generate a report containing:
+
+- Every file to be removed
+- Why it belongs exclusively to the old Ranked workflow
+- Which references were checked
+- Why removing it cannot affect other systems
+
+Only after producing that report may you perform the cleanup.
+
+--------------------------------------------------
+GOAL
+--------------------------------------------------
+
+The final repository must contain:
+
+✓ The new Ranked System
+✓ The Staff Application System
+✓ All infrastructure required by both
+✓ No obsolete Ranked code
+
+Nothing else should be removed.
+
+When in doubt, preserve existing functionality.
