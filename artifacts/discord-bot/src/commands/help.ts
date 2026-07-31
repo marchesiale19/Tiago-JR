@@ -70,7 +70,7 @@ export async function execute(
   embed.addFields({
     name: "🎮 Partidas Ranked",
     value: [
-      "**/buscar partida** — Únete a la cola de búsqueda (requiere estar en un canal Among Us).",
+      "**/buscar partida** — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
       "**/cancelar emparejamiento** — Sal de la cola de emparejamiento.",
       "**/emparejamiento estado** — Muestra el estado actual de la cola.",
       "**/partida estado** — Muestra el estado de tu partida activa.",
@@ -98,6 +98,15 @@ export async function execute(
         "**/sala mute** — Silencia a todos en el canal de voz ranked.",
         "**/sala unmute** — Quita el silencio a todos en el canal de voz ranked.",
         "**/supervisor inactivo** — Solicita un supervisor de reemplazo para la partida activa.",
+      ].join("\n"),
+    });
+  }
+
+  // ── 👑 Administración (Tier 1 & 2 only) ──────────────────────────────────
+  if (tier <= 2) {
+    embed.addFields({
+      name: "👑 Administración",
+      value: [
         "**/sanciones** — Consulta la información de una sanción.",
       ].join("\n"),
     });

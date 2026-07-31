@@ -23,7 +23,7 @@ export async function execute(
   const sub = interaction.options.getSubcommand();
   if (sub !== "estado") return;
 
-  await interaction.deferReply({ ephemeral: false });
+  await interaction.deferReply({ ephemeral: true });
 
   try {
     const { lobby, count, max } = await getQueueStatus();
