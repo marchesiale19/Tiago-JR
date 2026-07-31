@@ -11,35 +11,21 @@ const PAGE_SIZE = 10;
 
 export const data = new SlashCommandBuilder()
   .setName("ranking")
-  .setDescription("Muestra el ranking de jugadores de una temporada.")
-  .addSubcommand((sub) =>
-    sub
-      .setName("activa")
-      .setDescription("Ranking de la temporada activa.")
-      .addIntegerOption((opt) =>
-        opt
-          .setName("pagina")
-          .setDescription("Página del ranking (10 jugadores por página, por defecto 1)")
-          .setMinValue(1),
-      ),
+  .setDescription("Muestra el ranking de jugadores de la temporada activa o de una específica.")
+  .addIntegerOption((opt) =>
+    opt
+      .setName("id")
+      .setDescription("ID de la temporada (por defecto: temporada activa)")
+      .setMinValue(1),
   )
-  .addSubcommand((sub) =>
-    sub
-      .setName("temporada")
-      .setDescription("Ranking de una temporada específica.")
-      .addIntegerOption((opt) =>
-        opt.setName("id").setDescription("ID de la temporada").setRequired(true).setMinValue(1),
-      )
-      .addIntegerOption((opt) =>
-        opt
-          .setName("pagina")
-          .setDescription("Página del ranking (10 jugadores por página, por defecto 1)")
-          .setMinValue(1),
-      ),
+  .addIntegerOption((opt) =>
+    opt
+      .setName("pagina")
+      .setDescription("Página del ranking (10 jugadores por página, por defecto 1)")
+      .setMinValue(1),
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const sub = interaction.options.getSubcommand();
   await interaction.deferReply({ ephemeral: false });
 
   try {
@@ -47,7 +33,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     let temporadaNombre: string;
     let temporadaActiva: boolean;
 
-    if (sub === "activa") {
+    const id = interaction.options.getInteger("id");
+
+    if (id === null) {
+      // No ID provided → show active season
       const season = await seasonRepository.findActive();
       if (!season) {
         await interaction.editReply("ℹ️ No hay ninguna temporada activa en este momento.");
@@ -57,12 +46,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       temporadaNombre = season.nombre;
       temporadaActiva = true;
     } else {
-      temporadaId = interaction.options.getInteger("id", true);
-      const season = await seasonRepository.findById(temporadaId);
+      // Specific season by ID
+      const season = await seasonRepository.findById(id);
       if (!season) {
-        await interaction.editReply(`❌ Temporada con ID **${temporadaId}** no encontrada.`);
+        await interaction.editReply(`❌ Temporada con ID **${id}** no encontrada.`);
         return;
       }
+      temporadaId     = season.id;
       temporadaNombre = season.nombre;
       temporadaActiva = season.activa;
     }
@@ -101,7 +91,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await interaction.editReply({ embeds: [embed] });
 
   } catch (err) {
-    logger.error({ err, sub }, "Error in /ranking command");
+    logger.error({ err }, "Error in /ranking command");
     const msg = err instanceof Error ? err.message : "Error desconocido.";
     await interaction.editReply(`❌ ${msg}`);
   }

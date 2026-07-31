@@ -1,0 +1,302 @@
+# REPLIT AGENT TASK
+## Continue Patch Pack 2 (Do NOT Restart)
+
+You are working on an EXISTING Discord.js + TypeScript competitive bot.
+
+This repository has already undergone a major Ranked System refactor.
+
+Do NOT restart the refactor.
+
+Do NOT redesign the architecture.
+
+Do NOT recreate systems that already exist.
+
+Your first task is to inspect the current project state.
+
+--------------------------------------------------
+STEP 1 — PROJECT INSPECTION
+--------------------------------------------------
+
+Before modifying anything:
+
+1. Inspect the repository.
+2. Identify which Ranked patches are already implemented.
+3. Compare the current implementation against the Patch Pack 2 specification below.
+4. Produce a short report containing:
+
+- Completed patches
+- Partially completed patches
+- Missing patches
+- Any inconsistencies
+- Any command naming conflicts
+
+Only after producing that report may you continue.
+
+--------------------------------------------------
+PATCH PACK 2
+--------------------------------------------------
+
+PATCH 10
+Create:
+
+/cancelar emparejamiento
+
+Removes the player from the matchmaking queue.
+
+--------------------------------------------------
+
+PATCH 11
+
+Remove:
+
+/ranking activa
+
+Rename:
+
+/ranking temporada
+
+to
+
+/ranking
+
+Keep identical functionality.
+
+--------------------------------------------------
+
+PATCH 12
+
+Remove from the Help menu:
+
+Category:
+
+💬 Comandos de Texto
+
+Command:
+
+!curiosidad diaria
+
+--------------------------------------------------
+
+PATCH 13
+
+Create:
+
+/emparejamiento estado
+
+Display:
+
+- Current queue size
+- Players needed (14)
+- Average ELO (if available)
+- Waiting time (if available)
+
+--------------------------------------------------
+
+PATCH 14
+
+/logros
+
+Embed color:
+
+Orange
+
+Embed image:
+
+https://i.postimg.cc/pVg3Xv4S/Gemini-Generated-Image-sj6142sj6142sj61.png
+
+--------------------------------------------------
+
+PATCH 15
+
+/perfil
+
+Embed color:
+
+Orange
+
+--------------------------------------------------
+
+PATCH 16
+
+Rename
+
+/temporada abrir
+
+to
+
+/abrir temporada
+
+--------------------------------------------------
+
+PATCH 17
+
+Rename
+
+/temporada cerrar
+
+to
+
+/cerrar temporada
+
+--------------------------------------------------
+
+PATCH 18
+
+/abrir temporada
+
+Public embed (NOT ephemeral)
+
+Image:
+
+https://i.postimg.cc/jSRgLSX3/Gemini-Generated-Image-gf14dggf14dggf14.png
+
+--------------------------------------------------
+
+PATCH 19
+
+/temporada info
+
+Embed color:
+
+Orange
+
+--------------------------------------------------
+
+PATCH 20
+
+Rename
+
+/abrir-postulaciones
+
+to
+
+/abrir postulaciones
+
+Rename
+
+/cerrar-postulaciones
+
+to
+
+/cerrar postulaciones
+
+--------------------------------------------------
+
+PATCH 21
+
+Every Help menu should include:
+
+"Comandos disponibles para tu rango"
+
+under
+
+📖 Ayuda - TIAGO JR
+
+--------------------------------------------------
+
+PATCH 22
+
+The role named exactly:
+
+Supervisor
+
+must correctly receive:
+
+- Supervisor help category
+- Supervisor commands
+
+--------------------------------------------------
+
+PATCH 23
+
+Only:
+
+Moderador [PB]
+
+or any role higher in the Discord hierarchy
+
+may execute:
+
+/abrir temporada
+
+/cerrar temporada
+
+Trial Helper and Helper must NOT have access.
+
+--------------------------------------------------
+
+PATCH 24
+
+Update every Help menu.
+
+Use only the new command names.
+
+Remove obsolete command names.
+
+--------------------------------------------------
+IMPORTANT COMMAND STRUCTURE
+--------------------------------------------------
+
+Discord cannot have two root slash commands with the same name.
+
+Therefore, implement the following structure:
+
+/abrir
+    ├── temporada
+    └── postulaciones
+
+/cerrar
+    ├── temporada
+    └── postulaciones
+
+Do NOT create duplicate root commands.
+
+--------------------------------------------------
+PROTECTED SYSTEMS
+--------------------------------------------------
+
+Do NOT modify or delete:
+
+- EloService
+- Matchmaking algorithm
+- Rankings
+- Achievements
+- Statistics
+- Player history
+- Staff Application System
+- Staff Application workflow
+- Staff Application repositories
+- Staff Application database schema
+
+The Staff Application System must remain fully functional.
+
+--------------------------------------------------
+GENERAL RULES
+--------------------------------------------------
+
+- Continue from the current implementation.
+- Do NOT restart the refactor.
+- Do NOT duplicate systems.
+- Reuse existing code whenever possible.
+- Do NOT remove functionality that is unrelated to these patches.
+- Preserve backward compatibility where appropriate.
+
+--------------------------------------------------
+AFTER IMPLEMENTATION
+--------------------------------------------------
+
+Run:
+
+- TypeScript typecheck
+- Slash command registration
+- Bot restart
+
+Finally provide a report containing:
+
+- Completed patches
+- Modified files
+- Renamed commands
+- Added commands
+- Removed commands
+- TypeScript result
+- Bot startup confirmation

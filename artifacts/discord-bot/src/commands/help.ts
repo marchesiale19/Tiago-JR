@@ -7,7 +7,11 @@ import {
 const ROLE_MODERADOR    = "Moderador [PB]";
 const ROLE_HELPER       = "Helper";
 const ROLE_TRIAL_HELPER = "Trial Helper";
+const ROLE_SUPERVISOR   = "Supervisor";
 
+// Tier 1 = Moderador [PB] or higher
+// Tier 2 = Helper, Trial Helper, or Supervisor
+// Tier 3 = everyone else
 type Tier = 1 | 2 | 3;
 
 function getUserTier(interaction: ChatInputCommandInteraction): Tier {
@@ -25,13 +29,18 @@ function getUserTier(interaction: ChatInputCommandInteraction): Tier {
     ...memberRolesCache.map((r: any) => r.position as number),
   );
 
-  const modRole  = guild.roles.cache.find((r) => r.name === ROLE_MODERADOR);
-  const trialRole = guild.roles.cache.find((r) => r.name === ROLE_TRIAL_HELPER);
-  const helperRole = guild.roles.cache.find((r) => r.name === ROLE_HELPER);
+  const modRole        = guild.roles.cache.find((r) => r.name === ROLE_MODERADOR);
+  const trialRole      = guild.roles.cache.find((r) => r.name === ROLE_TRIAL_HELPER);
+  const helperRole     = guild.roles.cache.find((r) => r.name === ROLE_HELPER);
+  const supervisorRole = guild.roles.cache.find((r) => r.name === ROLE_SUPERVISOR);
 
   if (modRole && highestPosition >= modRole.position) return 1;
 
-  const tier2MinPosition = trialRole?.position ?? helperRole?.position;
+  // Check if user has Supervisor role directly
+  const hasSupervisor = memberRolesCache.some((r: any) => r.name === ROLE_SUPERVISOR);
+  if (hasSupervisor) return 2;
+
+  const tier2MinPosition = trialRole?.position ?? helperRole?.position ?? supervisorRole?.position;
   if (tier2MinPosition != null && highestPosition >= tier2MinPosition) return 2;
 
   return 3;
@@ -52,6 +61,7 @@ export async function execute(
 
   const embed = new EmbedBuilder()
     .setTitle("📖 Ayuda - TIAGO JR")
+    .setDescription("Comandos disponibles para tu rango")
     .setColor("Orange")
     .setImage("https://i.postimg.cc/NftRNWyr/1783848277486.png")
     .setTimestamp();
@@ -61,6 +71,8 @@ export async function execute(
     name: "🎮 Partidas Ranked",
     value: [
       "**/buscar partida** — Únete a la cola de búsqueda (requiere estar en un canal Among Us).",
+      "**/cancelar emparejamiento** — Sal de la cola de emparejamiento.",
+      "**/emparejamiento estado** — Muestra el estado actual de la cola.",
       "**/partida estado** — Muestra el estado de tu partida activa.",
     ].join("\n"),
   });
@@ -70,6 +82,7 @@ export async function execute(
     name: "📊 Estadísticas",
     value: [
       "**/ranking** — Consulta el ranking de ELO de la temporada activa.",
+      "**/temporada info** — Muestra información sobre la temporada activa.",
       "**/perfil** — Muestra el perfil competitivo de un jugador.",
       "**/logros** — Muestra los logros de un jugador.",
     ].join("\n"),
@@ -95,9 +108,8 @@ export async function execute(
     embed.addFields({
       name: "🌟 Temporada",
       value: [
-        "**/temporada abrir** — Abre una nueva temporada ranked.",
-        "**/temporada cerrar** — Cierra la temporada activa.",
-        "**/temporada info** — Muestra información sobre la temporada activa.",
+        "**/abrir temporada** — Abre una nueva temporada ranked.",
+        "**/cerrar temporada** — Cierra la temporada activa.",
       ].join("\n"),
     });
   }
@@ -109,20 +121,14 @@ export async function execute(
 
   if (tier === 1) {
     postulacionLines.push(
-      "**/abrir-postulaciones** — Abre el período de postulaciones al staff.",
-      "**/cerrar-postulaciones** — Cierra el período de postulaciones al staff.",
+      "**/abrir postulaciones** — Abre el período de postulaciones al staff.",
+      "**/cerrar postulaciones** — Cierra el período de postulaciones al staff.",
     );
   }
 
   embed.addFields({
     name: "📋 Postulaciones",
     value: postulacionLines.join("\n"),
-  });
-
-  // ── 💬 Comandos de Texto (everyone) ──────────────────────────────────────
-  embed.addFields({
-    name: "💬 Comandos de Texto",
-    value: "**!curiosidad diaria** — Recibe un dato interesante que se actualiza cada 24 horas.",
   });
 
   await interaction.reply({ embeds: [embed], ephemeral: false });

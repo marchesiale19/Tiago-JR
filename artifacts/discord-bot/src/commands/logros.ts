@@ -37,9 +37,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
-            .setColor("Gold")
+            .setColor("Orange")
             .setTitle(`🏆 Logros de ${displayName}`)
             .setDescription("No hay logros disponibles en el catálogo todavía.")
+            .setImage("https://i.postimg.cc/pVg3Xv4S/Gemini-Generated-Image-sj6142sj6142sj61.png")
             .setTimestamp(),
         ],
       });
@@ -67,8 +68,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const headerFieldName = `Desbloqueados: ${unlockedCount}/${summary.length}${visibilityNote}`;
 
     const embed = new EmbedBuilder()
-      .setColor("Gold")
+      .setColor("Orange")
       .setTitle(`🏆 Logros de ${displayName}`)
+      .setImage("https://i.postimg.cc/pVg3Xv4S/Gemini-Generated-Image-sj6142sj6142sj61.png")
       .setTimestamp();
 
     chunks.forEach((chunk, idx) => {

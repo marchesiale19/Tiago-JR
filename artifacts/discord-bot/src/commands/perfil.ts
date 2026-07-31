@@ -57,7 +57,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       await interaction.editReply({
         embeds: [
           new EmbedBuilder()
-            .setColor("Gold")
+            .setColor("Orange")
             .setTitle(`👤 Perfil — ${displayTag}`)
             .setDescription("Este jugador aún no tiene estadísticas registradas.")
             .setTimestamp(),
@@ -129,7 +129,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const globalElo = profile.user?.elo ?? "—";
 
     const embed = new EmbedBuilder()
-      .setColor("Gold")
+      .setColor("Orange")
       .setTitle(`👤 Perfil — ${displayTag}`)
       .addFields(
         { name: "📊 Temporada activa",    value: seasonSection,  inline: false },
