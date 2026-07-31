@@ -1,0 +1,296 @@
+# REPLIT AGENT TASK
+## Ranked System - Patch Pack 2 (Post-Refactor Polish)
+
+Continue from the CURRENT project state.
+
+The Ranked System refactor is already implemented.
+
+DO NOT refactor it again.
+
+DO NOT rewrite existing systems.
+
+Only implement the following patches.
+
+--------------------------------------------------
+PATCH 10 — Leave Matchmaking Queue
+--------------------------------------------------
+
+Create a new slash command:
+
+/cancelar emparejamiento
+
+Behavior:
+
+- Removes the player from the current matchmaking queue.
+- Updates the queue status.
+- If the player is not currently queued, return an ephemeral message explaining that they are not searching for a match.
+
+--------------------------------------------------
+PATCH 11 — Ranking Command Cleanup
+--------------------------------------------------
+
+Remove:
+
+/ranking activa
+
+Rename:
+
+/ranking temporada
+
+to
+
+/ranking
+
+Keep exactly the same functionality.
+
+Update every internal reference and the Help menu.
+
+--------------------------------------------------
+PATCH 12 — Remove Daily Curiosity
+--------------------------------------------------
+
+Completely remove the obsolete Daily Curiosity feature from the Help menu.
+
+Remove:
+
+Category:
+💬 Comandos de Texto
+
+Command:
+!curiosidad diaria
+
+Do not leave dead references.
+
+--------------------------------------------------
+PATCH 13 — Matchmaking Status
+--------------------------------------------------
+
+Create:
+
+/emparejamiento estado
+
+Display:
+
+- Current queue size
+- Required players (14)
+- Current average ELO (if available)
+- Waiting time (if available)
+
+If no matchmaking is active:
+
+Show an appropriate message.
+
+--------------------------------------------------
+PATCH 14 — Achievements Embed
+--------------------------------------------------
+
+Modify the /logros embed.
+
+Requirements:
+
+- Orange embed color.
+- Add this image as the embed banner:
+
+https://i.postimg.cc/pVg3Xv4S/Gemini-Generated-Image-sj6142sj6142sj61.png
+
+--------------------------------------------------
+PATCH 15 — Profile Embed
+--------------------------------------------------
+
+Change the /perfil embed color to orange.
+
+--------------------------------------------------
+PATCH 16 — Rename Season Commands
+--------------------------------------------------
+
+Rename:
+
+/temporada abrir
+
+to
+
+/abrir temporada
+
+Rename:
+
+/temporada cerrar
+
+to
+
+/cerrar temporada
+
+Update:
+
+- Slash commands
+- Help menu
+- Internal references
+- Command registration
+
+Keep the existing functionality unchanged.
+
+--------------------------------------------------
+PATCH 17 — Season Opening Embed
+--------------------------------------------------
+
+Modify:
+
+/abrir temporada
+
+Requirements:
+
+- Visible to everyone (NOT ephemeral).
+- Keep current functionality.
+- Add this image:
+
+https://i.postimg.cc/jSRgLSX3/Gemini-Generated-Image-gf14dggf14dggf14.png
+
+--------------------------------------------------
+PATCH 18 — Season Closing Embed
+--------------------------------------------------
+
+Modify:
+
+/cerrar temporada
+
+Requirements:
+
+- Visible to everyone (NOT ephemeral).
+- Keep current functionality.
+- Add this image:
+
+https://i.postimg.cc/bvW9HyQg/Gemini-Generated-Image-2s3b992s3b992s3b.png
+
+--------------------------------------------------
+PATCH 19 — Season Info
+--------------------------------------------------
+
+Change the /temporada info embed color to orange.
+
+--------------------------------------------------
+PATCH 20 — Staff Application Commands
+--------------------------------------------------
+
+Rename:
+
+/abrir-postulaciones
+
+to
+
+/abrir postulaciones
+
+Rename:
+
+/cerrar-postulaciones
+
+to
+
+/cerrar postulaciones
+
+Update:
+
+- Slash commands
+- Help menu
+- Internal references
+
+Keep the Staff Application System fully functional.
+
+--------------------------------------------------
+PATCH 21 — Help Menu
+--------------------------------------------------
+
+Every Help menu should include the subtitle:
+
+"Comandos disponibles para tu rango"
+
+Place it directly below:
+
+📖 Ayuda - TIAGO JR
+
+--------------------------------------------------
+PATCH 22 — Supervisor Help Category
+--------------------------------------------------
+
+The role named exactly:
+
+Supervisor
+
+must correctly receive:
+
+- Supervisor help category.
+- Supervisor commands.
+
+Identify the role by its name.
+
+--------------------------------------------------
+PATCH 23 — Season Permissions
+--------------------------------------------------
+
+Trial Helper
+
+and
+
+Helper
+
+must NOT have access to:
+
+/abrir temporada
+
+/cerrar temporada
+
+Only:
+
+- Moderador [PB]
+- Any role higher than Moderador [PB] in the Discord role hierarchy
+
+may execute those commands.
+
+Use the actual Discord role hierarchy whenever possible instead of hardcoded role names.
+
+--------------------------------------------------
+PATCH 24 — Help Menu Cleanup
+--------------------------------------------------
+
+Update every Help menu to reflect:
+
+- /buscar partida
+- /cancelar emparejamiento
+- /emparejamiento estado
+- /ranking
+- /abrir temporada
+- /cerrar temporada
+- /abrir postulaciones
+- /cerrar postulaciones
+
+Remove obsolete command names.
+
+--------------------------------------------------
+IMPORTANT
+--------------------------------------------------
+
+Do NOT modify:
+
+- EloService
+- Matchmaking balancing
+- Rankings logic
+- Achievements logic
+- Player history
+- Statistics
+- Staff Application workflow
+
+Only implement the patches above.
+
+After finishing:
+
+- Run TypeScript typecheck.
+- Register the updated slash commands.
+- Remove obsolete slash command registrations.
+- Restart the bot.
+
+Finally provide:
+
+- Modified files
+- Commands renamed
+- Commands added
+- Commands removed
+- Typecheck result
+- Confirmation that the bot started successfully.
