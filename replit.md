@@ -23,6 +23,15 @@ A full-featured Discord ranked gaming bot built with Discord.js, an Express API 
 
 ## Running
 
+Install the workspace dependencies once after importing:
+
+```
+pnpm install --frozen-lockfile
+```
+
+The **Discord Bot** run button starts the bot. The API server and component
+preview server run through their own managed workflows.
+
 The **Discord Bot** workflow runs the bot:
 
 ```
@@ -35,6 +44,9 @@ The **API Server** workflow runs the REST API:
 pnpm --filter @workspace/api-server run dev
 ```
 
+The API health check is available at `/api/healthz` and should return
+`{"status":"ok"}` when the server is ready.
+
 ## Required Secrets
 
 | Secret | Description |
@@ -44,6 +56,13 @@ pnpm --filter @workspace/api-server run dev
 | `DATABASE_URL` | PostgreSQL connection string (auto-provided by Replit) |
 
 ## Database
+
+The development PostgreSQL database is provisioned automatically by Replit.
+Initialize the imported schema with:
+
+```
+pnpm --filter @workspace/db run push
+```
 
 To push schema changes:
 
