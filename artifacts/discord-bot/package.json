@@ -12,7 +12,8 @@
     "@workspace/db": "workspace:*",
     "discord.js": "^14.16.3",
     "drizzle-orm": "catalog:",
-    "pino": "^9.14.0"
+    "pino": "^9.14.0",
+    "unb-api": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

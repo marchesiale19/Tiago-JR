@@ -10,6 +10,7 @@ import * as temporada           from "./temporada";
 import * as ranking             from "./ranking";
 import * as perfil              from "./perfil";
 import * as logros              from "./logros";
+import * as luckybox            from "./luckybox";
 // ── New ranked workflow commands ───────────────────────────────────────────
 import * as buscarPartida       from "./buscar-partida";
 import * as partida             from "./partida";
@@ -40,6 +41,7 @@ commands.set(temporada.data.name,           temporada);
 commands.set(ranking.data.name,             ranking);
 commands.set(perfil.data.name,              perfil);
 commands.set(logros.data.name,              logros);
+commands.set(luckybox.data.name,            luckybox);
 
 // ── Ranked match workflow ──────────────────────────────────────────────────
 commands.set(buscarPartida.data.name,       buscarPartida);

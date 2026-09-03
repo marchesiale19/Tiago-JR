@@ -90,6 +90,14 @@ export async function execute(
     ].join("\n"),
   });
 
+  // ── 🎰 Casino (everyone) ──────────────────────────────────────────────────
+  embed.addFields({
+    name: "🎰 Casino",
+    value: [
+      "**/luckybox** — Abre una Lucky Box común y gana un premio en Frijoles.",
+    ].join("\n"),
+  });
+
   // ── 👮 Supervisión (Tier 1, 2, and 2S) ───────────────────────────────────
   if (tier === 1 || tier === 2 || tier === "2S") {
     embed.addFields({
