@@ -1,1 +1,1 @@
-# Tiago-JR---Pol-tica-de-Privacidad
+# Política de Privacidad – Tiago JR
