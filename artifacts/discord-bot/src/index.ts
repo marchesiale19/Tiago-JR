@@ -22,6 +22,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import express from 'express'; // <--- 1. Importamos express para Render
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -517,7 +518,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const rest = interaction.customId.slice("q_form_".length);
       const underscoreIdx = rest.indexOf("_");
       if (underscoreIdx !== -1) {
-        const matchId   = rest.slice(0, underscoreIdx);
+        const matchId  = rest.slice(0, underscoreIdx);
         const discordId = rest.slice(underscoreIdx + 1);
         try {
           const { recordAnswer } = await import("./services/QuestionnaireService");
@@ -601,6 +602,19 @@ async function registrarComandos() {
 
 // Registramos comandos y hacemos login al iniciar
 registrarComandos();
+
+// --- 2. Servidor Express para que Render no duerma el bot ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('¡El bot de Tiago-JR está activo y despierto!');
+});
+
+app.listen(PORT, () => {
+    logger.info(`Servidor web Express corriendo en el puerto ${PORT}`);
+});
+// -------------------------------------------------------------
 
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");
