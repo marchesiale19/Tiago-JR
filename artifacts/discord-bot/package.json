@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
     "deploy-commands": "tsx src/deploy-commands.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
