@@ -611,7 +611,7 @@ app.get('/', (req, res) => {
     res.send('¡El bot de Tiago-JR está activo y despierto!');
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     logger.info(`Servidor web Express corriendo en el puerto ${PORT}`);
 });
 // -------------------------------------------------------------
