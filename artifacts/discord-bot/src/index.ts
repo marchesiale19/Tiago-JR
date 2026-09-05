@@ -49,7 +49,8 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates, // required for voice channel management
-    GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
+        GatewayIntentBits.GuildMessages, // <--- Agregá esta línea aquí
+ GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
   ],
 });
 
