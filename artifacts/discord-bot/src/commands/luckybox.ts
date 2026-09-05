@@ -10,7 +10,7 @@ import { logger } from "../lib/logger";
 
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
-// Recompensas para el Mr luky Común
+// Recompensas para el Mr lucky Común
 export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "45,000 Frijoles", valor: 45000 },
   { texto: "60,000 Frijoles", valor: 60000 },
@@ -21,7 +21,7 @@ export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "-25,000 Frijoles", valor: -25000 },
 ] as const;
 
-// Recompensas para el Mr luky Arcano
+// Recompensas para el Mr lucky Arcano
 export const ARCANO_LUCKYBOX_REWARDS = [
   { texto: "150,000 Frijoles", valor: 150000 },
   { texto: "175,000 Frijoles", valor: 175000 },
@@ -35,7 +35,7 @@ export const ARCANO_LUCKYBOX_REWARDS = [
 ] as const;
 
 export function pickReward(cajaTipo: string) {
-  if (cajaTipo === "Mr luky Arcano") {
+  if (cajaTipo === "Mr lucky Arcano") {
     const index = Math.floor(Math.random() * ARCANO_LUCKYBOX_REWARDS.length);
     return ARCANO_LUCKYBOX_REWARDS[index] ?? ARCANO_LUCKYBOX_REWARDS[0];
   }
@@ -45,21 +45,15 @@ export function pickReward(cajaTipo: string) {
 
 export const data = new SlashCommandBuilder()
   .setName("luckybox")
-  .setDescription("Abre un Mr luky si el usuario lo tiene en su inventario.")
-  .addUserOption((option) =>
-    option
-      .setName("usuario")
-      .setDescription("El usuario que abrió la caja")
-      .setRequired(true),
-  )
+  .setDescription("Abre un Mr lucky si lo tienes en tu inventario.")
   .addStringOption((option) =>
     option
       .setName("caja")
-      .setDescription("Tipo de Mr luky a abrir")
+      .setDescription("Tipo de Mr lucky a abrir")
       .setRequired(true)
       .addChoices(
-        { name: "Mr luky Común", value: "Mr luky Común" },
-        { name: "Mr luky Arcano", value: "Mr luky Arcano" }
+        { name: "Mr lucky Común", value: "Mr lucky Común" },
+        { name: "Mr lucky Arcano", value: "Mr lucky Arcano" }
       ),
   );
 
@@ -73,7 +67,8 @@ export async function execute(
     return;
   }
 
-  const targetUser = interaction.options.getUser("usuario", true);
+  // Tomamos al usuario que ejecuta el comando automáticamente
+  const targetUser = interaction.user;
   const cajaNombre = interaction.options.getString("caja", true);
   const guildId = interaction.guildId;
 
@@ -106,7 +101,7 @@ export async function execute(
 
     if (!userBox) {
       await interaction.editReply({
-        content: `❌ El usuario <@${targetUser.id}> **no tiene** ningún **${cajaNombre}** en su inventario.`,
+        content: `❌ No tienes ningún **${cajaNombre}** en tu inventario.`,
       });
       return;
     }
@@ -123,7 +118,7 @@ export async function execute(
       // Si falla el decremento por seguridad de la API, dejamos pasar la entrega del premio
     });
 
-    // 4. Elegir recompensa al azar según el tipo de Mr luky y acreditarla
+    // 4. Elegir recompensa al azar según el tipo de Mr lucky y acreditarla
     const rewardObj = pickReward(cajaNombre);
     await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
 
@@ -145,16 +140,16 @@ export async function execute(
         },
         {
           name: "💸 Estado",
-          value: `El item fue validado del inventario y los **${rewardObj.texto}** fueron aplicados a su cuenta.`,
+          value: `El item fue validado del inventario y los **${rewardObj.texto}** fueron aplicados a tu cuenta.`,
           inline: false,
         },
       )
-      .setFooter({ text: "Sistema de Mr Luky • Inventario Verificado" })
+      .setFooter({ text: "Sistema de Mr Lucky • Inventario Verificado" })
       .setTimestamp();
 
     // 6. Responder con éxito y enviar el embed al canal
     await interaction.editReply({
-      content: `✅ ¡Mr luky abierto con éxito!`,
+      content: `✅ ¡Mr lucky abierto con éxito!`,
     });
 
     const channel = interaction.channel as TextChannel | null;
@@ -162,7 +157,7 @@ export async function execute(
       await channel.send({ embeds: [embed] });
     }
   } catch (err: any) {
-    logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr luky");
+    logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr lucky");
     await interaction.editReply({
       content: `❌ **Error al verificar el inventario:** \`${err?.message || "Error desconocido"}\``,
     });
