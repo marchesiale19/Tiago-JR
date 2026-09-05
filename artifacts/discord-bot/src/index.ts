@@ -1,3 +1,4 @@
+import http from 'node:http';
 import {
   Client,
   Events,
@@ -21,6 +22,18 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+
+// --- SERVIDOR HTTP PARA RENDER (WEB SERVICE) ---
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot is running successfully!\n');
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+// ----------------------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -245,7 +258,7 @@ async function handleApprove(
     }
 
       const cooldownKey = `${interaction.guildId}-${applicantId}`;
-      rejectionRegistry.set(cooldownKey, Date.now());    saveCooldowns(rejectionRegistry);
+      rejectionRegistry.set(cooldownKey, Date.now());   saveCooldowns(rejectionRegistry);
 
     try {
       const applicant = await interaction.client.users.fetch(applicantId);
@@ -367,7 +380,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 
 
-    
       
 
   if (interaction.isAutocomplete()) {
@@ -630,7 +642,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   // Si tenía el rol (old) y ahora ya no lo tiene (new)
   if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
     const cooldownKey = `${newMember.guild.id}-${newMember.id}`;
-    rejectionRegistry.set(cooldownKey, Date.now());    saveCooldowns(rejectionRegistry);
+    rejectionRegistry.set(cooldownKey, Date.now());   saveCooldowns(rejectionRegistry);
     console.log(`[EVENTO] Rol ${POSTULADOS_ROLE_NAME} quitado a ${newMember.user.tag}. Cooldown aplicado.`);
   }
 });
