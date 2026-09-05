@@ -1,4 +1,3 @@
-
 import {
   Client,
   Events,
@@ -22,7 +21,6 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
-import express from 'express'; // <--- 1. Importamos express para Render
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -38,6 +36,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates, // required for voice channel management
+    GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
   ],
 });
 
@@ -518,7 +517,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const rest = interaction.customId.slice("q_form_".length);
       const underscoreIdx = rest.indexOf("_");
       if (underscoreIdx !== -1) {
-        const matchId  = rest.slice(0, underscoreIdx);
+        const matchId   = rest.slice(0, underscoreIdx);
         const discordId = rest.slice(underscoreIdx + 1);
         try {
           const { recordAnswer } = await import("./services/QuestionnaireService");
@@ -565,6 +564,64 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
+// --- PUENTE PARA COMANDOS CON PREFIJO "-" ---
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.content.startsWith("-")) return;
+
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args.shift()?.toLowerCase();
+
+  if (!commandName) return;
+
+  const command = commands.get(commandName);
+  if (!command) return;
+
+  const pseudoInteraction: any = {
+    commandName,
+    user: message.author,
+    guildId: message.guildId,
+    guild: message.guild,
+    member: message.member,
+    channel: message.channel,
+    replied: false,
+    deferred: false,
+    async deferReply() {
+      this.deferred = true;
+    },
+    async editReply(options: any) {
+      if (this.replied) {
+        return message.channel.send(options);
+      }
+      this.replied = true;
+      return message.reply(options);
+    },
+    async reply(options: any) {
+      this.replied = true;
+      return message.reply(options);
+    },
+    options: {
+      getString(name: string, required?: boolean) {
+        if (args.length > 0) {
+          return args.join(" ");
+        }
+        return null;
+      },
+      getUser(name: string, required?: boolean) {
+        return message.author;
+      },
+      getInteger(name: string) {
+        return args[0] ? parseInt(args[0], 10) : null;
+      }
+    }
+  };
+
+  try {
+    await command.execute(pseudoInteraction);
+  } catch (err) {
+    logger.error({ err, commandName }, "Error executing command via prefix");
+    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+  }
+});
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   // Aseguramos que solo actúe si el rol se pierde
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
@@ -602,19 +659,6 @@ async function registrarComandos() {
 
 // Registramos comandos y hacemos login al iniciar
 registrarComandos();
-
-// --- 2. Servidor Express para que Render no duerma el bot ---
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.get('/', (req, res) => {
-    res.send('¡El bot de Tiago-JR está activo y despierto!');
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-    logger.info(`Servidor web Express corriendo en el puerto ${PORT}`);
-});
-// -------------------------------------------------------------
 
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");
