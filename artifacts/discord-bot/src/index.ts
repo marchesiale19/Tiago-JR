@@ -49,8 +49,8 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildVoiceStates, // required for voice channel management
-        GatewayIntentBits.GuildMessages, // <--- Agregá esta línea aquí
- GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
+    GatewayIntentBits.GuildMessages, // <--- Agregá esta línea aquí
+    GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
   ],
 });
 
@@ -369,7 +369,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return; // Importante
     }
 
-    
+
     // Al final del bloque, si todo está bien, no necesitas retornar nada, 
     // pero si el código sigue, asegúrate de que el flujo natural continúe correctamente.
   }
@@ -381,7 +381,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 
 
-      
+
 
   if (interaction.isAutocomplete()) {
     const command = commands.get(interaction.commandName);
@@ -589,47 +589,14 @@ client.on(Events.MessageCreate, async (message) => {
   const command = commands.get(commandName);
   if (!command) return;
 
-  const pseudoInteraction: any = {
-    commandName,
-    user: message.author,
-    guildId: message.guildId,
-    guild: message.guild,
-    member: message.member,
-    channel: message.channel,
-    replied: false,
-    deferred: false,
-    async deferReply() {
-      this.deferred = true;
-    },
-    async editReply(options: any) {
-      if (this.replied) {
-        return message.channel.send(options);
-      }
-      this.replied = true;
-      return message.reply(options);
-    },
-    async reply(options: any) {
-      this.replied = true;
-      return message.reply(options);
-    },
-    options: {
-      getString(name: string, required?: boolean) {
-        if (args.length > 0) {
-          return args.join(" ");
-        }
-        return null;
-      },
-      getUser(name: string, required?: boolean) {
-        return message.author;
-      },
-      getInteger(name: string) {
-        return args[0] ? parseInt(args[0], 10) : null;
-      }
-    }
-  };
-
   try {
-    await command.execute(pseudoInteraction);
+    // Verificamos si el comando tiene una función 'run' casteándolo a any
+    const cmdAny = command as any;
+    if (typeof cmdAny.run === "function") {
+      await cmdAny.run(message, args);
+    } else {
+      await cmdAny.execute(message, args);
+    }
   } catch (err) {
     logger.error({ err, commandName }, "Error executing command via prefix");
     await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
