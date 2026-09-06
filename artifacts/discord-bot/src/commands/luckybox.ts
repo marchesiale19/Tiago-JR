@@ -131,7 +131,7 @@ function startAutoSync(clientInstance: any) {
 }
 
 export const data = new SlashCommandBuilder()
-  .setName("lb")
+  .setName("luckybox")
   .setDescription("Gestiona y abre tus cajas Mr lucky.")
   .addSubcommand((subcommand) =>
     subcommand
@@ -156,7 +156,11 @@ export const data = new SlashCommandBuilder()
           .setRequired(true)
           .addChoices({ name: "Mr lucky Común", value: "Mr lucky Común" }),
       ),
-  )
+  );
+
+export const leaderboardData = new SlashCommandBuilder()
+  .setName("leaderboard")
+  .setDescription("Gestiona la clasificación y sincronización de roles del Casino.")
   .addSubcommand((subcommand) =>
     subcommand
       .setName("sync")
@@ -204,7 +208,6 @@ async function handleAbrir(
   cajaNombre: string
 ) {
   try {
-    // 1. Consultar el inventario usando la ruta REST oficial de UnbelievaBoat
     const response = await (fetch as any)(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${targetUser.id}/inventory`, {
       headers: {
         Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
@@ -221,7 +224,6 @@ async function handleAbrir(
       items = [];
     }
 
-    // 2. Buscar si el usuario tiene el item usando coincidencias parciales flexibles (.includes)
     const userBox = items.find((item: any) => {
       const itemName = (item.name || item.item_name || item.item_id || "").toLowerCase();
       const targetQuery = cajaNombre.toLowerCase();
@@ -237,7 +239,6 @@ async function handleAbrir(
       return;
     }
 
-    // 3. Descontar 1 unidad del inventario mediante la API REST
     await (fetch as any)(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${targetUser.id}/inventory/${userBox.item_id || userBox.id}`, {
       method: "DELETE",
       headers: {
@@ -245,15 +246,11 @@ async function handleAbrir(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ quantity: 1 }),
-    }).catch(() => {
-      // Si falla el decremento por seguridad de la API, dejamos pasar la entrega del premio
-    });
+    }).catch(() => {});
 
-    // 4. Elegir recompensa al azar y acreditarla
     const rewardObj = pickReward();
     await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
 
-    // 5. Crear el embed informativo
     const embed = new EmbedBuilder()
       .setColor("Orange")
       .setTitle(`🎁 ${cajaNombre} Abierto`)
@@ -278,7 +275,6 @@ async function handleAbrir(
       .setFooter({ text: "Sistema de Mr Lucky • Inventario Verificado" })
       .setTimestamp();
 
-    // 6. Responder con éxito y enviar el embed al canal
     await sendReply({
       content: `✅ ¡Mr lucky abierto con éxito!`,
     });
@@ -292,12 +288,11 @@ async function handleAbrir(
   }
 }
 
-// Ejecutor unificado con validación estricta de tipo de objeto
+// Ejecutor unificado para comandos de barra (/luckybox y /leaderboard)
 export async function execute(
   interactionOrMessage: ChatInputCommandInteraction | Message,
   args?: string[]
 ): Promise<void> {
-  // Si tiene la propiedad 'content', es un Message enviado por prefijo (ej: "-lb")
   if ("content" in interactionOrMessage || !("isChatInputCommand" in interactionOrMessage)) {
     return run(interactionOrMessage as Message, args || []);
   }
@@ -305,59 +300,64 @@ export async function execute(
   const interaction = interactionOrMessage as ChatInputCommandInteraction;
   if (interaction.client) startAutoSync(interaction.client);
 
-  const subcommand = interaction.options.getSubcommand() || "abrir";
-
   if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({ content: "Este comando solo se usa en servidores.", ephemeral: true });
     return;
   }
 
-  if (subcommand === "sync") {
-    if (!tienePermisoSync(interaction.member)) {
-      await interaction.reply({ content: "❌ No tienes los permisos ni roles necesarios para usar este comando.", ephemeral: true });
+  const commandName = interaction.commandName;
+
+  if (commandName === "leaderboard") {
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === "sync") {
+      if (!tienePermisoSync(interaction.member)) {
+        await interaction.reply({ content: "❌ No tienes los permisos ni roles necesarios para usar este comando.", ephemeral: true });
+        return;
+      }
+
+      await interaction.deferReply({ flags: 64 });
+      const result = await syncTopCasinoRole(interaction.guild);
+
+      const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
+      if (result.success) {
+        embed.setColor("Green")
+          .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
+          .addFields(
+            { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
+            { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
+          );
+      } else {
+        embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
+      }
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+  }
+
+  if (commandName === "luckybox") {
+    const subcommand = interaction.options.getSubcommand() || "abrir";
+    const cajaNombre = interaction.options.getString("caja", true);
+
+    if (subcommand === "info") {
+      await interaction.deferReply({ flags: 64 });
+      await handleInfo((opts) => interaction.editReply(opts), cajaNombre);
       return;
     }
 
     await interaction.deferReply({ flags: 64 });
-    const result = await syncTopCasinoRole(interaction.guild);
+    const channel: any = interaction.channel;
 
-    const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
-    if (result.success) {
-      embed.setColor("Green")
-        .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
-        .addFields(
-          { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
-          { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
-        );
-    } else {
-      embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
-    }
-    await interaction.editReply({ embeds: [embed] });
-    return;
+    await handleAbrir(
+      (opts) => interaction.editReply(opts),
+      (opts) => channel.send(opts),
+      interaction.guildId,
+      interaction.user,
+      cajaNombre
+    );
   }
-
-  const cajaNombre = interaction.options.getString("caja", true);
-
-  if (subcommand === "info") {
-    await interaction.deferReply({ flags: 64 });
-    await handleInfo((opts) => interaction.editReply(opts), cajaNombre);
-    return;
-  }
-
-  await interaction.deferReply({ flags: 64 });
-
-  const channel: any = interaction.channel;
-
-  await handleAbrir(
-    (opts) => interaction.editReply(opts),
-    (opts) => channel.send(opts),
-    interaction.guildId,
-    interaction.user,
-    cajaNombre
-  );
 }
 
-// Ejecutor oficial para comandos por prefijo de texto plano (-lb)
+// Ejecutor oficial para comandos por prefijo de texto plano (-luckybox, -leaderboard o -lb)
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
@@ -366,34 +366,42 @@ export async function run(message: Message, args: string[]): Promise<void> {
 
   if (message.client) startAutoSync(message.client);
 
-  const sub = (args[0] || "abrir").toLowerCase();
+  const mainArg = (args[0] || "").toLowerCase();
 
-  if (sub === "sync") {
-    if (!tienePermisoSync(message.member)) {
-      await message.reply("❌ No tienes los permisos ni roles necesarios para usar este comando.");
+  // Soporte para -leaderboard sync o -lb sync
+  if (mainArg === "leaderboard" || mainArg === "lb") {
+    const sub = (args[1] || "").toLowerCase();
+    if (sub === "sync") {
+      if (!tienePermisoSync(message.member)) {
+        await message.reply("❌ No tienes los permisos ni roles necesarios para usar este comando.");
+        return;
+      }
+
+      const channel: any = message.channel;
+      await channel.send("🔄 Sincronizando el Top 10 del Casino...");
+      const result = await syncTopCasinoRole(message.guild);
+
+      const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
+      if (result.success) {
+        embed.setColor("Green")
+          .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
+          .addFields(
+            { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
+            { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
+          );
+      } else {
+        embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
+      }
+      await channel.send({ embeds: [embed] });
       return;
     }
-
-    const channel: any = message.channel;
-    await channel.send("🔄 Sincronizando el Top 10 del Casino...");
-    const result = await syncTopCasinoRole(message.guild);
-
-    const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
-    if (result.success) {
-      embed.setColor("Green")
-        .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
-        .addFields(
-          { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
-          { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
-        );
-    } else {
-      embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
-    }
-    await channel.send({ embeds: [embed] });
-    return;
   }
 
-  const cajaNombreRestante = args.slice(1).join(" ").trim();
+  // Lógica normal para -luckybox abrir / info (o si no se especifica subcomando inicial)
+  const sub = (mainArg === "abrir" || mainArg === "info") ? mainArg : (args[0] || "abrir").toLowerCase();
+  const offset = (mainArg === "abrir" || mainArg === "info") ? 1 : 1;
+  
+  const cajaNombreRestante = args.slice(offset).join(" ").trim();
   const cajaNombre = cajaNombreRestante.length > 0 ? cajaNombreRestante : "Mr lucky Común";
 
   if (sub === "info") {
