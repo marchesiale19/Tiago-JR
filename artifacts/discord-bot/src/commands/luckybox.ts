@@ -178,7 +178,7 @@ async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre:
     .join("\n");
 
   const infoEmbed = new EmbedBuilder()
-    .setColor("Blue")
+    .setColor("Orange")
     .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
     .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
     .addFields(
