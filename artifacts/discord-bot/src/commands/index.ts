@@ -5,12 +5,14 @@ import {
 } from "discord.js";
 import * as postular            from "./postular";
 import { data as helpData, execute as helpExecute } from "./help";
+import { data as asignarRangoData, execute as asignarRangoExecute } from "./asignarRango";
 import * as sanciones           from "./sanciones";
 import * as temporada           from "./temporada";
 import * as ranking             from "./ranking";
 import * as perfil              from "./perfil";
 import * as logros              from "./logros";
 import * as luckybox            from "./luckybox";
+import * as roleOverride        from "./roleOverride";
 // ── New ranked workflow commands ───────────────────────────────────────────
 import * as buscarPartida       from "./buscar-partida";
 import * as partida             from "./partida";
@@ -42,18 +44,19 @@ commands.set(ranking.data.name,             ranking);
 commands.set(perfil.data.name,              perfil);
 commands.set(logros.data.name,              logros);
 commands.set(luckybox.data.name,            luckybox);
+commands.set(asignarRangoData.name,         { data: asignarRangoData, execute: asignarRangoExecute });
 
 // ── Ranked match workflow ──────────────────────────────────────────────────
 commands.set(buscarPartida.data.name,       buscarPartida);
 commands.set(partida.data.name,             partida);
 commands.set(registrarPartida.data.name,    registrarPartida);
-commands.set(sala.data.name,               sala);
+commands.set(sala.data.name,                sala);
 commands.set(finalizarPartida.data.name,    finalizarPartida);
 commands.set(supervisorInactivo.data.name,  supervisorInactivo);
 
 // ── Season management ──────────────────────────────────────────────────────
 commands.set(abrir.data.name,               abrir);
-commands.set(cerrar.data.name,             cerrar);
+commands.set(cerrar.data.name,              cerrar);
 
 // ── Queue management ───────────────────────────────────────────────────────
 commands.set(cancelar.data.name,            cancelar);
