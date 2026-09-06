@@ -14,20 +14,32 @@ const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 // ID del Rol Top Casino (Top 1-10)
 export const ROL_TOP_CASINO_ID = "1546068235072442398";
 
-// Recompensas para el Mr lucky Común con sus porcentajes exactos basados en la cantidad de opciones (7 totales)
+// Recompensas para el Mr lucky Común con distribución equilibrada y atractiva (Suma exacta: 100%)
 export const COMMON_LUCKYBOX_REWARDS = [
-  { texto: "45,000 Frijoles", valor: 45000, tipo: "positivo", probabilidad: "14.28%" },
-  { texto: "60,000 Frijoles", valor: 60000, tipo: "positivo", probabilidad: "14.28%" },
-  { texto: "65,000 Frijoles", valor: 65000, tipo: "positivo", probabilidad: "14.28%" },
-  { texto: "80,000 Frijoles", valor: 80000, tipo: "positivo", probabilidad: "14.28%" },
-  { texto: "100,000 Frijoles", valor: 100000, tipo: "positivo", probabilidad: "14.28%" },
-  { texto: "-20,000 Frijoles", valor: -20000, tipo: "negativo", probabilidad: "14.28%" },
-  { texto: "-25,000 Frijoles", valor: -25000, tipo: "negativo", probabilidad: "14.28%" },
+  { texto: "45,000 Frijoles", valor: 45000, tipo: "positivo", probabilidad: "25.0%" },
+  { texto: "60,000 Frijoles", valor: 60000, tipo: "positivo", probabilidad: "20.0%" },
+  { texto: "65,000 Frijoles", valor: 65000, tipo: "positivo", probabilidad: "15.0%" },
+  { texto: "80,000 Frijoles", valor: 80000, tipo: "positivo", probabilidad: "8.0%" },
+  { texto: "100,000 Frijoles", valor: 100000, tipo: "positivo", probabilidad: "3.0%" },
+  { texto: "-20,000 Frijoles", valor: -20000, tipo: "negativo", probabilidad: "20.0%" },
+  { texto: "-25,000 Frijoles", valor: -25000, tipo: "negativo", probabilidad: "9.0%" },
 ] as const;
 
+// Sistema de selección ponderada basado en porcentajes reales
 export function pickReward() {
-  const index = Math.floor(Math.random() * COMMON_LUCKYBOX_REWARDS.length);
-  return COMMON_LUCKYBOX_REWARDS[index] ?? COMMON_LUCKYBOX_REWARDS[0];
+  const rand = Math.random() * 100;
+  let acumulado = 0;
+  
+  // Asignamos rangos basados en los porcentajes
+  const probabilidadesNumericas = [25.0, 20.0, 15.0, 8.0, 3.0, 20.0, 9.0];
+  
+  for (let i = 0; i < COMMON_LUCKYBOX_REWARDS.length; i++) {
+    acumulado += probabilidadesNumericas[i];
+    if (rand <= acumulado) {
+      return COMMON_LUCKYBOX_REWARDS[i];
+    }
+  }
+  return COMMON_LUCKYBOX_REWARDS[0];
 }
 
 export const data = new SlashCommandBuilder()
