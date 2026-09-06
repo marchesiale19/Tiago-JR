@@ -221,11 +221,21 @@ async function sendHelpMenu(
     return [rowMenu, rowButtons];
   };
 
-  const response = await replyMethod({
-    embeds: [buildEmbed(initialCat)],
-    components: buildComponents() as any,
-    fetchReply: true,
-  });
+  let response;
+  if (editMethod) {
+    // Es una interacción (/help)
+    response = await replyMethod({
+      embeds: [buildEmbed(initialCat)],
+      components: buildComponents() as any,
+      fetchReply: true,
+    });
+  } else {
+    // Es un mensaje por prefijo (-help)
+    response = await replyMethod({
+      embeds: [buildEmbed(initialCat)],
+      components: buildComponents() as any,
+    });
+  }
 
   const collector = response.createMessageComponentCollector({
     time: 300_000, // 5 minutos
