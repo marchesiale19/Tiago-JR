@@ -33,7 +33,7 @@ export async function execute(
   if (!hasStaffPermission(interaction.member)) {
     await interaction.reply({
       content:
-        "❌ No tienes permiso para usar este comando. Se requiere el rol autorizado para gestionar las postulaciones.",
+        "❌ No tienes permiso para usar este comando. Se requiere ser parte del Equipo Administrativo para gestionar las postulaciones.",
       ephemeral: true,
     });
     return;
