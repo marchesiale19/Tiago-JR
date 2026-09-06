@@ -10,6 +10,9 @@ import { logger } from "../lib/logger";
 
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
+// ID del Rol Top Casino (Top 1-10)
+export const ROL_TOP_CASINO_ID = "1546068235072442398";
+
 // Recompensas para el Mr lucky Común
 export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "45,000 Frijoles", valor: 45000 },
@@ -21,45 +24,72 @@ export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "-25,000 Frijoles", valor: -25000 },
 ] as const;
 
-// Recompensas para el Mr lucky Arcano
-export const ARCANO_LUCKYBOX_REWARDS = [
-  { texto: "150,000 Frijoles", valor: 150000 },
-  { texto: "175,000 Frijoles", valor: 175000 },
-  { texto: "200,000 Frijoles", valor: 200000 },
-  { texto: "250,000 Frijoles", valor: 250000 },
-  { texto: "325,000 Frijoles", valor: 325000 },
-  { texto: "450,000 Frijoles", valor: 450000 },
-  { texto: "-100,000 Frijoles", valor: -100000 },
-  { texto: "-130,000 Frijoles", valor: -130000 },
-  { texto: "-150,000 Frijoles", valor: -150000 },
-] as const;
-
-export function pickReward(cajaTipo: string) {
-  if (cajaTipo === "Mr lucky Arcano") {
-    const index = Math.floor(Math.random() * ARCANO_LUCKYBOX_REWARDS.length);
-    return ARCANO_LUCKYBOX_REWARDS[index] ?? ARCANO_LUCKYBOX_REWARDS[0];
-  }
+export function pickReward() {
   const index = Math.floor(Math.random() * COMMON_LUCKYBOX_REWARDS.length);
   return COMMON_LUCKYBOX_REWARDS[index] ?? COMMON_LUCKYBOX_REWARDS[0];
 }
 
 export const data = new SlashCommandBuilder()
   .setName("luckybox")
-  .setDescription("Abre un Mr lucky si lo tienes en tu inventario.")
-  .addStringOption((option) =>
-    option
-      .setName("caja")
-      .setDescription("Tipo de Mr lucky a abrir")
-      .setRequired(true)
-      .addChoices(
-        { name: "Mr lucky Común", value: "Mr lucky Común" },
-        { name: "Mr lucky Arcano", value: "Mr lucky Arcano" }
+  .setDescription("Gestiona y abre tus cajas Mr lucky.")
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("abrir")
+      .setDescription("Abre un Mr lucky si lo tienes en tu inventario.")
+      .addStringOption((option) =>
+        option
+          .setName("caja")
+          .setDescription("Tipo de Mr lucky a abrir")
+          .setRequired(true)
+          .addChoices({ name: "Mr lucky Común", value: "Mr lucky Común" }),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("info")
+      .setDescription("Muestra la información y recompensas posibles del Mr lucky Común.")
+      .addStringOption((option) =>
+        option
+          .setName("caja")
+          .setDescription("Tipo de caja para ver información")
+          .setRequired(true)
+          .addChoices({ name: "Mr lucky Común", value: "Mr lucky Común" }),
       ),
   );
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
+  const subcommand = interaction.options.getSubcommand() || "abrir";
+  const cajaNombre = interaction.options.getString("caja", true);
+
+  // --- SUBCOMANDO INFO ---
+  if (subcommand === "info") {
+    await interaction.deferReply({ flags: 64 });
+
+    const rewardsList = COMMON_LUCKYBOX_REWARDS.map(
+      (r) => `• **${r.texto}**`,
+    ).join("\n");
+
+    const infoEmbed = new EmbedBuilder()
+      .setColor("Blue")
+      .setTitle(`📊 Información: ${cajaNombre}`)
+      .setDescription(
+        `Aquí tienes el detalle de todas las recompensas posibles que te pueden tocar al abrir este ${cajaNombre}:\n\n${rewardsList}`,
+      )
+      .addFields({
+        name: "🏆 Rol Top Casino",
+        value: `Asociado al rol con ID \`${ROL_TOP_CASINO_ID}\` para los miembros del top 1-10.`,
+        inline: false,
+      })
+      .setFooter({ text: "Sistema de Mr Lucky • Información Oficial" })
+      .setTimestamp();
+
+    await interaction.editReply({ embeds: [infoEmbed] });
+    return;
+  }
+
+  // --- SUBCOMANDO ABRIR ---
   await interaction.deferReply({ flags: 64 });
 
   if (!interaction.guildId || !interaction.member) {
@@ -67,9 +97,7 @@ export async function execute(
     return;
   }
 
-  // Tomamos al usuario que ejecuta el comando automáticamente
   const targetUser = interaction.user;
-  const cajaNombre = interaction.options.getString("caja", true);
   const guildId = interaction.guildId;
 
   try {
@@ -118,8 +146,8 @@ export async function execute(
       // Si falla el decremento por seguridad de la API, dejamos pasar la entrega del premio
     });
 
-    // 4. Elegir recompensa al azar según el tipo de Mr lucky y acreditarla
-    const rewardObj = pickReward(cajaNombre);
+    // 4. Elegir recompensa al azar y acreditarla
+    const rewardObj = pickReward();
     await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
 
     // 5. Crear el embed informativo
