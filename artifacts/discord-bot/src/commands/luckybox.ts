@@ -13,15 +13,15 @@ const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 // ID del Rol Top Casino (Top 1-10)
 export const ROL_TOP_CASINO_ID = "1546068235072442398";
 
-// Recompensas para el Mr lucky Común
+// Recompensas para el Mr lucky Común con sus porcentajes exactos basados en la cantidad de opciones (7 totales)
 export const COMMON_LUCKYBOX_REWARDS = [
-  { texto: "45,000 Frijoles", valor: 45000 },
-  { texto: "60,000 Frijoles", valor: 60000 },
-  { texto: "65,000 Frijoles", valor: 65000 },
-  { texto: "80,000 Frijoles", valor: 80000 },
-  { texto: "100,000 Frijoles", valor: 100000 },
-  { texto: "-20,000 Frijoles", valor: -20000 },
-  { texto: "-25,000 Frijoles", valor: -25000 },
+  { texto: "45,000 Frijoles", valor: 45000, tipo: "positivo", probabilidad: "14.28%" },
+  { texto: "60,000 Frijoles", valor: 60000, tipo: "positivo", probabilidad: "14.28%" },
+  { texto: "65,000 Frijoles", valor: 65000, tipo: "positivo", probabilidad: "14.28%" },
+  { texto: "80,000 Frijoles", valor: 80000, tipo: "positivo", probabilidad: "14.28%" },
+  { texto: "100,000 Frijoles", valor: 100000, tipo: "positivo", probabilidad: "14.28%" },
+  { texto: "-20,000 Frijoles", valor: -20000, tipo: "negativo", probabilidad: "14.28%" },
+  { texto: "-25,000 Frijoles", valor: -25000, tipo: "negativo", probabilidad: "14.28%" },
 ] as const;
 
 export function pickReward() {
@@ -67,22 +67,31 @@ export async function execute(
   if (subcommand === "info") {
     await interaction.deferReply({ flags: 64 });
 
-    const rewardsList = COMMON_LUCKYBOX_REWARDS.map(
-      (r) => `• **${r.texto}**`,
-    ).join("\n");
+    const positivos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "positivo")
+      .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
+      .join("\n");
+
+    const negativos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "negativo")
+      .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
+      .join("\n");
 
     const infoEmbed = new EmbedBuilder()
       .setColor("Blue")
-      .setTitle(`📊 Información: ${cajaNombre}`)
-      .setDescription(
-        `Aquí tienes el detalle de todas las recompensas posibles que te pueden tocar al abrir este ${cajaNombre}:\n\n${rewardsList}`,
+      .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
+      .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
+      .addFields(
+        {
+          name: "✨ Recompensas Positivas",
+          value: positivos,
+          inline: false,
+        },
+        {
+          name: "⚠️ Recompensas Negativas (Castigos)",
+          value: negativos,
+          inline: false,
+        },
       )
-      .addFields({
-        name: "🏆 Rol Top Casino",
-        value: `Asociado al rol con ID \`${ROL_TOP_CASINO_ID}\` para los miembros del top 1-10.`,
-        inline: false,
-      })
-      .setFooter({ text: "Sistema de Mr Lucky • Información Oficial" })
+      .setFooter({ text: "Sistema de Mr Lucky • Probabilidades Oficiales" })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [infoEmbed] });
