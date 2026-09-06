@@ -397,9 +397,9 @@ export async function run(message: Message, args: string[]): Promise<void> {
     }
   }
 
-  // Lógica normal para -luckybox abrir / info (o si no se especifica subcomando inicial)
-  const sub = (mainArg === "abrir" || mainArg === "info") ? mainArg : (args[0] || "abrir").toLowerCase();
-  const offset = (mainArg === "abrir" || mainArg === "info") ? 1 : 1;
+  // Lógica normal para -luckybox abrir / info
+  const sub = (mainArg === "abrir" || mainArg === "info") ? mainArg : "abrir";
+  const offset = (mainArg === "abrir" || mainArg === "info") ? 1 : 0;
   
   const cajaNombreRestante = args.slice(offset).join(" ").trim();
   const cajaNombre = cajaNombreRestante.length > 0 ? cajaNombreRestante : "Mr lucky Común";
