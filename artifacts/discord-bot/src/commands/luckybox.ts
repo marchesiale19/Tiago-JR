@@ -187,13 +187,13 @@ async function handleAbrir(
   }
 }
 
-// Ejecutor unificado: si el manejador de tu bot le pasa un message por error, lo intercepta y ejecuta el prefijo
+// Ejecutor unificado con validación estricta de tipo de objeto
 export async function execute(
   interactionOrMessage: ChatInputCommandInteraction | Message,
   args?: string[]
 ): Promise<void> {
-  // Interceptación de seguridad si el bot pasa un Message a execute por error
-  if (!("isChatInputCommand" in interactionOrMessage) && !("options" in interactionOrMessage)) {
+  // Si tiene la propiedad 'content', es un Message enviado por prefijo (ej: "-luckybox")
+  if ("content" in interactionOrMessage || !("isChatInputCommand" in interactionOrMessage)) {
     return run(interactionOrMessage as Message, args || []);
   }
 
