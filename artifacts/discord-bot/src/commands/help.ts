@@ -34,7 +34,6 @@ const TIER_2_ROLES = [
 
 type AccessLevel = "user" | "staff" | "owner";
 
-// Función adaptada para aceptar tanto miembros de interacciones como de mensajes de texto
 function getMemberAccessLevel(member: GuildMember | null | undefined): AccessLevel {
   if (!member) return "user";
   
@@ -166,8 +165,8 @@ export const data = new SlashCommandBuilder()
   .setName("help")
   .setDescription("Muestra el centro de ayuda interactivo.");
 
-// Función auxiliar compartida para ejecutar la lógica del menú en cualquier formato
-export async function sendHelpMenu(
+// Función auxiliar compartida para manejar la lógica visual y el colector
+async function sendHelpMenu(
   authorId: string,
   member: GuildMember | null | undefined,
   replyMethod: (options: any) => Promise<any>,
@@ -224,19 +223,19 @@ export async function sendHelpMenu(
 
   const response = await replyMethod({
     embeds: [buildEmbed(initialCat)],
-    components: buildComponents(),
+    components: buildComponents() as any,
     fetchReply: true,
   });
 
   const collector = response.createMessageComponentCollector({
-    time: 300_000, // 5 minutes
+    time: 300_000, // 5 minutos
   });
 
-    collector.on("collect", async (i: any) => {
-      if (i.user.id !== authorId) {
-        await i.reply({ content: "Este menú no es para vos.", ephemeral: true });
-        return;
-      }
+  collector.on("collect", async (i: any) => {
+    if (i.user.id !== authorId) {
+      await i.reply({ content: "Este menú no es para vos.", ephemeral: true });
+      return;
+    }
 
     if (i.isStringSelectMenu()) {
       const selectedValue = (i as StringSelectMenuInteraction).values[0];
@@ -244,7 +243,7 @@ export async function sendHelpMenu(
       if (targetCat) {
         await i.update({
           embeds: [buildEmbed(targetCat)],
-          components: buildComponents(),
+          components: buildComponents() as any,
         });
       }
     } else if (i.isButton()) {
@@ -252,7 +251,7 @@ export async function sendHelpMenu(
       if (btn.customId === "help_home") {
         await btn.update({
           embeds: [buildEmbed(initialCat)],
-          components: buildComponents(),
+          components: buildComponents() as any,
         });
       } else if (btn.customId === "help_close") {
         await i.update({ content: "Menú cerrado.", embeds: [], components: [] }).catch(() => {});
@@ -270,7 +269,7 @@ export async function sendHelpMenu(
   });
 }
 
-// Ejecución estándar para Slash Command (/help)
+// Para barra diagonal (/help)
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
@@ -279,5 +278,14 @@ export async function execute(
     interaction.member as GuildMember,
     (options) => interaction.reply(options),
     (options) => interaction.editReply(options)
+  );
+}
+
+// Para prefijo (-help)
+export async function run(message: any, _args: string[]): Promise<void> {
+  await sendHelpMenu(
+    message.author.id,
+    message.member as GuildMember,
+    (options) => message.reply(options)
   );
 }
