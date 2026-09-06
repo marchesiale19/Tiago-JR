@@ -570,15 +570,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
       content: "Hubo un error al ejecutar este comando.",
       ephemeral: true,
     };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errorMessage);
-    } else {
-      await interaction.reply(errorMessage);
-    }
+  if (interaction.replied || interaction.deferred) {
+    await interaction.followUp(errorMessage);
+  } else {
+    await interaction.reply(errorMessage);
   }
-});
-// --- PUENTE PARA COMANDOS CON PREFIJO "-" ---
-client.on(Events.MessageCreate, async (message) => {
+  }
+  });
+
+  // --- PUENTE PARA COMANDOS CON PREFIJO "-" ---
+  client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
@@ -586,23 +587,35 @@ client.on(Events.MessageCreate, async (message) => {
 
   if (!commandName) return;
 
+  // Solución directa para el help
+  if (commandName === "help") {
+  try {
+    const helpCmd = await import("./commands/help");
+    await helpCmd.run(message, args);
+  } catch (err) {
+    logger.error({ err }, "Error executing help via prefix");
+    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+  }
+  return;
+  }
+
   const command = commands.get(commandName);
   if (!command) return;
 
   try {
-    // Verificamos si el comando tiene una función 'run' casteándolo a any
-    const cmdAny = command as any;
-    if (typeof cmdAny.run === "function") {
-      await cmdAny.run(message, args);
-    } else {
-      await cmdAny.execute(message, args);
-    }
-  } catch (err) {
-    logger.error({ err, commandName }, "Error executing command via prefix");
-    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+  const cmdAny = command as any;
+  if (typeof cmdAny.run === "function") {
+    await cmdAny.run(message, args);
+  } else {
+    await message.reply("Este comando no admite ejecución por prefijo.").catch(() => {});
   }
-});
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  } catch (err) {
+  logger.error({ err, commandName }, "Error executing command via prefix");
+  await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+  }
+  });
+
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   // Aseguramos que solo actúe si el rol se pierde
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
   if (!role) return;
