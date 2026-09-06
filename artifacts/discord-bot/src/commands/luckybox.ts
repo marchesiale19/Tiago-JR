@@ -224,7 +224,10 @@ export async function run(message: Message, args: string[]): Promise<void> {
   }
 
   const sub = (args[0] || "abrir").toLowerCase();
-  const cajaNombre = "Mr lucky Común";
+
+  // Unimos los argumentos restantes para capturar nombres compuestos como "Mr lucky Común"
+  const cajaNombreRestante = args.slice(1).join(" ").trim();
+  const cajaNombre = cajaNombreRestante.length > 0 ? cajaNombreRestante : "Mr lucky Común";
 
   if (sub === "info") {
     await handleInfo((opts) => message.reply(opts), cajaNombre);
