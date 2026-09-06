@@ -2,55 +2,174 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   ChatInputCommandInteraction,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuInteraction,
+  ButtonBuilder,
+  ButtonStyle,
+  ButtonInteraction,
 } from "discord.js";
 
-const ROLE_MODERADOR    = "Moderador [PB]";
-const ROLE_HELPER       = "Helper";
-const ROLE_TRIAL_HELPER = "Trial Helper";
-const ROLE_SUPERVISOR   = "Supervisor";
+const ROLE_STAFF = "1454679144230289510";
 
-// Tier 1 = Moderador [PB] or higher         → sees everything
-// Tier 2 = Helper or Trial Helper             → sees Supervisión + Administración
-// Tier 2S = Supervisor only                   → sees Supervisión, NOT Administración
-// Tier 3 = everyone else                    → ranked + stats only
-type Tier = 1 | 2 | "2S" | 3;
+// Tier 1 (Owners, Dev, Management, Upper Admins)
+const TIER_1_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
 
-function getUserTier(interaction: ChatInputCommandInteraction): Tier {
-  const guild  = interaction.guild;
+// Tier 2 (Staff operativo / Moderación / Helpers / Support)
+const TIER_2_ROLES = [
+  "1509760269071679498", // Trial Helper
+  "1528974868329009162", // Helper
+  "1522808445391212674", // Support
+  "1509760381525164123", // Moderador [PB]
+  "1452784726413672643", // Moderador
+];
+
+type AccessLevel = "user" | "staff" | "owner";
+
+function getUserAccessLevel(interaction: ChatInputCommandInteraction): AccessLevel {
   const member = interaction.member;
-
-  if (!guild || !member || typeof member === "string") return 3;
-  if (!("roles" in member) || typeof member.roles === "string") return 3;
+  if (!member || typeof member === "string" || !("roles" in member) || typeof member.roles === "string") {
+    return "user";
+  }
 
   const memberRolesCache = (member.roles as any).cache;
-  if (!memberRolesCache) return 3;
+  if (!memberRolesCache) return "user";
 
-  const highestPosition: number = Math.max(
-    0,
-    ...memberRolesCache.map((r: any) => r.position as number),
-  );
+  const roleIds = memberRolesCache.map((r: any) => r.id as string);
 
-  const modRole        = guild.roles.cache.find((r) => r.name === ROLE_MODERADOR);
-  const trialRole      = guild.roles.cache.find((r) => r.name === ROLE_TRIAL_HELPER);
-  const helperRole     = guild.roles.cache.find((r) => r.name === ROLE_HELPER);
+  // Check Tier 1 (Owners / High Staff)
+  if (roleIds.some((id: string) => TIER_1_ROLES.includes(id))) {
+    return "owner";
+  }
 
-  // Tier 1: Moderador [PB] or higher in the hierarchy
-  if (modRole && highestPosition >= modRole.position) return 1;
+  // Check Tier 2 (Staff regular / Mods / Helpers)
+  if (roleIds.some((id: string) => TIER_2_ROLES.includes(id) || id === ROLE_STAFF)) {
+    return "staff";
+  }
 
-  // Tier 2: Trial Helper or Helper (or any role at/above their position)
-  const adminMinPosition = trialRole?.position ?? helperRole?.position;
-  if (adminMinPosition != null && highestPosition >= adminMinPosition) return 2;
+  return "user";
+}
 
-  // Tier 2S: Supervisor only — supervision access but no administration
-  const hasSupervisor = memberRolesCache.some((r: any) => r.name === ROLE_SUPERVISOR);
-  if (hasSupervisor) return "2S";
+interface CategoryData {
+  label: string;
+  description: string;
+  emoji: string;
+  title: string;
+  content: string;
+}
 
-  return 3;
+function getCategories(access: AccessLevel): CategoryData[] {
+  const categories: CategoryData[] = [
+    {
+      label: "Partidas Ranked",
+      description: "Sistema de emparejamiento y partidas.",
+      emoji: "🎮",
+      title: "Partidas Ranked",
+      content: [
+        "-buscar partida — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
+        "-cancelar emparejamiento — Sal de la cola de emparejamiento.",
+        "-emparejamiento estado — Muestra el estado actual de la cola.",
+        "-partida estado — Muestra el estado de tu partida activa.",
+      ].join("\n"),
+    },
+    {
+      label: "Estadísticas",
+      description: "Consulta de ELO, perfiles y logros.",
+      emoji: "📊",
+      title: "Estadísticas",
+      content: [
+        "-ranking — Consulta el ranking de ELO de la temporada activa.",
+        "-temporada info — Muestra información sobre la temporada activa.",
+        "-perfil — Muestra el perfil competitivo de un jugador.",
+        "-logros — Muestra los logros de un jugador.",
+      ].join("\n"),
+    },
+    {
+      label: "Casino",
+      description: "Sistema de Lucky Boxes y economía.",
+      emoji: "🎰",
+      title: "Casino",
+      content: [
+        "-lb abrir — Abre una Lucky Box.",
+        "-lb info — Muestra información detallada sobre las Lucky Boxes.",
+      ].join("\n"),
+    },
+  ];
+
+  if (access === "staff" || access === "owner") {
+    categories.push({
+      label: "Supervisión",
+      description: "Herramientas de control para partidas y voz.",
+      emoji: "👮",
+      title: "Supervisión",
+      content: [
+        "-registrar partida — Registra el código y mapa de la partida activa.",
+        "-finalizar partida — Finaliza la partida, declara el ganador y envía el cuestionario.",
+        "-sala mute — Silencia a todos en el canal de voz ranked.",
+        "-sala unmute — Quita el silencio a todos en el canal de voz ranked.",
+        "-supervisor inactivo — Solicita un supervisor de reemplazo para la partida activa.",
+      ].join("\n"),
+    });
+
+    categories.push({
+      label: "Administración",
+      description: "Gestión de sanciones y moderación avanzada.",
+      emoji: "👑",
+      title: "Administración",
+      content: [
+        "-sanciones — Consulta la información de una sanción.",
+        ...(access === "owner" ? ["-lb sync — Sincroniza y actualiza la tabla de clasificación del casino de forma manual con los datos más recientes de los usuarios."] : []),
+      ].join("\n"),
+    });
+
+    categories.push({
+      label: "Temporada",
+      description: "Control de temporadas ranked.",
+      emoji: "🌟",
+      title: "Temporada",
+      content: [
+        ...(access === "owner" ? [
+          "-abrir temporada — Abre una nueva temporada ranked.",
+          "-cerrar temporada — Cierra la temporada activa.",
+        ] : []),
+        "-temporada info — Muestra la información de una temporada.",
+      ].join("\n"),
+    });
+  }
+
+  const postRows = [
+    "-postular — Inicia el proceso de postulación al staff.",
+  ];
+  if (access === "owner") {
+    postRows.push(
+      "-abrir postulaciones — Abre el período de postulaciones al staff.",
+      "-cerrar postulaciones — Cierra el período de postulaciones al staff."
+    );
+  }
+
+  categories.push({
+    label: "Postulaciones",
+    description: "Proceso de admisión al equipo.",
+    emoji: "📋",
+    title: "Postulaciones",
+    content: postRows.join("\n"),
+  });
+
+  return categories;
 }
 
 export const data = new SlashCommandBuilder()
   .setName("help")
-  .setDescription("Muestra la lista de comandos disponibles.");
+  .setDescription("Muestra el centro de ayuda interactivo.");
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
@@ -59,98 +178,91 @@ export async function execute(
     await interaction.guild.roles.fetch();
   }
 
-  const tier = getUserTier(interaction);
+  const access = getUserAccessLevel(interaction);
+  const categories = getCategories(access);
 
-  const embed = new EmbedBuilder()
-    .setTitle("📖 Ayuda - TIAGO JR")
-    .setDescription("Comandos disponibles para tu rango")
-    .setColor("Orange")
-    .setImage("https://i.postimg.cc/NftRNWyr/1783848277486.png")
-    .setTimestamp();
+  const initialCat = categories[0];
 
-  // ── 🎮 Partidas Ranked (everyone) ─────────────────────────────────────────
-  embed.addFields({
-    name: "🎮 Partidas Ranked",
-    value: [
-      "-buscar partida — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
-      "-cancelar emparejamiento — Sal de la cola de emparejamiento.",
-      "-emparejamiento estado — Muestra el estado actual de la cola.",
-      "-partida estado — Muestra el estado de tu partida activa.",
-    ].join("\n"),
-  });
+  const buildEmbed = (cat: CategoryData) => {
+    return new EmbedBuilder()
+      .setColor("Orange")
+      .setTitle(`${cat.emoji} ${cat.title}`)
+      .setDescription(`${cat.description}\n\n**Comandos**\n${cat.content}`)
+      .setImage("https://i.postimg.cc/NftRNWyr/1783848277486.png")
+      .setFooter({ text: "TIAGO JR • Centro de Ayuda • Usá el menú para cambiar de categoría" })
+      .setTimestamp();
+  };
 
-  // ── 📊 Estadísticas (everyone) ────────────────────────────────────────────
-  embed.addFields({
-    name: "📊 Estadísticas",
-    value: [
-      "-ranking — Consulta el ranking de ELO de la temporada activa.",
-      "-temporada info — Muestra información sobre la temporada activa.",
-      "-perfil — Muestra el perfil competitivo de un jugador.",
-      "-logros — Muestra los logros de un jugador.",
-    ].join("\n"),
-  });
+  const buildComponents = () => {
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId("help_menu")
+      .setPlaceholder("Seleccioná una categoría...")
+      .addOptions(
+        categories.map((c) => ({
+          label: c.label,
+          description: c.description.slice(0, 100),
+          value: c.label,
+          emoji: c.emoji,
+        }))
+      );
 
-  // ── 🎰 Casino (everyone) ──────────────────────────────────────────────────
-  embed.addFields({
-    name: "🎰 Casino",
-    value: [
-      "-lb abrir — Abre una Lucky Box.",
-      "-lb info — Muestra información detallada sobre las Lucky Boxes.",
-    ].join("\n"),
-  });
+    const rowMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 
-  // ── 👮 Supervisión (Tier 1, 2, and 2S) ───────────────────────────────────
-  if (tier === 1 || tier === 2 || tier === "2S") {
-    embed.addFields({
-      name: "👮 Supervisión",
-      value: [
-        "-registrar partida — Registra el código y mapa de la partida activa.",
-        "-finalizar partida — Finaliza la partida, declara el ganador y envía el cuestionario.",
-        "-sala mute — Silencia a todos en el canal de voz ranked.",
-        "-sala unmute — Quita el silencio a todos en el canal de voz ranked.",
-        "-supervisor inactivo — Solicita un supervisor de reemplazo para la partida activa.",
-      ].join("\n"),
-    });
-  }
-
-  // ── 👑 Administración (Tier 1 & 2 only — NOT Supervisor) ─────────────────
-  if (tier === 1 || tier === 2) {
-    embed.addFields({
-      name: "👑 Administración",
-      value: [
-        "-sanciones — Consulta la información de una sanción.",
-        "-lb sync — Sincroniza y actualiza la tabla de clasificación del casino de forma manual con los datos más recientes de los usuarios.",
-      ].join("\n"),
-    });
-  }
-
-  // ── 🌟 Temporada (Tier 1 only) ────────────────────────────────────────────
-  if (tier === 1) {
-    embed.addFields({
-      name: "🌟 Temporada",
-      value: [
-        "-abrir temporada — Abre una nueva temporada ranked.",
-        "-cerrar temporada — Cierra la temporada activa.",
-      ].join("\n"),
-    });
-  }
-
-  // ── 📋 Postulaciones ──────────────────────────────────────────────────────
-  const postulacionLines: string[] = [
-    "-postular — Inicia el proceso de postulación al staff.",
-  ];
-
-  if (tier === 1) {
-    postulacionLines.push(
-      "-abrir postulaciones — Abre el período de postulaciones al staff.",
-      "-cerrar postulaciones — Cierra el período de postulaciones al staff.",
+    const rowButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId("help_home")
+        .setLabel("Inicio")
+        .setEmoji("🏠")
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId("help_close")
+        .setLabel("Cerrar")
+        .setEmoji("✖️")
+        .setStyle(ButtonStyle.Danger)
     );
-  }
 
-  embed.addFields({
-    name: "📋 Postulaciones",
-    value: postulacionLines.join("\n"),
+    return [rowMenu, rowButtons];
+  };
+
+  const response = await interaction.reply({
+    embeds: [buildEmbed(initialCat)],
+    components: buildComponents() as any,
+    fetchReply: true,
   });
 
-  await interaction.reply({ embeds: [embed], ephemeral: false });
+  const collector = response.createMessageComponentCollector({
+    time: 300_000, // 5 minutes
+  });
+
+  collector.on("collect", async (i) => {
+    if (i.user.id !== interaction.user.id) {
+      await i.reply({ content: "Este menú no es para vos.", ephemeral: true });
+      return;
+    }
+
+    if (i.isStringSelectMenu()) {
+      const selectedValue = (i as StringSelectMenuInteraction).values[0];
+      const targetCat = categories.find((c) => c.label === selectedValue);
+      if (targetCat) {
+        await i.update({
+          embeds: [buildEmbed(targetCat)],
+          components: buildComponents() as any,
+        });
+      }
+    } else if (i.isButton()) {
+      const btn = i as ButtonInteraction;
+      if (btn.customId === "help_home") {
+        await btn.update({
+          embeds: [buildEmbed(initialCat)],
+          components: buildComponents() as any,
+        });
+      } else if (btn.customId === "help_close") {
+        await btn.message.delete().catch(() => {});
+      }
+    }
+  });
+
+  collector.on("end", () => {
+    interaction.editReply({ components: [] }).catch(() => {});
+  });
 }
