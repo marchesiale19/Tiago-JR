@@ -9,10 +9,10 @@ const ROLE_HELPER       = "Helper";
 const ROLE_TRIAL_HELPER = "Trial Helper";
 const ROLE_SUPERVISOR   = "Supervisor";
 
-// Tier 1 = Moderador [PB] or higher          → sees everything
+// Tier 1 = Moderador [PB] or higher         → sees everything
 // Tier 2 = Helper or Trial Helper             → sees Supervisión + Administración
 // Tier 2S = Supervisor only                   → sees Supervisión, NOT Administración
-// Tier 3 = everyone else                      → ranked + stats only
+// Tier 3 = everyone else                    → ranked + stats only
 type Tier = 1 | 2 | "2S" | 3;
 
 function getUserTier(interaction: ChatInputCommandInteraction): Tier {
@@ -72,10 +72,10 @@ export async function execute(
   embed.addFields({
     name: "🎮 Partidas Ranked",
     value: [
-      "**/buscar partida** — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
-      "**/cancelar emparejamiento** — Sal de la cola de emparejamiento.",
-      "**/emparejamiento estado** — Muestra el estado actual de la cola.",
-      "**/partida estado** — Muestra el estado de tu partida activa.",
+      "-buscar partida — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
+      "-cancelar emparejamiento — Sal de la cola de emparejamiento.",
+      "-emparejamiento estado — Muestra el estado actual de la cola.",
+      "-partida estado — Muestra el estado de tu partida activa.",
     ].join("\n"),
   });
 
@@ -83,10 +83,10 @@ export async function execute(
   embed.addFields({
     name: "📊 Estadísticas",
     value: [
-      "**/ranking** — Consulta el ranking de ELO de la temporada activa.",
-      "**/temporada info** — Muestra información sobre la temporada activa.",
-      "**/perfil** — Muestra el perfil competitivo de un jugador.",
-      "**/logros** — Muestra los logros de un jugador.",
+      "-ranking — Consulta el ranking de ELO de la temporada activa.",
+      "-temporada info — Muestra información sobre la temporada activa.",
+      "-perfil — Muestra el perfil competitivo de un jugador.",
+      "-logros — Muestra los logros de un jugador.",
     ].join("\n"),
   });
 
@@ -94,7 +94,8 @@ export async function execute(
   embed.addFields({
     name: "🎰 Casino",
     value: [
-      "**/luckybox** — Abre una Lucky Box común y gana un premio en Frijoles.",
+      "-lb abrir — Abre una Lucky Box común y gana un premio en Frijoles.",
+      "-lb info — Muestra información detallada sobre las Lucky Boxes.",
     ].join("\n"),
   });
 
@@ -103,11 +104,11 @@ export async function execute(
     embed.addFields({
       name: "👮 Supervisión",
       value: [
-        "**/registrar partida** — Registra el código y mapa de la partida activa.",
-        "**/finalizar partida** — Finaliza la partida, declara el ganador y envía el cuestionario.",
-        "**/sala mute** — Silencia a todos en el canal de voz ranked.",
-        "**/sala unmute** — Quita el silencio a todos en el canal de voz ranked.",
-        "**/supervisor inactivo** — Solicita un supervisor de reemplazo para la partida activa.",
+        "-registrar partida — Registra el código y mapa de la partida activa.",
+        "-finalizar partida — Finaliza la partida, declara el ganador y envía el cuestionario.",
+        "-sala mute — Silencia a todos en el canal de voz ranked.",
+        "-sala unmute — Quita el silencio a todos en el canal de voz ranked.",
+        "-supervisor inactivo — Solicita un supervisor de reemplazo para la partida activa.",
       ].join("\n"),
     });
   }
@@ -117,7 +118,8 @@ export async function execute(
     embed.addFields({
       name: "👑 Administración",
       value: [
-        "**/sanciones** — Consulta la información de una sanción.",
+        "-sanciones — Consulta la información de una sanción.",
+        "-lb sync — Sincroniza el estado de las Lucky Boxes.",
       ].join("\n"),
     });
   }
@@ -127,21 +129,21 @@ export async function execute(
     embed.addFields({
       name: "🌟 Temporada",
       value: [
-        "**/abrir temporada** — Abre una nueva temporada ranked.",
-        "**/cerrar temporada** — Cierra la temporada activa.",
+        "-abrir temporada — Abre una nueva temporada ranked.",
+        "-cerrar temporada — Cierra la temporada activa.",
       ].join("\n"),
     });
   }
 
   // ── 📋 Postulaciones ──────────────────────────────────────────────────────
   const postulacionLines: string[] = [
-    "**/postular** — Inicia el proceso de postulación al rol de Trial Helper por DM.",
+    "-postular — Inicia el proceso de postulación al rol de Trial Helper por DM.",
   ];
 
   if (tier === 1) {
     postulacionLines.push(
-      "**/abrir postulaciones** — Abre el período de postulaciones al staff.",
-      "**/cerrar postulaciones** — Cierra el período de postulaciones al staff.",
+      "-abrir postulaciones — Abre el período de postulaciones al staff.",
+      "-cerrar postulaciones — Cierra el período de postulaciones al staff.",
     );
   }
 
