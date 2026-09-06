@@ -257,7 +257,8 @@ export async function execute(
           components: buildComponents() as any,
         });
       } else if (btn.customId === "help_close") {
-        await btn.message.delete().catch(() => {});
+        await i.update({ content: "Menú cerrado.", embeds: [], components: [] }).catch(() => {});
+        await i.message.delete().catch(() => {});
       }
     }
   });
