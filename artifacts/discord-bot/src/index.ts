@@ -579,6 +579,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }); // después de esta
 
 // --- PUENTE UNIVERSAL AUTOMÁTICO PARA COMANDOS CON PREFIJO "-" ---
+// --- PUENTE UNIVERSAL AUTOMÁTICO PARA COMANDOS CON PREFIJO "-" ---
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
@@ -593,17 +594,19 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     const cmdAny = command as any;
 
-    // 1. Si el comando tiene un método .run clásico, lo usamos
+    // 1. Si el comando tiene un método .run clásico, lo usamos directamente
     if (typeof cmdAny.run === "function") {
       await cmdAny.run(message, args);
       return;
     }
 
-    // 2. ADAPTADOR AUTOMÁTICO: Simulamos una interacción de barra para comandos puramente Slash
+    // 2. ADAPTADOR MEJORADO: Simulamos la interacción completa de barra
     const fakeInteraction = {
       commandName: commandName,
       user: message.author,
+      client: message.client,
       guild: message.guild,
+      guildId: message.guild?.id,
       member: message.member,
       channel: message.channel,
       options: {
@@ -613,14 +616,21 @@ client.on(Events.MessageCreate, async (message) => {
         getUser: (_name: string) => message.mentions.users.first() || null,
         getMember: (_name: string) => message.mentions.members?.first() || null,
         getChannel: (_name: string) => message.mentions.channels.first() || null,
+        getSubcommand: () => null,
       },
       replied: false,
       deferred: false,
+      isChatInputCommand: () => true,
+      isCommand: () => true,
       async reply(options: any) {
         this.replied = true;
         const content = typeof options === "string" ? options : options.content;
         const embeds = options.embeds || [];
         const components = options.components || [];
+        const ephemeral = options.ephemeral || false;
+        
+        // Si es ephemeral simulamos enviándolo al canal o por privado, 
+        // pero para evitar bloqueos lo mandamos directo al canal o mensaje.
         return message.reply({ content, embeds, components });
       },
       async followUp(options: any) {
@@ -629,11 +639,14 @@ client.on(Events.MessageCreate, async (message) => {
         const components = options.components || [];
         return message.channel.send({ content, embeds, components });
       },
-      async deferReply() {
+      async deferReply(_options?: any) {
         this.deferred = true;
       },
       async editReply(options: any) {
-        return message.reply(options);
+        const content = typeof options === "string" ? options : options.content;
+        const embeds = options.embeds || [];
+        const components = options.components || [];
+        return message.reply({ content, embeds, components });
       }
     };
 
@@ -641,7 +654,8 @@ client.on(Events.MessageCreate, async (message) => {
 
   } catch (err) {
     logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
-    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+    console.error("DETALLE DEL ERROR DE PREFIJO:", err);
+    await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
   }
 });
   client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => { // antes de esta línea
