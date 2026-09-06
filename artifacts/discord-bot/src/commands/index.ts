@@ -13,6 +13,7 @@ import * as perfil              from "./perfil";
 import * as logros              from "./logros";
 import * as luckybox            from "./luckybox";
 import * as roleOverride        from "./roleOverride";
+import * as leaderboard from "./leaderboard";
 // ── New ranked workflow commands ───────────────────────────────────────────
 import * as buscarPartida       from "./buscar-partida";
 import * as partida             from "./partida";
@@ -45,6 +46,7 @@ commands.set(perfil.data.name,              perfil);
 commands.set(logros.data.name,              logros);
 commands.set(luckybox.data.name,            luckybox);
 commands.set(asignarRangoData.name,         { data: asignarRangoData, execute: asignarRangoExecute });
+commands.set(leaderboard.data.name, leaderboard);
 
 // ── Ranked match workflow ──────────────────────────────────────────────────
 commands.set(buscarPartida.data.name,       buscarPartida);
