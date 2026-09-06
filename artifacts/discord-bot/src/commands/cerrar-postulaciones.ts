@@ -21,9 +21,7 @@ function hasStaffPermission(member: any): boolean {
   if (!member || typeof member !== "object") return false;
   if (!member.roles?.cache) return false;
 
-  // Verifica si el usuario tiene el rol específico o permisos de Administrador
-  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
-  
+  // Estricto: Solo valida que posea exactamente este ID de rol
   return member.roles.cache.has(ROL_AUTORIZADO_ID);
 }
 
@@ -33,7 +31,7 @@ export async function execute(
   if (!hasStaffPermission(interaction.member)) {
     await interaction.reply({
       content:
-        "❌ No tienes permiso para usar este comando. Se requiere el rol autorizado para gestionar las postulaciones.",
+        "❌ No tienes permiso para usar este comando. Se requiere ser parte del Equipo Administrativo para gestionar las postulaciones.",
       ephemeral: true,
     });
     return;
