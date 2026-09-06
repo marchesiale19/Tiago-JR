@@ -1,6 +1,5 @@
 import {
   EmbedBuilder,
-  PermissionFlagsBits,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Guild,
@@ -12,29 +11,8 @@ import { logger } from "../lib/logger";
 
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
-// ID del Rol Top Casino (Top 1-10)
 export const ROL_TOP_CASINO_ID = "1546068235072442398";
 
-// IDs de los roles autorizados para la sincronización manual
-const ROLES_AUTORIZADOS = [
-  "1522807097920720967", // Manager
-  "1509760475653472287", // Admin-pb
-  "1453211902267228160", // Admin
-  "1522434536796061816", // Desarrollador
-  "1485101671875874997", // Admin Elite
-  "1512634750152478851", // Jefe staff
-  "1508266687689003039", // Co-owner
-  "1451383215603585140", // Owner
-];
-
-// Función para verificar permisos o roles específicos
-function tienePermisoSync(member: any): boolean {
-  if (!member) return false;
-  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
-  return ROLES_AUTORIZADOS.some((roleId) => member.roles?.cache?.has(roleId));
-}
-
-// Recompensas para el Mr lucky Común con distribución equilibrada y atractiva (Suma exacta: 100%)
 export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "45,000 Frijoles", valor: 45000, tipo: "positivo", probabilidad: "25.0%" },
   { texto: "60,000 Frijoles", valor: 60000, tipo: "positivo", probabilidad: "20.0%" },
@@ -45,12 +23,9 @@ export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "-25,000 Frijoles", valor: -25000, tipo: "negativo", probabilidad: "9.0%" },
 ] as const;
 
-// Sistema de selección ponderada basado en porcentajes reales
 export function pickReward() {
   const rand = Math.random() * 100;
   let acumulado = 0;
-
-  // Asignamos rangos basados en los porcentajes
   const probabilidadesNumericas = [25.0, 20.0, 15.0, 8.0, 3.0, 20.0, 9.0];
 
   for (let i = 0; i < COMMON_LUCKYBOX_REWARDS.length; i++) {
@@ -62,7 +37,6 @@ export function pickReward() {
   return COMMON_LUCKYBOX_REWARDS[0];
 }
 
-// Sincronización automática del Top 10 de UnbelievaBoat con los roles de Discord
 export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolean; added: number; removed: number; error?: string }> {
   try {
     const leaderboardData = await unb.getGuildLeaderboard(guild.id, { limit: 10 });
@@ -84,7 +58,6 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
     let addedCount = 0;
     let removedCount = 0;
 
-    // Quitar rol a quienes ya no están en el Top 10
     for (const [memberId, member] of role.members) {
       if (!topUserIds.has(memberId)) {
         await member.roles.remove(role, "Ya no forma parte del Top 10 del Casino.");
@@ -92,7 +65,6 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
       }
     }
 
-    // Agregar rol a los nuevos del Top 10
     for (const userData of topUsers) {
       const userId = userData.user_id || userData.id;
       try {
@@ -113,7 +85,6 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
   }
 }
 
-// Intervalo automático de respaldo en segundo plano cada 1 hora
 let isIntervalStarted = false;
 function startAutoSync(clientInstance: any) {
   if (isIntervalStarted || !clientInstance) return;
@@ -158,16 +129,6 @@ export const data = new SlashCommandBuilder()
       ),
   );
 
-export const leaderboardData = new SlashCommandBuilder()
-  .setName("leaderboard")
-  .setDescription("Gestiona la clasificación y sincronización de roles del Casino.")
-  .addSubcommand((subcommand) =>
-    subcommand
-      .setName("sync")
-      .setDescription("Sincroniza manualmente el Top 10 del Casino y sus roles (Staff Autorizado).")
-  );
-
-// Función centralizada para manejar la lógica de "info"
 async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre: string) {
   const positivos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "positivo")
     .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
@@ -182,16 +143,8 @@ async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre:
     .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
     .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
     .addFields(
-      {
-        name: "✨ Recompensas Positivas",
-        value: positivos,
-        inline: false,
-      },
-      {
-        name: "⚠️ Recompensas Negativas (Castigos)",
-        value: negativos,
-        inline: false,
-      },
+      { name: "✨ Recompensas Positivas", value: positivos, inline: false },
+      { name: "⚠️ Recompensas Negativas (Castigos)", value: negativos, inline: false },
     )
     .setFooter({ text: "Sistema de Mr Lucky • Probabilidades Oficiales" })
     .setTimestamp();
@@ -199,7 +152,6 @@ async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre:
   await sendReply({ embeds: [infoEmbed] });
 }
 
-// Función centralizada para manejar la lógica de "abrir"
 async function handleAbrir(
   sendReply: (options: any) => Promise<any>,
   sendChannelMessage: (options: any) => Promise<any>,
@@ -216,7 +168,6 @@ async function handleAbrir(
     });
 
     let items: any[] = [];
-
     if (response.ok) {
       const inventoryData: any = await response.json();
       items = inventoryData.items || inventoryData || [];
@@ -228,14 +179,11 @@ async function handleAbrir(
       const itemName = (item.name || item.item_name || item.item_id || "").toLowerCase();
       const targetQuery = cajaNombre.toLowerCase();
       const hasQuantity = (item.quantity ?? item.quantiy ?? item.count ?? 1) > 0;
-
       return itemName.includes(targetQuery) && hasQuantity;
     });
 
     if (!userBox) {
-      await sendReply({
-        content: `❌ No tienes ningún **${cajaNombre}** en tu inventario.`,
-      });
+      await sendReply({ content: `❌ No tienes ningún **${cajaNombre}** en tu inventario.` });
       return;
     }
 
@@ -256,48 +204,22 @@ async function handleAbrir(
       .setTitle(`🎁 ${cajaNombre} Abierto`)
       .setDescription(`¡<@${targetUser.id}> abrió su **${cajaNombre}**!`)
       .addFields(
-        {
-          name: "📦 Tipo de Item",
-          value: `\`${cajaNombre}\``,
-          inline: true,
-        },
-        {
-          name: "🎉 Premio obtenido",
-          value: ` ${rewardObj.texto}`,
-          inline: false,
-        },
-        {
-          name: "💸 Estado",
-          value: `El item fue validado del inventario y los **${rewardObj.texto}** fueron aplicados a tu cuenta.`,
-          inline: false,
-        },
+        { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
+        { name: "🎉 Premio obtenido", value: ` ${rewardObj.texto}`, inline: false },
+        { name: "💸 Estado", value: `El item fue validado del inventario y los **${rewardObj.texto}** fueron aplicados a tu cuenta.`, inline: false },
       )
       .setFooter({ text: "Sistema de Mr Lucky • Inventario Verificado" })
       .setTimestamp();
 
-    await sendReply({
-      content: `✅ ¡Mr lucky abierto con éxito!`,
-    });
-
+    await sendReply({ content: `✅ ¡Mr lucky abierto con éxito!` });
     await sendChannelMessage({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr lucky");
-    await sendReply({
-      content: `❌ **Error al verificar el inventario:** \`${err?.message || "Error desconocido"}\``,
-    });
+    await sendReply({ content: `❌ **Error al verificar el inventario:** \`${err?.message || "Error desconocido"}\`` });
   }
 }
 
-// Ejecutor unificado para comandos de barra (/luckybox y /leaderboard)
-export async function execute(
-  interactionOrMessage: ChatInputCommandInteraction | Message,
-  args?: string[]
-): Promise<void> {
-  if ("content" in interactionOrMessage || !("isChatInputCommand" in interactionOrMessage)) {
-    return run(interactionOrMessage as Message, args || []);
-  }
-
-  const interaction = interactionOrMessage as ChatInputCommandInteraction;
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (interaction.client) startAutoSync(interaction.client);
 
   if (!interaction.guildId || !interaction.guild) {
@@ -305,59 +227,27 @@ export async function execute(
     return;
   }
 
-  const commandName = interaction.commandName;
+  const subcommand = interaction.options.getSubcommand() || "abrir";
+  const cajaNombre = interaction.options.getString("caja", true);
 
-  if (commandName === "leaderboard") {
-    const subcommand = interaction.options.getSubcommand();
-    if (subcommand === "sync") {
-      if (!tienePermisoSync(interaction.member)) {
-        await interaction.reply({ content: "❌ No tienes los permisos ni roles necesarios para usar este comando.", ephemeral: true });
-        return;
-      }
-
-      await interaction.deferReply({ flags: 64 });
-      const result = await syncTopCasinoRole(interaction.guild);
-
-      const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
-      if (result.success) {
-        embed.setColor("Green")
-          .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
-          .addFields(
-            { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
-            { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
-          );
-      } else {
-        embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
-      }
-      await interaction.editReply({ embeds: [embed] });
-      return;
-    }
-  }
-
-  if (commandName === "luckybox") {
-    const subcommand = interaction.options.getSubcommand() || "abrir";
-    const cajaNombre = interaction.options.getString("caja", true);
-
-    if (subcommand === "info") {
-      await interaction.deferReply({ flags: 64 });
-      await handleInfo((opts) => interaction.editReply(opts), cajaNombre);
-      return;
-    }
-
+  if (subcommand === "info") {
     await interaction.deferReply({ flags: 64 });
-    const channel: any = interaction.channel;
-
-    await handleAbrir(
-      (opts) => interaction.editReply(opts),
-      (opts) => channel.send(opts),
-      interaction.guildId,
-      interaction.user,
-      cajaNombre
-    );
+    await handleInfo((opts) => interaction.editReply(opts), cajaNombre);
+    return;
   }
+
+  await interaction.deferReply({ flags: 64 });
+  const channel: any = interaction.channel;
+
+  await handleAbrir(
+    (opts) => interaction.editReply(opts),
+    (opts) => channel.send(opts),
+    interaction.guildId,
+    interaction.user,
+    cajaNombre
+  );
 }
 
-// Ejecutor oficial para comandos por prefijo de texto plano (-luckybox, -leaderboard o -lb)
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
@@ -367,37 +257,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
   if (message.client) startAutoSync(message.client);
 
   const mainArg = (args[0] || "").toLowerCase();
-
-  // Soporte para -leaderboard sync o -lb sync
-  if (mainArg === "leaderboard" || mainArg === "lb") {
-    const sub = (args[1] || "").toLowerCase();
-    if (sub === "sync") {
-      if (!tienePermisoSync(message.member)) {
-        await message.reply("❌ No tienes los permisos ni roles necesarios para usar este comando.");
-        return;
-      }
-
-      const channel: any = message.channel;
-      await channel.send("🔄 Sincronizando el Top 10 del Casino...");
-      const result = await syncTopCasinoRole(message.guild);
-
-      const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
-      if (result.success) {
-        embed.setColor("Green")
-          .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
-          .addFields(
-            { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
-            { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
-          );
-      } else {
-        embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
-      }
-      await channel.send({ embeds: [embed] });
-      return;
-    }
-  }
-
-  // Lógica normal para -luckybox abrir / info
   const sub = (mainArg === "abrir" || mainArg === "info") ? mainArg : "abrir";
   const offset = (mainArg === "abrir" || mainArg === "info") ? 1 : 0;
   
