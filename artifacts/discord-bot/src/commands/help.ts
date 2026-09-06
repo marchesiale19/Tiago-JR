@@ -94,7 +94,7 @@ export async function execute(
   embed.addFields({
     name: "🎰 Casino",
     value: [
-      "-lb abrir — Abre una Lucky Box común y gana un premio en Frijoles.",
+      "-lb abrir — Abre una Lucky Box.",
       "-lb info — Muestra información detallada sobre las Lucky Boxes.",
     ].join("\n"),
   });
@@ -119,7 +119,7 @@ export async function execute(
       name: "👑 Administración",
       value: [
         "-sanciones — Consulta la información de una sanción.",
-        "-lb sync — Sincroniza el estado de las Lucky Boxes.",
+        "-lb sync — Sincroniza y actualiza la tabla de clasificación del casino de forma manual con los datos más recientes de los usuarios.",
       ].join("\n"),
     });
   }
@@ -137,7 +137,7 @@ export async function execute(
 
   // ── 📋 Postulaciones ──────────────────────────────────────────────────────
   const postulacionLines: string[] = [
-    "-postular — Inicia el proceso de postulación al rol de Trial Helper por DM.",
+    "-postular — Inicia el proceso de postulación al staff.",
   ];
 
   if (tier === 1) {
