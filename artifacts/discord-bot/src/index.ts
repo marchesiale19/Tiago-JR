@@ -573,13 +573,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.replied || interaction.deferred) {
     await interaction.followUp(errorMessage);
   } else {
-    await interaction.reply(errorMessage);
+    await interaction.reply(errorMessage); 
   }
   }
-  });
+  }); // después de esta
 
-  // --- PUENTE PARA COMANDOS CON PREFIJO "-" ---
-  client.on(Events.MessageCreate, async (message) => {
+// --- PUENTE UNIVERSAL AUTOMÁTICO PARA COMANDOS CON PREFIJO "-" ---
+client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
@@ -587,35 +587,64 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (!commandName) return;
 
-  // Solución directa para el help
-  if (commandName === "help") {
-  try {
-    const helpCmd = await import("./commands/help");
-    await helpCmd.run(message, args);
-  } catch (err) {
-    logger.error({ err }, "Error executing help via prefix");
-    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
-  }
-  return;
-  }
-
   const command = commands.get(commandName);
   if (!command) return;
 
   try {
-  const cmdAny = command as any;
-  if (typeof cmdAny.run === "function") {
-    await cmdAny.run(message, args);
-  } else {
-    await message.reply("Este comando no admite ejecución por prefijo.").catch(() => {});
-  }
-  } catch (err) {
-  logger.error({ err, commandName }, "Error executing command via prefix");
-  await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
-  }
-  });
+    const cmdAny = command as any;
 
-  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+    // 1. Si el comando tiene un método .run clásico, lo usamos
+    if (typeof cmdAny.run === "function") {
+      await cmdAny.run(message, args);
+      return;
+    }
+
+    // 2. ADAPTADOR AUTOMÁTICO: Simulamos una interacción de barra para comandos puramente Slash
+    const fakeInteraction = {
+      commandName: commandName,
+      user: message.author,
+      guild: message.guild,
+      member: message.member,
+      channel: message.channel,
+      options: {
+        getString: (_name: string) => args.join(" ") || null,
+        getInteger: (_name: string) => parseInt(args[0]) || null,
+        getBoolean: (_name: string) => args[0] === "true",
+        getUser: (_name: string) => message.mentions.users.first() || null,
+        getMember: (_name: string) => message.mentions.members?.first() || null,
+        getChannel: (_name: string) => message.mentions.channels.first() || null,
+      },
+      replied: false,
+      deferred: false,
+      async reply(options: any) {
+        this.replied = true;
+        const content = typeof options === "string" ? options : options.content;
+        const embeds = options.embeds || [];
+        const components = options.components || [];
+        return message.reply({ content, embeds, components });
+      },
+      async followUp(options: any) {
+        const content = typeof options === "string" ? options : options.content;
+        const embeds = options.embeds || [];
+        const components = options.components || [];
+        return message.channel.send({ content, embeds, components });
+      },
+      async deferReply() {
+        this.deferred = true;
+      },
+      async editReply(options: any) {
+        return message.reply(options);
+      }
+    };
+
+    await command.execute(fakeInteraction as any);
+
+  } catch (err) {
+    logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
+    await message.reply("Hubo un error al ejecutar este comando por prefijo.").catch(() => {});
+  }
+});
+  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => { // antes de esta línea
   // Aseguramos que solo actúe si el rol se pierde
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
   if (!role) return;
