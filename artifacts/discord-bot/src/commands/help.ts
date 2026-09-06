@@ -8,11 +8,11 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ButtonInteraction,
+  GuildMember,
 } from "discord.js";
 
 const ROLE_STAFF = "1454679144230289510";
 
-// Tier 1 (Owners, Dev, Management, Upper Admins)
 const TIER_1_ROLES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -24,7 +24,6 @@ const TIER_1_ROLES = [
   "1522807097920720967", // Manager
 ];
 
-// Tier 2 (Staff operativo / Moderación / Helpers / Support)
 const TIER_2_ROLES = [
   "1509760269071679498", // Trial Helper
   "1528974868329009162", // Helper
@@ -35,24 +34,20 @@ const TIER_2_ROLES = [
 
 type AccessLevel = "user" | "staff" | "owner";
 
-function getUserAccessLevel(interaction: ChatInputCommandInteraction): AccessLevel {
-  const member = interaction.member;
-  if (!member || typeof member === "string" || !("roles" in member) || typeof member.roles === "string") {
-    return "user";
-  }
+// Función adaptada para aceptar tanto miembros de interacciones como de mensajes de texto
+function getMemberAccessLevel(member: GuildMember | null | undefined): AccessLevel {
+  if (!member) return "user";
+  
+  const roleCache = member.roles.cache;
+  if (!roleCache) return "user";
 
-  const memberRolesCache = (member.roles as any).cache;
-  if (!memberRolesCache) return "user";
+  const roleIds = roleCache.map((r) => r.id);
 
-  const roleIds = memberRolesCache.map((r: any) => r.id as string);
-
-  // Check Tier 1 (Owners / High Staff)
-  if (roleIds.some((id: string) => TIER_1_ROLES.includes(id))) {
+  if (roleIds.some((id) => TIER_1_ROLES.includes(id))) {
     return "owner";
   }
 
-  // Check Tier 2 (Staff regular / Mods / Helpers)
-  if (roleIds.some((id: string) => TIER_2_ROLES.includes(id) || id === ROLE_STAFF)) {
+  if (roleIds.some((id) => TIER_2_ROLES.includes(id) || id === ROLE_STAFF)) {
     return "staff";
   }
 
@@ -171,16 +166,19 @@ export const data = new SlashCommandBuilder()
   .setName("help")
   .setDescription("Muestra el centro de ayuda interactivo.");
 
-export async function execute(
-  interaction: ChatInputCommandInteraction,
+// Función auxiliar compartida para ejecutar la lógica del menú en cualquier formato
+export async function sendHelpMenu(
+  authorId: string,
+  member: GuildMember | null | undefined,
+  replyMethod: (options: any) => Promise<any>,
+  editMethod?: (options: any) => Promise<any>
 ): Promise<void> {
-  if (interaction.guild) {
-    await interaction.guild.roles.fetch();
+  if (member?.guild) {
+    await member.guild.roles.fetch().catch(() => {});
   }
 
-  const access = getUserAccessLevel(interaction);
+  const access = getMemberAccessLevel(member);
   const categories = getCategories(access);
-
   const initialCat = categories[0];
 
   const buildEmbed = (cat: CategoryData) => {
@@ -224,9 +222,9 @@ export async function execute(
     return [rowMenu, rowButtons];
   };
 
-  const response = await interaction.reply({
+  const response = await replyMethod({
     embeds: [buildEmbed(initialCat)],
-    components: buildComponents() as any,
+    components: buildComponents(),
     fetchReply: true,
   });
 
@@ -234,11 +232,11 @@ export async function execute(
     time: 300_000, // 5 minutes
   });
 
-  collector.on("collect", async (i) => {
-    if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: "Este menú no es para vos.", ephemeral: true });
-      return;
-    }
+    collector.on("collect", async (i: any) => {
+      if (i.user.id !== authorId) {
+        await i.reply({ content: "Este menú no es para vos.", ephemeral: true });
+        return;
+      }
 
     if (i.isStringSelectMenu()) {
       const selectedValue = (i as StringSelectMenuInteraction).values[0];
@@ -246,7 +244,7 @@ export async function execute(
       if (targetCat) {
         await i.update({
           embeds: [buildEmbed(targetCat)],
-          components: buildComponents() as any,
+          components: buildComponents(),
         });
       }
     } else if (i.isButton()) {
@@ -254,7 +252,7 @@ export async function execute(
       if (btn.customId === "help_home") {
         await btn.update({
           embeds: [buildEmbed(initialCat)],
-          components: buildComponents() as any,
+          components: buildComponents(),
         });
       } else if (btn.customId === "help_close") {
         await i.update({ content: "Menú cerrado.", embeds: [], components: [] }).catch(() => {});
@@ -264,6 +262,22 @@ export async function execute(
   });
 
   collector.on("end", () => {
-    interaction.editReply({ components: [] }).catch(() => {});
+    if (editMethod) {
+      editMethod({ components: [] }).catch(() => {});
+    } else {
+      response.edit({ components: [] }).catch(() => {});
+    }
   });
+}
+
+// Ejecución estándar para Slash Command (/help)
+export async function execute(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  await sendHelpMenu(
+    interaction.user.id,
+    interaction.member as GuildMember,
+    (options) => interaction.reply(options),
+    (options) => interaction.editReply(options)
+  );
 }
