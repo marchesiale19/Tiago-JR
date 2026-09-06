@@ -93,8 +93,8 @@ function getCategories(access: AccessLevel): CategoryData[] {
       emoji: "🎰",
       title: "Casino",
       content: [
-        "-lb abrir — Abre una Lucky Box.",
-        "-lb info — Muestra información detallada sobre las Lucky Boxes.",
+        "-luckybox abrir — Abre una Lucky Box.",
+        "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
       ].join("\n"),
     },
   ];
