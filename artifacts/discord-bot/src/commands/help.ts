@@ -10,6 +10,7 @@ import {
   ButtonInteraction,
   GuildMember,
 } from "discord.js";
+import { getSimulatedLevel, MY_DISCORD_ID } from "./roleOverride";
 
 const ROLE_STAFF = "1454679144230289510";
 
@@ -34,7 +35,16 @@ const TIER_2_ROLES = [
 
 type AccessLevel = "user" | "staff" | "owner";
 
-function getMemberAccessLevel(member: GuildMember | null | undefined): AccessLevel {
+function getMemberAccessLevel(member: GuildMember | null | undefined, userId?: string): AccessLevel {
+  if (userId === MY_DISCORD_ID) {
+    const simLevel = getSimulatedLevel();
+    if (simLevel !== null) {
+      if (simLevel === 1) return "user";
+      if (simLevel === 2) return "staff";
+      if (simLevel >= 3) return "owner";
+    }
+  }
+
   if (!member) return "user";
   
   const roleCache = member.roles.cache;
@@ -165,7 +175,6 @@ export const data = new SlashCommandBuilder()
   .setName("help")
   .setDescription("Muestra el centro de ayuda interactivo.");
 
-// Función auxiliar compartida para manejar la lógica visual y el colector
 async function sendHelpMenu(
   authorId: string,
   member: GuildMember | null | undefined,
@@ -176,7 +185,7 @@ async function sendHelpMenu(
     await member.guild.roles.fetch().catch(() => {});
   }
 
-  const access = getMemberAccessLevel(member);
+  const access = getMemberAccessLevel(member, authorId);
   const categories = getCategories(access);
   const initialCat = categories[0];
 
@@ -223,14 +232,12 @@ async function sendHelpMenu(
 
   let response;
   if (editMethod) {
-    // Es una interacción (/help)
     response = await replyMethod({
       embeds: [buildEmbed(initialCat)],
       components: buildComponents() as any,
       fetchReply: true,
     });
   } else {
-    // Es un mensaje por prefijo (-help)
     response = await replyMethod({
       embeds: [buildEmbed(initialCat)],
       components: buildComponents() as any,
@@ -238,7 +245,7 @@ async function sendHelpMenu(
   }
 
   const collector = response.createMessageComponentCollector({
-    time: 300_000, // 5 minutos
+    time: 300_000,
   });
 
   collector.on("collect", async (i: any) => {
@@ -279,10 +286,7 @@ async function sendHelpMenu(
   });
 }
 
-// Para barra diagonal (/help)
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await sendHelpMenu(
     interaction.user.id,
     interaction.member as GuildMember,
@@ -291,7 +295,6 @@ export async function execute(
   );
 }
 
-// Para prefijo (-help)
 export async function run(message: any, _args: string[]): Promise<void> {
   await sendHelpMenu(
     message.author.id,
