@@ -2,6 +2,7 @@ import {
   EmbedBuilder,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
+  type Message,
   type TextChannel,
 } from "discord.js";
 import pkg from "unb-api";
@@ -57,58 +58,46 @@ export const data = new SlashCommandBuilder()
       ),
   );
 
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  const subcommand = interaction.options.getSubcommand() || "abrir";
-  const cajaNombre = interaction.options.getString("caja", true);
+// Función centralizada para manejar la lógica de "info"
+async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre: string) {
+  const positivos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "positivo")
+    .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
+    .join("\n");
 
-  // --- SUBCOMANDO INFO ---
-  if (subcommand === "info") {
-    await interaction.deferReply({ flags: 64 });
+  const negativos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "negativo")
+    .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
+    .join("\n");
 
-    const positivos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "positivo")
-      .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
-      .join("\n");
+  const infoEmbed = new EmbedBuilder()
+    .setColor("Blue")
+    .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
+    .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
+    .addFields(
+      {
+        name: "✨ Recompensas Positivas",
+        value: positivos,
+        inline: false,
+      },
+      {
+        name: "⚠️ Recompensas Negativas (Castigos)",
+        value: negativos,
+        inline: false,
+      },
+    )
+    .setFooter({ text: "Sistema de Mr Lucky • Probabilidades Oficiales" })
+    .setTimestamp();
 
-    const negativos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "negativo")
-      .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
-      .join("\n");
+  await sendReply({ embeds: [infoEmbed] });
+}
 
-    const infoEmbed = new EmbedBuilder()
-      .setColor("Blue")
-      .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
-      .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
-      .addFields(
-        {
-          name: "✨ Recompensas Positivas",
-          value: positivos,
-          inline: false,
-        },
-        {
-          name: "⚠️ Recompensas Negativas (Castigos)",
-          value: negativos,
-          inline: false,
-        },
-      )
-      .setFooter({ text: "Sistema de Mr Lucky • Probabilidades Oficiales" })
-      .setTimestamp();
-
-    await interaction.editReply({ embeds: [infoEmbed] });
-    return;
-  }
-
-  // --- SUBCOMANDO ABRIR ---
-  await interaction.deferReply({ flags: 64 });
-
-  if (!interaction.guildId || !interaction.member) {
-    await interaction.editReply({ content: "Este comando solo se usa en servidores." });
-    return;
-  }
-
-  const targetUser = interaction.user;
-  const guildId = interaction.guildId;
-
+// Función centralizada para manejar la lógica de "abrir"
+async function handleAbrir(
+  sendReply: (options: any) => Promise<any>,
+  sendChannelMessage: (options: any) => Promise<any>,
+  guildId: string,
+  targetUser: any,
+  cajaNombre: string
+) {
   try {
     // 1. Consultar el inventario usando la ruta REST oficial de UnbelievaBoat
     const response = await (fetch as any)(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${targetUser.id}/inventory`, {
@@ -137,7 +126,7 @@ export async function execute(
     });
 
     if (!userBox) {
-      await interaction.editReply({
+      await sendReply({
         content: `❌ No tienes ningún **${cajaNombre}** en tu inventario.`,
       });
       return;
@@ -185,18 +174,68 @@ export async function execute(
       .setTimestamp();
 
     // 6. Responder con éxito y enviar el embed al canal
-    await interaction.editReply({
+    await sendReply({
       content: `✅ ¡Mr lucky abierto con éxito!`,
     });
 
-    const channel = interaction.channel as TextChannel | null;
-    if (channel) {
-      await channel.send({ embeds: [embed] });
-    }
+    await sendChannelMessage({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr lucky");
-    await interaction.editReply({
+    await sendReply({
       content: `❌ **Error al verificar el inventario:** \`${err?.message || "Error desconocido"}\``,
     });
   }
+}
+
+export async function execute(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  const subcommand = interaction.options.getSubcommand() || "abrir";
+  const cajaNombre = interaction.options.getString("caja", true);
+
+  if (!interaction.guildId || !interaction.member) {
+    await interaction.reply({ content: "Este comando solo se usa en servidores.", ephemeral: true });
+    return;
+  }
+
+  if (subcommand === "info") {
+    await interaction.deferReply({ flags: 64 });
+    await handleInfo((opts) => interaction.editReply(opts), cajaNombre);
+    return;
+  }
+
+  await interaction.deferReply({ flags: 64 });
+  const channel = interaction.channel as TextChannel | null;
+
+  await handleAbrir(
+    (opts) => interaction.editReply(opts),
+    (opts) => channel ? channel.send(opts) : Promise.resolve(null),
+    interaction.guildId,
+    interaction.user,
+    cajaNombre
+  );
+}
+
+// Soporte añadido para comandos por prefijo de texto plano
+export async function run(message: Message, args: string[]): Promise<void> {
+  if (!message.guildId || !message.guild) {
+    await message.reply("Este comando solo se usa en servidores.");
+    return;
+  }
+
+  const sub = (args[0] || "abrir").toLowerCase();
+  const cajaNombre = "Mr lucky Común";
+
+  if (sub === "info") {
+    await handleInfo((opts) => message.reply(opts), cajaNombre);
+    return;
+  }
+
+  await handleAbrir(
+    (opts) => message.reply(opts),
+    (opts) => (message.channel as any).send ? (message.channel as any).send(opts) : Promise.resolve(null),
+    message.guildId,
+    message.author,
+    cajaNombre
+  );
 }
