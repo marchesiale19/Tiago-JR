@@ -15,19 +15,16 @@ export const data = new SlashCommandBuilder()
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
 
-const ROL_REFERENCIA = "Moderador [PB]";
+const ROL_AUTORIZADO_ID = "1455419124732657801";
 
 function hasStaffPermission(member: any): boolean {
   if (!member || typeof member !== "object") return false;
-  if (!member.guild || !member.roles?.cache) return false;
+  if (!member.roles?.cache) return false;
 
-  const rolReferencia = member.guild.roles.cache.find(
-    (r: any) => r.name === ROL_REFERENCIA,
-  );
-  if (!rolReferencia) return false;
-
-  const highestRole = member.roles.highest;
-  return highestRole.position >= rolReferencia.position;
+  // Verifica si el usuario tiene el rol específico o permisos de Administrador
+  if (member.permissions?.has(PermissionFlagsBits.Administrator)) return true;
+  
+  return member.roles.cache.has(ROL_AUTORIZADO_ID);
 }
 
 export async function execute(
@@ -36,7 +33,7 @@ export async function execute(
   if (!hasStaffPermission(interaction.member)) {
     await interaction.reply({
       content:
-        "❌ No tienes permiso para usar este comando. Se requiere el rango de **Moderador [PB]** o superior.",
+        "❌ No tienes permiso para usar este comando. Se requiere el rol autorizado para gestionar las postulaciones.",
       ephemeral: true,
     });
     return;
