@@ -79,10 +79,10 @@ function getCategories(access: AccessLevel): CategoryData[] {
       emoji: "🎮",
       title: "Partidas Ranked",
       content: [
-        "-buscar partida — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
-        "-cancelar emparejamiento — Sal de la cola de emparejamiento.",
-        "-emparejamiento estado — Muestra el estado actual de la cola.",
-        "-partida estado — Muestra el estado de tu partida activa.",
+        "/buscar partida — Únete a la cola de búsqueda (requiere estar en un vc de Among Us).",
+        "/cancelar emparejamiento — Sal de la cola de emparejamiento.",
+        "/emparejamiento estado — Muestra el estado actual de la cola.",
+        "/partida estado — Muestra el estado de tu partida activa.",
       ].join("\n"),
     },
     {
@@ -92,7 +92,6 @@ function getCategories(access: AccessLevel): CategoryData[] {
       title: "Estadísticas",
       content: [
         "-ranking — Consulta el ranking de ELO de la temporada activa.",
-        "-temporada info — Muestra información sobre la temporada activa.",
         "-perfil — Muestra el perfil competitivo de un jugador.",
         "-logros — Muestra los logros de un jugador.",
       ].join("\n"),
@@ -116,11 +115,11 @@ function getCategories(access: AccessLevel): CategoryData[] {
       emoji: "👮",
       title: "Supervisión",
       content: [
-        "-registrar partida — Registra el código y mapa de la partida activa.",
-        "-finalizar partida — Finaliza la partida, declara el ganador y envía el cuestionario.",
+        "/registrar partida — Registra el código y mapa de la partida activa.",
+        "/finalizar partida — Finaliza la partida, declara el ganador y envía el cuestionario.",
         "-sala mute — Silencia a todos en el canal de voz ranked.",
         "-sala unmute — Quita el silencio a todos en el canal de voz ranked.",
-        "-supervisor inactivo — Solicita un supervisor de reemplazo para la partida activa.",
+        "/supervisor inactivo — Solicita un supervisor de reemplazo para la partida activa.",
       ].join("\n"),
     });
 
@@ -142,10 +141,10 @@ function getCategories(access: AccessLevel): CategoryData[] {
       title: "Temporada",
       content: [
         ...(access === "owner" ? [
-          "-abrir temporada — Abre una nueva temporada ranked.",
-          "-cerrar temporada — Cierra la temporada activa.",
+          "/abrir temporada — Abre una nueva temporada ranked.",
+          "/cerrar temporada — Cierra la temporada activa.",
         ] : []),
-        "-temporada info — Muestra la información de una temporada.",
+        "/temporada info — Muestra la información de una temporada.",
       ].join("\n"),
     });
   }
@@ -155,8 +154,8 @@ function getCategories(access: AccessLevel): CategoryData[] {
   ];
   if (access === "owner") {
     postRows.push(
-      "-abrir postulaciones — Abre el período de postulaciones al staff.",
-      "-cerrar postulaciones — Cierra el período de postulaciones al staff."
+      "/abrir postulaciones — Abre el período de postulaciones al staff.",
+      "/cerrar postulaciones — Cierra el período de postulaciones al staff."
     );
   }
 
