@@ -131,7 +131,7 @@ function startAutoSync(clientInstance: any) {
 }
 
 export const data = new SlashCommandBuilder()
-  .setName("luckybox")
+  .setName("lb")
   .setDescription("Gestiona y abre tus cajas Mr lucky.")
   .addSubcommand((subcommand) =>
     subcommand
@@ -297,7 +297,7 @@ export async function execute(
   interactionOrMessage: ChatInputCommandInteraction | Message,
   args?: string[]
 ): Promise<void> {
-  // Si tiene la propiedad 'content', es un Message enviado por prefijo (ej: "-luckybox" o "-lb")
+  // Si tiene la propiedad 'content', es un Message enviado por prefijo (ej: "-lb")
   if ("content" in interactionOrMessage || !("isChatInputCommand" in interactionOrMessage)) {
     return run(interactionOrMessage as Message, args || []);
   }
@@ -357,7 +357,7 @@ export async function execute(
   );
 }
 
-// Ejecutor oficial para comandos por prefijo de texto plano (-luckybox o -lb)
+// Ejecutor oficial para comandos por prefijo de texto plano (-lb)
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
