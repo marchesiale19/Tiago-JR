@@ -187,9 +187,17 @@ async function handleAbrir(
   }
 }
 
+// Ejecutor unificado: si el manejador de tu bot le pasa un message por error, lo intercepta y ejecuta el prefijo
 export async function execute(
-  interaction: ChatInputCommandInteraction,
+  interactionOrMessage: ChatInputCommandInteraction | Message,
+  args?: string[]
 ): Promise<void> {
+  // Interceptación de seguridad si el bot pasa un Message a execute por error
+  if (!("isChatInputCommand" in interactionOrMessage) && !("options" in interactionOrMessage)) {
+    return run(interactionOrMessage as Message, args || []);
+  }
+
+  const interaction = interactionOrMessage as ChatInputCommandInteraction;
   const subcommand = interaction.options.getSubcommand() || "abrir";
   const cajaNombre = interaction.options.getString("caja", true);
 
@@ -216,7 +224,7 @@ export async function execute(
   );
 }
 
-// Soporte añadido para comandos por prefijo de texto plano
+// Ejecutor oficial para comandos por prefijo de texto plano
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
@@ -224,8 +232,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
   }
 
   const sub = (args[0] || "abrir").toLowerCase();
-
-  // Unimos los argumentos restantes para capturar nombres compuestos como "Mr lucky Común"
   const cajaNombreRestante = args.slice(1).join(" ").trim();
   const cajaNombre = cajaNombreRestante.length > 0 ? cajaNombreRestante : "Mr lucky Común";
 
