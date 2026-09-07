@@ -17,18 +17,26 @@ export const data = new SlashCommandBuilder()
 
 const ROL_AUTORIZADO_ID = "1455419124732657801";
 
-function hasStaffPermission(member: any): boolean {
-  if (!member || typeof member !== "object") return false;
-  if (!member.roles?.cache) return false;
+async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guild || !interaction.user) return false;
 
-  // Estricto: Solo valida que posea exactamente este ID de rol
-  return member.roles.cache.has(ROL_AUTORIZADO_ID);
+  try {
+    const member = await interaction.guild.members.fetch(interaction.user.id);
+    if (!member || !member.roles) return false;
+
+    // Validación estricta y directa por ID exacto de rol
+    return member.roles.cache.has(ROL_AUTORIZADO_ID);
+  } catch (err) {
+    logger.error({ err }, "Error fetching member for permission check in /abrir-postulaciones");
+    return false;
+  }
 }
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (!hasStaffPermission(interaction.member)) {
+  const authorized = await hasStaffPermission(interaction);
+  if (!authorized) {
     await interaction.reply({
       content:
         "❌ No tienes permiso para usar este comando. Se requiere el rol autorizado para gestionar las postulaciones.",
