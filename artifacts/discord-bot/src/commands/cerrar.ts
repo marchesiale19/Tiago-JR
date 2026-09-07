@@ -29,10 +29,15 @@ const ROLES_TEMPORADA = [
   "1522807097920720967", // Manager
 ];
 
-async function hasSubcommandPermission(interaction: ChatInputCommandInteraction, sub: string): Promise<boolean> {
+async function hasSubcommandPermission(interaction: any, sub: string): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
-    const member = (interaction.member as GuildMember) || (await interaction.guild.members.fetch(interaction.user.id));
+    let member = interaction.member;
+    
+    if (!member || !member.roles || typeof member.roles.cache?.some !== 'function') {
+      member = await interaction.guild.members.fetch(interaction.user.id);
+    }
+
     if (!member || !member.roles) return false;
 
     const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;

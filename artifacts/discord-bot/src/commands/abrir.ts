@@ -28,10 +28,15 @@ const ROLES_TEMPORADA = [
   "1522807097920720967", // Manager
 ];
 
-async function hasSubcommandPermission(interaction: ChatInputCommandInteraction, sub: string): Promise<boolean> {
+async function hasSubcommandPermission(interaction: any, sub: string): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
-    const member = (interaction.member as GuildMember) || (await interaction.guild.members.fetch(interaction.user.id));
+    let member = interaction.member;
+    
+    if (!member || !member.roles || typeof member.roles.cache?.some !== 'function') {
+      member = await interaction.guild.members.fetch(interaction.user.id);
+    }
+
     if (!member || !member.roles) return false;
 
     const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;
@@ -92,7 +97,12 @@ export async function execute(
     await interaction.deferReply({ ephemeral: false });
 
     try {
-      const nombre = interaction.options.getString("nombre", true).trim();
+      const rawNombre = interaction.options.getString("nombre");
+      if (!rawNombre) {
+        await interaction.editReply("❌ Debes especificar el nombre de la temporada. Ejemplo: `-abrir temporada Temporada 1`");
+        return;
+      }
+      const nombre = rawNombre.trim();
       const result = await openSeason(nombre, interaction.user.id);
 
       const embed = new EmbedBuilder()
