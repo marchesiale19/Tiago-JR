@@ -141,10 +141,10 @@ function getCategories(access: AccessLevel): CategoryData[] {
       title: "Temporada",
       content: [
         ...(access === "owner" ? [
-          "/abrir temporada — Abre una nueva temporada ranked.",
-          "/cerrar temporada — Cierra la temporada activa.",
+          "-abrir temporada — Abre una nueva temporada ranked.",
+          "-cerrar temporada — Cierra la temporada activa.",
         ] : []),
-        "/temporada info — Muestra la información de una temporada.",
+        "-temporada info — Muestra la información de una temporada.",
       ].join("\n"),
     });
   }

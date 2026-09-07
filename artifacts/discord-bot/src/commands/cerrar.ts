@@ -61,7 +61,7 @@ export async function execute(
   const authorized = await hasPermission(interaction);
   if (!authorized) {
     await interaction.reply({
-      content: "❌ No tienes permiso para usar este comando. Se requiere un rango autorizado.",
+      content: "❌ No tienes permiso para usar este comando. Se requiere ser Manager o un rango superior.",
       flags: MessageFlags.Ephemeral,
     });
     return;
