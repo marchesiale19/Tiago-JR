@@ -1,5 +1,4 @@
-// /cerrar temporada    — Closes the active ranked season  (Mod+ only)
-// /cerrar postulaciones — Closes staff applications       (Mod+ only)
+// /cerrar temporada — Closes the active ranked season (Mod+ only)
 
 import {
   SlashCommandBuilder,
@@ -7,10 +6,9 @@ import {
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
 } from "discord.js";
-import { closeSeason }         from "../services/SeasonService";
-import { seasonRepository }    from "../database/repositories/SeasonRepository";
-import { setApplicationsOpen } from "../lib/applications-state";
-import { logger }              from "../lib/logger";
+import { closeSeason } from "../services/SeasonService";
+import { seasonRepository } from "../database/repositories/SeasonRepository";
+import { logger } from "../lib/logger";
 
 // ── Permission helper ──────────────────────────────────────────────────────
 const ROL_REFERENCIA = "Moderador [PB]";
@@ -30,17 +28,12 @@ function hasModPermission(member: any): boolean {
 // ── Command definition ─────────────────────────────────────────────────────
 export const data = new SlashCommandBuilder()
   .setName("cerrar")
-  .setDescription("Cierra una temporada o el período de postulaciones.")
+  .setDescription("Cierra la temporada ranked activa.")
   .setDefaultMemberPermissions(PermissionFlagsBits.MentionEveryone)
   .addSubcommand((sub) =>
     sub
       .setName("temporada")
       .setDescription("Cierra la temporada ranked activa manualmente."),
-  )
-  .addSubcommand((sub) =>
-    sub
-      .setName("postulaciones")
-      .setDescription("Cierra las postulaciones para el rol de Trial Helper."),
   );
 
 // ── Execute ────────────────────────────────────────────────────────────────
@@ -61,7 +54,7 @@ export async function execute(
 
   // ── /cerrar temporada ───────────────────────────────────────────────────
   if (sub === "temporada") {
-    await interaction.deferReply({ ephemeral: false }); // Visible to everyone (PATCH 18)
+    await interaction.deferReply({ ephemeral: false }); // Visible to everyone
 
     try {
       const current = await seasonRepository.findActive();
@@ -96,31 +89,6 @@ export async function execute(
       logger.error({ err }, "Error in /cerrar temporada");
       const msg = err instanceof Error ? err.message : "Error desconocido.";
       await interaction.editReply(`❌ ${msg}`);
-    }
-
-  // ── /cerrar postulaciones ───────────────────────────────────────────────
-  } else if (sub === "postulaciones") {
-    setApplicationsOpen(false);
-
-    logger.info(
-      { userId: interaction.user.id },
-      "Applications closed via /cerrar postulaciones",
-    );
-
-    const embed = new EmbedBuilder()
-      .setTitle("🔒 Las postulaciones están CERRADAS")
-      .setColor("Red")
-      .setDescription(
-        "Las postulaciones para **Trial Helper** han sido cerradas.\n\n" +
-          "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
-      )
-      .setTimestamp()
-      .setFooter({ text: `Cerrado por ${interaction.user.username}` });
-
-    try {
-      await interaction.reply({ embeds: [embed] });
-    } catch (err) {
-      logger.warn({ err }, "Could not send applications-closed announcement");
     }
   }
 }

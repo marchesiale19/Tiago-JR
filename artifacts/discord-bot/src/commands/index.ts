@@ -22,8 +22,6 @@ import * as sala                from "./sala";
 import * as finalizarPartida    from "./finalizar-partida";
 import * as supervisorInactivo  from "./supervisor-inactivo";
 // ── Patch Pack 2 commands ──────────────────────────────────────────────────
-import * as abrir               from "./abrir";
-import * as cerrar              from "./cerrar";
 import * as cancelar            from "./cancelar";
 import * as emparejamiento      from "./emparejamiento";
 // ── Postulaciones commands ─────────────────────────────────────────────────
@@ -62,8 +60,6 @@ commands.set(finalizarPartida.data.name,    finalizarPartida);
 commands.set(supervisorInactivo.data.name,  supervisorInactivo);
 
 // ── Season management ──────────────────────────────────────────────────────
-commands.set(abrir.data.name,               abrir);
-commands.set(cerrar.data.name,              cerrar);
 
 // ── Queue management ───────────────────────────────────────────────────────
 commands.set(cancelar.data.name,            cancelar);
