@@ -10,12 +10,18 @@ import { logger } from "../lib/logger";
 export const data = new SlashCommandBuilder()
   .setName("abrir-postulaciones")
   .setDescription("Abre las postulaciones para el rol de Trial Helper.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.MentionEveryone);
+  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
 
-const ROL_AUTORIZADO_ID = "1455419124732657801";
+// Lista de IDs de roles autorizados exclusivamente
+const ROLES_AUTORIZADOS = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+];
 
 async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
@@ -24,8 +30,8 @@ async function hasStaffPermission(interaction: ChatInputCommandInteraction): Pro
     const member = await interaction.guild.members.fetch(interaction.user.id);
     if (!member || !member.roles) return false;
 
-    // Validación estricta y directa por ID exacto de rol
-    return member.roles.cache.has(ROL_AUTORIZADO_ID);
+    // Retorna true si el usuario posee al menos uno de los roles de la lista
+    return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error fetching member for permission check in /abrir-postulaciones");
     return false;
@@ -39,7 +45,7 @@ export async function execute(
   if (!authorized) {
     await interaction.reply({
       content:
-        "❌ No tienes permiso para usar este comando. Se requiere el rol autorizado para gestionar las postulaciones.",
+        "❌ No tienes permiso para usar este comando. Se requiere un rango directivo/administrativo autorizado para gestionar las postulaciones.",
       ephemeral: true,
     });
     return;
