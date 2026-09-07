@@ -15,7 +15,6 @@ export const data = new SlashCommandBuilder()
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
 
-// Lista de IDs de roles autorizados exclusivamente
 const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -25,12 +24,9 @@ const ROLES_AUTORIZADOS = [
 
 async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
-
   try {
     const member = await interaction.guild.members.fetch(interaction.user.id);
     if (!member || !member.roles) return false;
-
-    // Retorna true si el usuario posee al menos uno de los roles de la lista
     return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error fetching member for permission check in /abrir-postulaciones");

@@ -91,25 +91,24 @@ function formatActionTimestamp(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-function hasReviewPermission(
-  member: any, // Cambiamos a 'any' aquí para evitar conflictos de tipos
-): boolean {
-  // Verificación estricta: si el miembro no es un objeto o no tiene guild/roles, es falso
+// Lista de IDs de roles autorizados exclusivamente para revisar/aprobar/rechazar postulaciones
+const ROLES_AUTORIZADOS = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+];
+
+function hasReviewPermission(member: any): boolean {
   if (!member || typeof member !== 'object') return false;
 
-  // Si guild o roles no existen, TypeScript dejará de quejarse porque ya no intentamos acceder directamente
+  // Si guild o roles no existen, retorna falso
   if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
     return false;
   }
 
-  const ROL_REFERENCIA = "Moderador [PB]";
-  const rolReferencia = member.guild.roles.cache.find((r: any) => r.name === ROL_REFERENCIA);
-
-  if (!rolReferencia) {
-    return false;
-  }
-
-  return member.roles.cache.some((role: any) => role.position >= rolReferencia.position);
+  // Verifica si el miembro posee al menos uno de los roles autorizados por ID
+  return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
 }
 
 
