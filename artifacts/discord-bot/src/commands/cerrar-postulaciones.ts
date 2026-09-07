@@ -22,12 +22,27 @@ const ROLES_AUTORIZADOS = [
 ];
 
 async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
-  if (!interaction.guild || !interaction.user) return false;
+  if (!interaction.guild || !interaction.user) {
+    console.log("[DEBUG-CERRAR] No hay guild o usuario en la interacción.");
+    return false;
+  }
   try {
     const member = await interaction.guild.members.fetch(interaction.user.id);
-    if (!member || !member.roles) return false;
-    return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+    if (!member || !member.roles) {
+      console.log(`[DEBUG-CERRAR] No se pudo obtener el miembro o sus roles para ${interaction.user.tag}`);
+      return false;
+    }
+
+    const rolesUsuario = member.roles.cache.map(r => `${r.name} (${r.id})`);
+    console.log(`[DEBUG-CERRAR] Usuario: ${interaction.user.tag} | Roles que posee: [${rolesUsuario.join(", ")}]`);
+    console.log(`[DEBUG-CERRAR] Roles autorizados requeridos: [${ROLES_AUTORIZADOS.join(", ")}]`);
+
+    const tienePermiso = ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+    console.log(`[DEBUG-CERRAR] ¿Tiene permiso?: ${tienePermiso}`);
+
+    return tienePermiso;
   } catch (err) {
+    console.error("[DEBUG-CERRAR] Error crítico al verificar permisos:", err);
     logger.error({ err }, "Error fetching member for permission check in /cerrar-postulaciones");
     return false;
   }
