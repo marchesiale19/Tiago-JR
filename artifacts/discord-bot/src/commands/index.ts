@@ -26,6 +26,9 @@ import * as abrir               from "./abrir";
 import * as cerrar              from "./cerrar";
 import * as cancelar            from "./cancelar";
 import * as emparejamiento      from "./emparejamiento";
+// ── Postulaciones commands ─────────────────────────────────────────────────
+import * as abrirPostulaciones  from "./abrir-postulaciones";
+import * as cerrarPostulaciones from "./cerrar-postulaciones";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -38,6 +41,8 @@ export const commands: Collection<string, BotCommand> = new Collection();
 // ── Applications ───────────────────────────────────────────────────────────
 commands.set(postular.data.name,            postular);
 commands.set(sanciones.data.name,           sanciones);
+commands.set(abrirPostulaciones.data.name,  abrirPostulaciones);
+commands.set(cerrarPostulaciones.data.name, cerrarPostulaciones);
 
 // ── Season / Rankings / Profile ────────────────────────────────────────────
 commands.set(temporada.data.name,           temporada);
