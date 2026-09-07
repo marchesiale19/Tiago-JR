@@ -1,7 +1,7 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
+  MessageFlags,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -9,8 +9,7 @@ import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("abrir-postulaciones")
-  .setDescription("Abre las postulaciones para el rol de Trial Helper.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+  .setDescription("Abre las postulaciones para el rol de Trial Helper.");
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -42,7 +41,7 @@ export async function execute(
     await interaction.reply({
       content:
         "❌ No tienes permiso para usar este comando. Se requiere un rango directivo/administrativo autorizado para gestionar las postulaciones.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -55,7 +54,7 @@ export async function execute(
   );
 
   const announcementEmbed = new EmbedBuilder()
-    .setTitle(" 📢 ¡Las postulaciones están ABIERTAS!")
+    .setTitle("📢 ¡Las postulaciones están ABIERTAS!")
     .setColor("Green")
     .setDescription(
       "Las postulaciones para **Trial Helper** han sido abiertas.\n\n" +

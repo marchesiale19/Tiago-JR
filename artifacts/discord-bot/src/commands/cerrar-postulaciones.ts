@@ -1,7 +1,7 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
+  MessageFlags,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import { setApplicationsOpen } from "../lib/applications-state";
@@ -9,8 +9,7 @@ import { logger } from "../lib/logger";
 
 export const data = new SlashCommandBuilder()
   .setName("cerrar-postulaciones")
-  .setDescription("Cierra las postulaciones para el rol de Trial Helper.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.Administrator);
+  .setDescription("Cierra las postulaciones para el rol de Trial Helper.");
 
 (data as any).staffOnly = true;
 (data as any).category = "Postulaciones";
@@ -42,7 +41,7 @@ export async function execute(
     await interaction.reply({
       content:
         "❌ No tienes permiso para usar este comando. Se requiere un rango directivo/administrativo autorizado para gestionar las postulaciones.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -55,10 +54,10 @@ export async function execute(
   );
 
   const announcementEmbed = new EmbedBuilder()
-    .setTitle("Las postulaciones están CERRADAS")
+    .setTitle("🔒 Las postulaciones están CERRADAS")
     .setColor("Red")
     .setDescription(
-      "🔒 Las postulaciones para **Trial Helper** han sido cerradas.\n\n" +
+      "Las postulaciones para **Trial Helper** han sido cerradas.\n\n" +
         "Ya no es posible postularse en este momento. Estén atentos para cuando se vuelvan a abrir.",
     )
     .setTimestamp()
