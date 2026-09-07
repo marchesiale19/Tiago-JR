@@ -1,4 +1,4 @@
-// /cerrar temporada & /cerrar postulaciones — Authorized roles only
+// /cerrar temporada & /cerrar postulaciones — Subcommand-based role permissions
 
 import {
   SlashCommandBuilder,
@@ -12,26 +12,31 @@ import { closeSeason } from "../services/SeasonService";
 import { seasonRepository } from "../database/repositories/SeasonRepository";
 import { logger } from "../lib/logger";
 
-// ── Role IDs allowed to execute this command ──────────────────────────────
-const ROLES_AUTORIZADOS = [
+// ── Role definitions ───────────────────────────────────────────────────────
+const ROLES_POSTULACIONES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
   "1455419124732657801", // Equipo Administrativo
+];
+
+const ROLES_TEMPORADA = [
+  ...ROLES_POSTULACIONES,
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
 ];
 
-async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+async function hasSubcommandPermission(interaction: ChatInputCommandInteraction, sub: string): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
     const member = (interaction.member as GuildMember) || (await interaction.guild.members.fetch(interaction.user.id));
     if (!member || !member.roles) return false;
 
-    return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+    const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;
+    return allowedRoles.some((roleId) => member.roles.cache.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error checking permissions for /cerrar command");
     return false;
@@ -58,16 +63,21 @@ export const data = new SlashCommandBuilder()
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const authorized = await hasPermission(interaction);
+  const sub = interaction.options.getSubcommand();
+  const authorized = await hasSubcommandPermission(interaction, sub);
+
   if (!authorized) {
+    const errorMsg =
+      sub === "postulaciones"
+        ? "❌ No tienes permiso para cerrar postulaciones. Se requiere ser parte del Equipo Administrativo."
+        : "❌ No tienes permiso para cerrar temporadas. Se requiere ser Manager o un rango superior.";
+
     await interaction.reply({
-      content: "❌ No tienes permiso para usar este comando. Se requiere ser Manager o un rango superior.",
+      content: errorMsg,
       flags: MessageFlags.Ephemeral,
     });
     return;
   }
-
-  const sub = interaction.options.getSubcommand();
 
   // ── /cerrar temporada ───────────────────────────────────────────────────
   if (sub === "temporada") {
