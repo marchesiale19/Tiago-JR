@@ -32,7 +32,7 @@ async function hasSubcommandPermission(interaction: any, sub: string): Promise<b
   if (!interaction.guild || !interaction.user) return false;
   try {
     let member = interaction.member;
-    
+
     if (!member || !member.roles || typeof member.roles.cache?.some !== 'function') {
       member = await interaction.guild.members.fetch(interaction.user.id);
     }
@@ -108,9 +108,7 @@ export async function execute(
       const embed = new EmbedBuilder()
         .setColor("Green")
         .setTitle("🏆 ¡Nueva temporada iniciada!")
-        .setImage(
-          "https://i.postimg.cc/jSRgLSX3/Gemini-Generated-Image-gf14dggf14dggf14.png",
-        )
+        .setImage("https://i.postimg.cc/jSRgLSX3/Gemini-Generated-Image-gf14dggf14dggf14.png")
         .addFields(
           { name: "Nombre", value: result.opened.nombre,   inline: true },
           { name: "ID",     value: String(result.opened.id), inline: true },
