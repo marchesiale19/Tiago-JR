@@ -609,13 +609,32 @@ client.on(Events.MessageCreate, async (message) => {
       member: message.member,
       channel: message.channel,
       options: {
-        getString: (_name: string) => args.join(" ") || null,
-        getInteger: (_name: string) => parseInt(args[0]) || null,
-        getBoolean: (_name: string) => args[0] === "true",
+        getSubcommand: () => {
+          const firstArg = args[0]?.toLowerCase();
+          if (firstArg === "temporada" || firstArg === "postulaciones") {
+            return firstArg;
+          }
+          return null;
+        },
+        getString: (name: string) => {
+          // Si el primer argumento es el subcomando, lo saltamos para agarrar el valor real (ej: el nombre de la temporada)
+          const subcommands = ["temporada", "postulaciones"];
+          const actualArgs = subcommands.includes(args[0]?.toLowerCase() || "") ? args.slice(1) : args;
+
+          if (name === "nombre") {
+            return actualArgs.join(" ") || null;
+          }
+          return actualArgs.join(" ") || null;
+        },
+        getInteger: (_name: string) => {
+          const subcommands = ["temporada", "postulaciones"];
+          const actualArgs = subcommands.includes(args[0]?.toLowerCase() || "") ? args.slice(1) : args;
+          return parseInt(actualArgs[0]) || null;
+        },
+        getBoolean: (_name: string) => args[1] === "true" || args[0] === "true",
         getUser: (_name: string) => message.mentions.users.first() || null,
         getMember: (_name: string) => message.mentions.members?.first() || null,
         getChannel: (_name: string) => message.mentions.channels.first() || null,
-        getSubcommand: () => null,
       },
       replied: false,
       deferred: false,
