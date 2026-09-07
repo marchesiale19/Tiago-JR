@@ -19,6 +19,7 @@ const ROLES_AUTORIZADOS = [
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
 ];
 
 async function hasStaffPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
@@ -55,7 +56,7 @@ export async function execute(
   if (!authorized) {
     await interaction.reply({
       content:
-        "❌ No tienes permiso para usar este comando. Se requiere un rango directivo/administrativo autorizado para gestionar las postulaciones.",
+        "❌ No tienes permiso para usar este comando. Se requiere ser parte del Equipo Administrativo para gestionar las postulaciones.",
       flags: MessageFlags.Ephemeral,
     });
     return;
