@@ -154,8 +154,8 @@ function getCategories(access: AccessLevel): CategoryData[] {
   ];
   if (access === "owner") {
     postRows.push(
-      "/abrir postulaciones — Abre el período de postulaciones al staff.",
-      "/cerrar postulaciones — Cierra el período de postulaciones al staff."
+      "-abrir postulaciones — Abre el período de postulaciones al staff.",
+      "-cerrar postulaciones — Cierra el período de postulaciones al staff."
     );
   }
 
