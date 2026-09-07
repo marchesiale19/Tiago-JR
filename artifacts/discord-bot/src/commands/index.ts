@@ -3,30 +3,33 @@ import {
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
 } from "discord.js";
-import * as postular            from "./postular";
+import * as postular                 from "./postular";
 import { data as helpData, execute as helpExecute } from "./help";
 import { data as asignarRangoData, execute as asignarRangoExecute } from "./asignarRango";
-import * as sanciones           from "./sanciones";
-import * as temporada           from "./temporada";
-import * as ranking             from "./ranking";
-import * as perfil              from "./perfil";
-import * as logros              from "./logros";
-import * as luckybox            from "./luckybox";
-import * as roleOverride        from "./roleOverride";
+import * as sanciones                from "./sanciones";
+import * as temporada                from "./temporada";
+import * as ranking                  from "./ranking";
+import * as perfil                   from "./perfil";
+import * as logros                   from "./logros";
+import * as luckybox                 from "./luckybox";
+import * as roleOverride             from "./roleOverride";
 import * as leaderboard from "./leaderboard";
 // ── New ranked workflow commands ───────────────────────────────────────────
-import * as buscarPartida       from "./buscar-partida";
-import * as partida             from "./partida";
-import * as registrarPartida    from "./registrar-partida";
-import * as sala                from "./sala";
-import * as finalizarPartida    from "./finalizar-partida";
-import * as supervisorInactivo  from "./supervisor-inactivo";
+import * as buscarPartida            from "./buscar-partida";
+import * as partida                  from "./partida";
+import * as registrarPartida         from "./registrar-partida";
+import * as sala                     from "./sala";
+import * as finalizarPartida         from "./finalizar-partida";
+import * as supervisorInactivo       from "./supervisor-inactivo";
 // ── Patch Pack 2 commands ──────────────────────────────────────────────────
-import * as cancelar            from "./cancelar";
-import * as emparejamiento      from "./emparejamiento";
+import * as cancelar                 from "./cancelar";
+import * as emparejamiento           from "./emparejamiento";
 // ── Postulaciones commands ─────────────────────────────────────────────────
-import * as abrirPostulaciones  from "./abrir-postulaciones";
-import * as cerrarPostulaciones from "./cerrar-postulaciones";
+import * as abrirPostulaciones       from "./abrir-postulaciones";
+import * as cerrarPostulaciones      from "./cerrar-postulaciones";
+// ── Season Management commands (Separated) ─────────────────────────────────
+import * as abrir                    from "./abrir";
+import * as cerrar                   from "./cerrar";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -60,6 +63,8 @@ commands.set(finalizarPartida.data.name,    finalizarPartida);
 commands.set(supervisorInactivo.data.name,  supervisorInactivo);
 
 // ── Season management ──────────────────────────────────────────────────────
+commands.set(abrir.data.name,               abrir);
+commands.set(cerrar.data.name,              cerrar);
 
 // ── Queue management ───────────────────────────────────────────────────────
 commands.set(cancelar.data.name,            cancelar);

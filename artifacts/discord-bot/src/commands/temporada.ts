@@ -1,14 +1,38 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
+  MessageFlags,
   type ChatInputCommandInteraction,
+  type GuildMember,
 } from "discord.js";
 import { seasonRepository } from "../database/repositories/SeasonRepository";
-import { logger }           from "../lib/logger";
+import { logger } from "../lib/logger";
 
-// NOTE: /temporada abrir and /temporada cerrar were migrated to
-// /abrir temporada and /cerrar temporada (abrir.ts / cerrar.ts).
-// This file now only handles /temporada info.
+// IDs de roles autorizados para usar /temporada info
+const ROLES_AUTORIZADOS = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
+async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guild || !interaction.user) return false;
+  try {
+    const member = (interaction.member as GuildMember) || (await interaction.guild.members.fetch(interaction.user.id));
+    if (!member || !member.roles) return false;
+
+    return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+  } catch (err) {
+    logger.error({ err }, "Error checking permissions for /temporada info");
+    return false;
+  }
+}
 
 export const data = new SlashCommandBuilder()
   .setName("temporada")
@@ -20,6 +44,15 @@ export const data = new SlashCommandBuilder()
   );
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const authorized = await hasPermission(interaction);
+  if (!authorized) {
+    await interaction.reply({
+      content: "❌ No tienes permiso para usar este comando. Se requiere un rango autorizado.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const sub = interaction.options.getSubcommand();
   await interaction.deferReply({ ephemeral: false });
 
@@ -49,7 +82,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         ],
       });
     }
-
   } catch (err) {
     logger.error({ err, sub }, "Error in /temporada command");
     const msg = err instanceof Error ? err.message : "Error desconocido.";

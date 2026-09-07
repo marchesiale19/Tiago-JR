@@ -1,60 +1,77 @@
-// /cerrar temporada — Closes the active ranked season (Mod+ only)
+// /cerrar temporada & /cerrar postulaciones — Authorized roles only
 
 import {
   SlashCommandBuilder,
   EmbedBuilder,
   PermissionFlagsBits,
+  MessageFlags,
   type ChatInputCommandInteraction,
+  type GuildMember,
 } from "discord.js";
 import { closeSeason } from "../services/SeasonService";
 import { seasonRepository } from "../database/repositories/SeasonRepository";
 import { logger } from "../lib/logger";
 
-// ── Permission helper ──────────────────────────────────────────────────────
-const ROL_REFERENCIA = "Moderador [PB]";
+// ── Role IDs allowed to execute this command ──────────────────────────────
+const ROLES_AUTORIZADOS = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
 
-function hasModPermission(member: any): boolean {
-  if (!member || typeof member !== "object") return false;
-  if (!member.guild || !member.roles?.cache)  return false;
+async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guild || !interaction.user) return false;
+  try {
+    const member = (interaction.member as GuildMember) || (await interaction.guild.members.fetch(interaction.user.id));
+    if (!member || !member.roles) return false;
 
-  const rolRef = member.guild.roles.cache.find(
-    (r: any) => r.name === ROL_REFERENCIA,
-  );
-  if (!rolRef) return false;
-
-  return (member.roles.highest as any).position >= (rolRef as any).position;
+    return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+  } catch (err) {
+    logger.error({ err }, "Error checking permissions for /cerrar command");
+    return false;
+  }
 }
 
 // ── Command definition ─────────────────────────────────────────────────────
 export const data = new SlashCommandBuilder()
   .setName("cerrar")
-  .setDescription("Cierra la temporada ranked activa.")
+  .setDescription("Comandos de cierre (temporada o postulaciones).")
   .setDefaultMemberPermissions(PermissionFlagsBits.MentionEveryone)
   .addSubcommand((sub) =>
     sub
       .setName("temporada")
       .setDescription("Cierra la temporada ranked activa manualmente."),
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName("postulaciones")
+      .setDescription("Cierra el período de postulaciones al staff."),
   );
 
 // ── Execute ────────────────────────────────────────────────────────────────
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const sub = interaction.options.getSubcommand();
-
-  // Runtime permission check — Moderador [PB] or higher in the role hierarchy
-  if (!hasModPermission(interaction.member)) {
+  const authorized = await hasPermission(interaction);
+  if (!authorized) {
     await interaction.reply({
-      content:
-        "❌ No tienes permiso para usar este comando. Se requiere el rango de **Moderador [PB]** o superior.",
-      ephemeral: true,
+      content: "❌ No tienes permiso para usar este comando. Se requiere un rango autorizado.",
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
 
+  const sub = interaction.options.getSubcommand();
+
   // ── /cerrar temporada ───────────────────────────────────────────────────
   if (sub === "temporada") {
-    await interaction.deferReply({ ephemeral: false }); // Visible to everyone
+    await interaction.deferReply({ ephemeral: false });
 
     try {
       const current = await seasonRepository.findActive();
@@ -90,5 +107,13 @@ export async function execute(
       const msg = err instanceof Error ? err.message : "Error desconocido.";
       await interaction.editReply(`❌ ${msg}`);
     }
+  }
+
+  // ── /cerrar postulaciones ───────────────────────────────────────────────
+  else if (sub === "postulaciones") {
+    await interaction.reply({
+      content: "🔒 ¡El período de postulaciones al staff ha sido cerrado!",
+      ephemeral: false,
+    });
   }
 }
