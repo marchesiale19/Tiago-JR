@@ -16,8 +16,8 @@ export class ForensicService {
   // Almacén en memoria para la huella temporal de conexiones
   private static recentJoins: { userId: string; timestamp: number }[] = [];
 
-  // Parámetro de ventana temporal en milisegundos (3 minutos = 180,000 ms)
-  private static readonly CLUSTER_WINDOW_MS = 3 * 60 * 1000;
+  // Parámetro de ventana temporal actualizado a 10 segundos según pedido de Xandel
+  private static readonly CLUSTER_WINDOW_MS = 10 * 1000; 
   private static readonly CLUSTER_THRESHOLD = 3; // 3 o más cuentas en el mismo margen
 
   /**
@@ -67,22 +67,22 @@ export class ForensicService {
     // Convertir a porcentaje (0 a 100)
     let riskScore = Math.min(Math.round(posteriorProbability * 100), 100);
 
-    // ── 2. Huella Temporal de Conexiones (Detección de Alts en masa) ─────
+    // ── 2. Huella Temporal de Conexiones (Detección de Alts en ráfaga de 10s) ─────
     this.recentJoins.push({ userId, timestamp: now });
 
-    // Limpiar registros viejos fuera de la ventana temporal
+    // Limpiar registros viejos fuera de la ventana de 10 segundos
     this.recentJoins = this.recentJoins.filter(
       (entry) => now - entry.timestamp < this.CLUSTER_WINDOW_MS
     );
 
-    // Verificar si hay un cúmulo inusual de cuentas entrando juntas
+    // Verificar si hay un cúmulo inusual de cuentas entrando juntas en segundos
     const recentCount = this.recentJoins.length;
     let isSuspiciousCluster = false;
 
     if (recentCount >= this.CLUSTER_THRESHOLD) {
       isSuspiciousCluster = true;
       riskScore = Math.min(riskScore + 25, 100); // Bonificador de riesgo por racimo
-      reasons.push(`Forma parte de un ingreso masivo en ráfaga (${recentCount} cuentas en poco tiempo)`);
+      reasons.push(`Forma parte de un ingreso masivo en ráfaga (${recentCount} cuentas en menos de 10 segundos)`);
     }
 
     logger.info(

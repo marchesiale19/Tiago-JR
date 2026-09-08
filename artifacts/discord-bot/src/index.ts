@@ -14,7 +14,8 @@ import {
   type ModalSubmitInteraction,
   type GuildMember,
   REST,
-  Routes
+  Routes,
+  AuditLogEvent
 } from "discord.js";
 import { commands } from "./commands";
 import { logger } from "./lib/logger";
@@ -24,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
 // --- SERVIDOR HTTP PARA RENDER (WEB SERVICE) ---
-const server = http.createServer((req, res) => {
+const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Bot is running successfully!\n');
 });
@@ -65,6 +66,7 @@ const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000;
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
+
 // --- REGISTRO DE BANEOS HISTÓRICOS ---
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
@@ -328,11 +330,10 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  // Validación de Cooldown y requisitos para el comando /postular
   if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
     const cooldownKey = `${interaction.guildId}-${interaction.user.id}`;
     const rejectionTime = rejectionRegistry.get(cooldownKey);
-    
+
     if (rejectionTime) {
       const elapsed = Date.now() - rejectionTime;
       if (elapsed < REJECTION_COOLDOWN) {
@@ -372,7 +373,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Ejecutamos el comando de forma normal si pasó todas las validaciones
     const command = commands.get("postular");
     if (command) {
       try {
@@ -510,12 +510,71 @@ client.on(Events.InteractionCreate, async (interaction) => {
       const action = interaction.customId.startsWith("forensic_quarantine_") ? "aislar" : "ignorar";
       const targetUserId = interaction.customId.replace(action === "aislar" ? "forensic_quarantine_" : "forensic_ignore_", "");
 
+      if (action === "aislar") {
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`forensic_confirm_quarantine_${targetUserId}`)
+            .setLabel("Sí, aislar usuario")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId("forensic_cancel_quarantine")
+            .setLabel("Cancelar")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.reply({
+          content: `⚠️ ¿Estás seguro de que deseas enviar a cuarentena a <@${targetUserId}>? Esta acción restringirá al usuario.`,
+          components: [confirmRow],
+          ephemeral: true
+        });
+        return;
+      }
+
       await interaction.reply({
-        content: `⚠️ Acción recibida: ${action === "aislar" ? "Aislar en cuarentena" : "Marcado como seguro"} para <@${targetUserId}> por ${interaction.user.tag}.`,
+        content: `✅ Marcado como seguro para <@${targetUserId}> por ${interaction.user.tag}.`,
         ephemeral: true
       });
+
+      await interaction.message.edit({ components: [] }).catch(() => {});
       return;
     }
+
+    if (interaction.customId.startsWith("forensic_confirm_quarantine_")) {
+      const member = interaction.member as GuildMember | null;
+      if (!hasForensicPermission(member)) {
+        await interaction.reply({ content: "❌ Sin permisos.", ephemeral: true });
+        return;
+      }
+
+      const targetUserId = interaction.customId.replace("forensic_confirm_quarantine_", "");
+
+      try {
+        const guildMember = await interaction.guild?.members.fetch(targetUserId);
+        if (guildMember) {
+          const rolesToKeep = guildMember.roles.cache.filter(r => r.managed || r.id === interaction.guild?.id);
+          await guildMember.roles.set(rolesToKeep).catch(() => {});
+
+          await interaction.update({
+            content: `🚨 <@${targetUserId}> ha sido aislado correctamente por ${interaction.user.tag} (roles retirados).`,
+            components: []
+          });
+
+          await interaction.message.edit({ components: [] }).catch(() => {});
+        } else {
+          await interaction.update({ content: "❌ El usuario ya no se encuentra en el servidor.", components: [] });
+        }
+      } catch (err) {
+        logger.error({ err }, "Error al aislar al usuario en cuarentena");
+        await interaction.update({ content: "❌ Hubo un error al intentar aplicar el aislamiento.", components: [] });
+      }
+      return;
+    }
+
+    if (interaction.customId === "forensic_cancel_quarantine") {
+      await interaction.update({ content: "❌ Acción de aislamiento cancelada.", components: [] });
+      return;
+    }
+
     return;
   }
 
@@ -648,21 +707,25 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
     console.log(`[EVENTO] Rol ${POSTULADOS_ROLE_NAME} quitado a ${newMember.user.tag}. Cooldown aplicado.`);
   }
 });
-// Registrar cuando un usuario es baneado del servidor
+
+// Registro actualizado usando la enumeración de AuditLogEvent
 client.on(Events.GuildBanAdd, async (ban) => {
   try {
+    // Pequeño delay de 500ms para asegurar que Discord escriba el log de auditoría
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     const fetchedLogs = await ban.guild.fetchAuditLogs({
       limit: 1,
-      type: 22, // MEMBER_BAN_ADD
+      type: AuditLogEvent.MemberBanAdd,
     });
     const banLog = fetchedLogs.entries.first();
-    const executor = banLog ? banLog.executor?.tag : "Desconocido";
-    const reason = banLog?.reason || ban.reason || "Sin razón especificada";
+    const executor = banLog?.executor?.tag ?? "Staff"; // <-- Solucionado aquí
+    const reason = banLog?.reason ?? ban.reason ?? "Sin razón especificada";
 
     banRegistry.set(ban.user.id, {
       reason,
       timestamp: Date.now(),
-      moderator: executor || "Staff",
+      moderator: executor,
     });
     saveBansRegistry(banRegistry);
 
@@ -676,25 +739,33 @@ client.on(Events.GuildMemberAdd, async (member) => {
   try {
     const { ForensicService } = await import("./services/ForensicService");
     const user = member.user;
+
+    const previousBan = banRegistry.get(user.id);
+
     const evaluation = ForensicService.evaluateMember(
       user.id,
-      user.tag,
+      user.tag ?? user.username ?? "Desconocido",
       user.createdAt,
       user.bot ? false : user.avatar === null
     );
 
-    if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster) {
+    if (previousBan) {
+      evaluation.riskScore = 100;
+      evaluation.reasons.unshift(`🚨 ¡ESTUVO BANEADO ANTES! Razón previa: "${previousBan.reason}"`);
+    }
+
+    if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster || previousBan) {
       const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
       const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
 
       if (channel && channel.isTextBased()) {
         const embed = new EmbedBuilder()
-          .setColor(evaluation.riskScore > 90 ? "Red" : "Orange")
-          .setTitle("🚨 Alerta de Seguridad Forense (Nuevo Miembro)")
-          .setDescription(`Se ha detectado el ingreso de una cuenta sospechosa (${evaluation.riskScore}% de riesgo).`)
+          .setColor("Red")
+          .setTitle("🚨 Alerta Forense: Usuario con Antecedentes")
+          .setDescription(`Se detectó el ingreso de una cuenta sospechosa o previamente sancionada.`)
           .addFields(
             { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
-            { name: "Antigüedad", value: `${evaluation.accountAgeDays} días`, inline: true },
+            { name: "Riesgo Calculado", value: `${evaluation.riskScore}%`, inline: true },
             { name: "Razones", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
           )
           .setTimestamp();
