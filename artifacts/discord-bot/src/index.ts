@@ -48,26 +48,44 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates, // required for voice channel management
-    GatewayIntentBits.GuildMessages, // <--- Agregá esta línea aquí
-    GatewayIntentBits.MessageContent, // <-- Necesario para leer mensajes con prefijo
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
   ],
 });
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.tag }, "Discord bot logged in");
-  // Run DB init + startup recovery once the client is fully connected
   import("./database/init")
     .then(({ initDatabase }) => initDatabase(readyClient))
     .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
 });
 
 const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000; 
-
-
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
+// --- REGISTRO DE BANEOS HISTÓRICOS ---
+const BANS_FILE = path.join(__dirname, 'bans_registry.json');
+const banRegistry = loadBansRegistry();
+
+function loadBansRegistry(): Map<string, { reason: string; timestamp: number; moderator: string }> {
+  try {
+    if (fs.existsSync(BANS_FILE)) {
+      const data = fs.readFileSync(BANS_FILE, 'utf-8');
+      return new Map(Object.entries(JSON.parse(data)));
+    }
+  } catch (err) {
+    logger.error({ err }, "Error cargando archivo de registro de bans");
+  }
+  return new Map();
+}
+
+function saveBansRegistry(map: Map<string, any>) {
+  const obj = Object.fromEntries(map);
+  fs.writeFileSync(BANS_FILE, JSON.stringify(obj, null, 2));
+}
+
 function loadCooldowns(): Map<string, number> {
   try {
     if (fs.existsSync(COOLDOWNS_FILE)) {
@@ -84,6 +102,7 @@ function saveCooldowns(map: Map<string, number>) {
   const obj = Object.fromEntries(map);
   fs.writeFileSync(COOLDOWNS_FILE, JSON.stringify(obj, null, 2));
 }
+
 function formatActionTimestamp(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -91,7 +110,7 @@ function formatActionTimestamp(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-// Lista de IDs de roles autorizados exclusivamente para revisar/aprobar/rechazar postulaciones
+// Listas de roles autorizados
 const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -99,19 +118,32 @@ const ROLES_AUTORIZADOS = [
   "1485101671875874997", // Administrador Elite
 ];
 
+const ROLES_FORENSIC_AUTORIZADOS = [
+  ...ROLES_AUTORIZADOS,
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+  "1452784726413672643", // Moderador
+  "1509760381525164123"  // Moderador [PB]
+];
+
 function hasReviewPermission(member: any): boolean {
   if (!member || typeof member !== 'object') return false;
-
-  // Si guild o roles no existen, retorna falso
   if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
     return false;
   }
-
-  // Verifica si el miembro posee al menos uno de los roles autorizados por ID
   return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
 }
 
-
+function hasForensicPermission(member: any): boolean {
+  if (!member || typeof member !== 'object') return false;
+  if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
+    return false;
+  }
+  return ROLES_FORENSIC_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+}
 
 const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
   new ButtonBuilder()
@@ -128,10 +160,7 @@ const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
 
 const POSTULADOS_ROLE_NAME = "Postulados";
 
-async function assignPostuladosRole(
-  interaction: ButtonInteraction,
-  applicantId: string,
-): Promise<void> {
+async function assignPostuladosRole(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   const guild = interaction.guild;
   if (!guild) return;
 
@@ -148,33 +177,25 @@ async function assignPostuladosRole(
     await member.roles.add(role);
     console.log(`[DEBUG] ¡Rol "${role.name}" asignado correctamente a ${member.user.tag}!`);
   } catch (err) {
-    console.log(`[DEBUG] Error crítico: No pude asignar el rol. ¿El bot tiene permisos? ¿Está el rol debajo del rol del bot?`);
+    console.log(`[DEBUG] Error crítico: No pude asignar el rol.`);
     console.error(err);
   }
 }
 
-async function handleApprove(
-  interaction: ButtonInteraction,
-  applicantId: string,
-    ): Promise<void> {
-    // --- AÑADE ESTO AQUÍ ---
-    if (interaction.message.embeds[0]?.title?.includes("APROBADA")) {
-      return; // Si ya está aprobada, no hacemos nada más
-    }
-    // -----------------------
+async function handleApprove(interaction: ButtonInteraction, applicantId: string): Promise<void> {
+  if (interaction.message.embeds[0]?.title?.includes("APROBADA")) {
+    return; 
+  }
 
-    const originalEmbed = interaction.message.embeds[0];
-
+  const originalEmbed = interaction.message.embeds[0];
   const now = formatActionTimestamp(new Date());
 
   const updatedEmbed = originalEmbed
     ? EmbedBuilder.from(originalEmbed)
         .setColor("Green")
         .setTitle("✅ Postulación APROBADA")
-    .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
-        .setFooter({
-          text: `✅ Aprobado por ${interaction.user.username} el ${now}`,
-        })
+        .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
+        .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el ${now}` })
     : null;
 
   try {
@@ -186,11 +207,10 @@ async function handleApprove(
     logger.warn({ err }, "Failed to update application message");
   }
 
-  let applicant;
   try {
-    applicant = await interaction.client.users.fetch(applicantId);
+    const applicant = await interaction.client.users.fetch(applicantId);
     await applicant.send(
-      "Buenas notícias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad para indicarte los pasos a seguir y coordinar la siguiente etapa, mantente atento.",
+      "Buenas noticias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad.",
     );
   } catch (err) {
     logger.info({ err, applicantId }, "Could not DM applicant about decision");
@@ -199,84 +219,73 @@ async function handleApprove(
   await assignPostuladosRole(interaction, applicantId);
 }
 
-    async function handleRejectionModalSubmit(
-      interaction: ModalSubmitInteraction,
-    ): Promise<void> {
-      // LOG DE DEBUG: Esto nos dirá si el evento llega y qué ID tiene
-      console.log(`[DEBUG] Intentando procesar rechazo. ID del modal: ${interaction.customId}`);
+async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+  const match = interaction.customId.match(/^postular_reject_modal_(\d+)$/);
 
-      const match = interaction.customId.match(/^postular_reject_modal_(\d+)$/);
-
-      if (!match) {
-        // Si esto aparece en la consola, ya encontramos el error
-        console.error(`[ERROR] El ID del modal no coincide con el formato esperado: ${interaction.customId}`);
-        return;
-      }
-
-      const [, applicantId] = match;
-      if (!applicantId) {
-        console.error(`[ERROR] No se pudo extraer el ID del aplicante del ID: ${interaction.customId}`);
-        return;
-      }
-
-      if (!hasReviewPermission(interaction.member)) {
-        console.log(`[DEBUG] Usuario ${interaction.user.tag} sin permisos para rechazar.`);
-        await interaction.reply({
-          content: "No tienes permiso para revisar postulaciones.",
-          ephemeral: true,
-        });
-        return;
-      }
-
-      // ... (el resto de tu código sigue igual)
-
-    const reason = interaction.fields.getTextInputValue(REJECT_REASON_INPUT_ID).trim();
-    const message = interaction.message;
-    const originalEmbed = message?.embeds[0];
-    const now = formatActionTimestamp(new Date());
-
-    const updatedEmbed = originalEmbed
-      ? EmbedBuilder.from(originalEmbed)
-          .setColor("Red")
-          .setTitle("❌ Postulación RECHAZADA")
-          .addFields({ name: "Razón del rechazo", value: reason })
-      .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
-          .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el ${now}` })
-      : null;
-
-    try {
-      if (interaction.isFromMessage()) {
-        await interaction.update({
-          embeds: updatedEmbed ? [updatedEmbed] : undefined,
-          components: [disabledRow],
-        });
-      } else {
-        await interaction.deferUpdate();
-      }
-    } catch (err) {
-      logger.warn({ err }, "Failed to update application message");
-    }
-
-      const cooldownKey = `${interaction.guildId}-${applicantId}`;
-      rejectionRegistry.set(cooldownKey, Date.now());   saveCooldowns(rejectionRegistry);
-
-    try {
-      const applicant = await interaction.client.users.fetch(applicantId);
-      await applicant.send(`❌ Tu postulación fue RECHAZADA. Razón: ${reason}`);
-
-      // Lógica para quitar el rol al ser rechazado
-      const guild = interaction.guild;
-      if (guild) {
-        const role = guild.roles.cache.find((r) => r.name === POSTULADOS_ROLE_NAME);
-        const member = await guild.members.fetch(applicantId);
-        if (role && member.roles.cache.has(role.id)) {
-          await member.roles.remove(role);
-        }
-      }
-    } catch (err) {
-      logger.info({ err, applicantId }, "Could not DM applicant or remove role");
-    }
+  if (!match) {
+    console.error(`[ERROR] El ID del modal no coincide con el formato esperado: ${interaction.customId}`);
+    return;
   }
+
+  const [, applicantId] = match;
+  if (!applicantId) return;
+
+  if (!hasReviewPermission(interaction.member)) {
+    await interaction.reply({
+      content: "No tienes permiso para revisar postulaciones.",
+      ephemeral: true,
+    });
+    return;
+  }
+
+  const reason = interaction.fields.getTextInputValue(REJECT_REASON_INPUT_ID).trim();
+  const message = interaction.message;
+  const originalEmbed = message?.embeds[0];
+  const now = formatActionTimestamp(new Date());
+
+  const updatedEmbed = originalEmbed
+    ? EmbedBuilder.from(originalEmbed)
+        .setColor("Red")
+        .setTitle("❌ Postulación RECHAZADA")
+        .addFields({ name: "Razón del rechazo", value: reason })
+        .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
+        .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el ${now}` })
+    : null;
+
+  try {
+    if (interaction.isFromMessage()) {
+      await interaction.update({
+        embeds: updatedEmbed ? [updatedEmbed] : undefined,
+        components: [disabledRow],
+      });
+    } else {
+      await interaction.deferUpdate();
+    }
+  } catch (err) {
+    logger.warn({ err }, "Failed to update application message");
+  }
+
+  const cooldownKey = `${interaction.guildId}-${applicantId}`;
+  rejectionRegistry.set(cooldownKey, Date.now());
+  saveCooldowns(rejectionRegistry);
+
+  try {
+    const applicant = await interaction.client.users.fetch(applicantId);
+    await applicant.send(`❌ Tu postulación fue RECHAZADA. Razón: ${reason}`);
+
+    const guild = interaction.guild;
+    if (guild) {
+      const role = guild.roles.cache.find((r) => r.name === POSTULADOS_ROLE_NAME);
+      const member = await guild.members.fetch(applicantId);
+      if (role && member.roles.cache.has(role.id)) {
+        await member.roles.remove(role);
+      }
+    }
+  } catch (err) {
+    logger.info({ err, applicantId }, "Could not DM applicant or remove role");
+  }
+}
+
 async function handleRejectButton(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   const modal = new ModalBuilder()
     .setCustomId(`postular_reject_modal_${applicantId}`)
@@ -284,7 +293,7 @@ async function handleRejectButton(interaction: ButtonInteraction, applicantId: s
 
   const reasonInput = new TextInputBuilder()
     .setCustomId(REJECT_REASON_INPUT_ID)
-    .setLabel("Razon del rechazo")
+    .setLabel("Razón del rechazo")
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(true)
     .setMaxLength(1000);
@@ -319,14 +328,11 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-
-  // Validación de Cooldown de 7 días para el comando /postular
-    // Validación de Cooldown de 7 días para el comando /postular
+  // Validación de Cooldown y requisitos para el comando /postular
   if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
-    // 1. Verificación de rechazo reciente (segunda fase)
-    // 1. Verificación de rechazo reciente (segunda fase)
     const cooldownKey = `${interaction.guildId}-${interaction.user.id}`;
     const rejectionTime = rejectionRegistry.get(cooldownKey);
+    
     if (rejectionTime) {
       const elapsed = Date.now() - rejectionTime;
       if (elapsed < REJECTION_COOLDOWN) {
@@ -337,14 +343,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
         return;
       } else {
-        rejectionRegistry.delete(interaction.user.id);
+        rejectionRegistry.delete(cooldownKey);
         saveCooldowns(rejectionRegistry);
       }
     }
 
-    // 2. Verificación de rol activa
     const member = interaction.member;
-    if (member && typeof member.roles !== 'string' && 'cache' in member.roles) {
+    if (member && typeof member !== 'string' && 'roles' in member) {
       const tieneRolActivo = (member.roles as any).cache.some((r: any) => r.name === POSTULADOS_ROLE_NAME);
       if (tieneRolActivo) {
         await interaction.reply({
@@ -355,32 +360,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
 
-    // Filtro de cuenta nueva
     const createdAt = interaction.user.createdAt;
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     if (createdAt > sevenDaysAgo) {
       await interaction.reply({
-        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad en Discord.`,
+        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
         ephemeral: true
       });
-      return; // Importante
+      return;
     }
 
-
-    // Al final del bloque, si todo está bien, no necesitas retornar nada, 
-    // pero si el código sigue, asegúrate de que el flujo natural continúe correctamente.
+    // Ejecutamos el comando de forma normal si pasó todas las validaciones
+    const command = commands.get("postular");
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error executing postular command");
+      }
+    }
+    return;
   }
-
-
-
-
-
-
-
-
-
 
   if (interaction.isAutocomplete()) {
     const command = commands.get(interaction.commandName);
@@ -404,7 +406,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Supervisor accept button (posted in supervision channel)
     if (interaction.customId.startsWith("supervision_accept_")) {
       const lobbyId = interaction.customId.slice("supervision_accept_".length);
       const member = interaction.member as GuildMember | null;
@@ -426,7 +427,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // In-game supervisor replacement button (supervision_replace_<lobbyId>)
     if (interaction.customId.startsWith("supervision_replace_")) {
       const lobbyId = interaction.customId.slice("supervision_replace_".length);
       const member = interaction.member as GuildMember | null;
@@ -448,7 +448,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Questionnaire open button (sent via DM to each participant)
     if (interaction.customId.startsWith("q_open_")) {
       const [matchId, discordId] = interaction.customId.slice("q_open_".length).split("_");
       if (matchId && discordId) {
@@ -465,7 +464,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // Post-match play-again / leave buttons
     if (interaction.customId.startsWith("play_again_")) {
       const matchId = interaction.customId.slice("play_again_".length);
       try {
@@ -498,6 +496,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.customId.startsWith("forensic_quarantine_") || interaction.customId.startsWith("forensic_ignore_")) {
+      const member = interaction.member as GuildMember | null;
+
+      if (!hasForensicPermission(member)) {
+        await interaction.reply({
+          content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+          ephemeral: true
+        });
+        return;
+      }
+
+      const action = interaction.customId.startsWith("forensic_quarantine_") ? "aislar" : "ignorar";
+      const targetUserId = interaction.customId.replace(action === "aislar" ? "forensic_quarantine_" : "forensic_ignore_", "");
+
+      await interaction.reply({
+        content: `⚠️ Acción recibida: ${action === "aislar" ? "Aislar en cuarentena" : "Marcado como seguro"} para <@${targetUserId}> por ${interaction.user.tag}.`,
+        ephemeral: true
+      });
+      return;
+    }
     return;
   }
 
@@ -508,28 +526,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (err) {
         logger.error({ err }, "Error handling rejection modal submission");
         if (!interaction.replied && !interaction.deferred) {
-          try {
-            await interaction.reply({
-              content: "Hubo un error al procesar el rechazo.",
-              ephemeral: true,
-            });
-          } catch (replyErr) {
-            logger.error(
-              { err: replyErr },
-              "Failed to send rejection modal error reply",
-            );
-          }
+          await interaction.reply({ content: "Hubo un error al procesar el rechazo.", ephemeral: true }).catch(() => {});
         }
       }
       return;
     }
 
-    // Questionnaire form submit (q_form_<matchId>_<discordId>)
     if (interaction.customId.startsWith("q_form_")) {
       const rest = interaction.customId.slice("q_form_".length);
       const underscoreIdx = rest.indexOf("_");
       if (underscoreIdx !== -1) {
-        const matchId   = rest.slice(0, underscoreIdx);
+        const matchId = rest.slice(0, underscoreIdx);
         const discordId = rest.slice(underscoreIdx + 1);
         try {
           const { recordAnswer } = await import("./services/QuestionnaireService");
@@ -543,48 +550,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-
     return;
   }
 
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
-  if (!command) {
-    logger.warn(
-      { commandName: interaction.commandName },
-      "Received unknown command",
-    );
-    return;
-  }
+  if (!command) return;
 
   try {
     await command.execute(interaction);
   } catch (err) {
-    logger.error(
-      { err, commandName: interaction.commandName },
-      "Error executing command",
-    );
-    const errorMessage = {
-      content: "Hubo un error al ejecutar este comando.",
-      ephemeral: true,
-    };
-  if (interaction.replied || interaction.deferred) {
-    await interaction.followUp(errorMessage);
-  } else {
-    await interaction.reply(errorMessage); 
+    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(errorMessage);
+    } else {
+      await interaction.reply(errorMessage);
+    }
   }
-  }
-  }); // después de esta
+});
 
-// --- PUENTE UNIVERSAL AUTOMÁTICO PARA COMANDOS CON PREFIJO "-" ---
-// --- PUENTE UNIVERSAL AUTOMÁTICO PARA COMANDOS CON PREFIJO "-" ---
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
   const commandName = args.shift()?.toLowerCase();
-
   if (!commandName) return;
 
   const command = commands.get(commandName);
@@ -592,14 +583,11 @@ client.on(Events.MessageCreate, async (message) => {
 
   try {
     const cmdAny = command as any;
-
-    // 1. Si el comando tiene un método .run clásico, lo usamos directamente
     if (typeof cmdAny.run === "function") {
       await cmdAny.run(message, args);
       return;
     }
 
-    // 2. ADAPTADOR MEJORADO: Simulamos la interacción completa de barra
     const fakeInteraction = {
       commandName: commandName,
       user: message.author,
@@ -611,30 +599,14 @@ client.on(Events.MessageCreate, async (message) => {
       options: {
         getSubcommand: () => {
           const firstArg = args[0]?.toLowerCase();
-          if (firstArg === "temporada" || firstArg === "postulaciones") {
-            return firstArg;
-          }
-          return null;
+          return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
         },
-        getString: (name: string) => {
-          // Si el primer argumento es el subcomando, lo saltamos para agarrar el valor real (ej: el nombre de la temporada)
-          const subcommands = ["temporada", "postulaciones"];
-          const actualArgs = subcommands.includes(args[0]?.toLowerCase() || "") ? args.slice(1) : args;
-
-          if (name === "nombre") {
-            return actualArgs.join(" ") || null;
-          }
-          return actualArgs.join(" ") || null;
-        },
-        getInteger: (_name: string) => {
-          const subcommands = ["temporada", "postulaciones"];
-          const actualArgs = subcommands.includes(args[0]?.toLowerCase() || "") ? args.slice(1) : args;
-          return parseInt(actualArgs[0]) || null;
-        },
-        getBoolean: (_name: string) => args[1] === "true" || args[0] === "true",
-        getUser: (_name: string) => message.mentions.users.first() || null,
-        getMember: (_name: string) => message.mentions.members?.first() || null,
-        getChannel: (_name: string) => message.mentions.channels.first() || null,
+        getString: () => args.join(" ") || null,
+        getInteger: () => parseInt(args[0]) || null,
+        getBoolean: () => args[1] === "true" || args[0] === "true",
+        getUser: () => message.mentions.users.first() || null,
+        getMember: () => message.mentions.members?.first() || null,
+        getChannel: () => message.mentions.channels.first() || null,
       },
       replied: false,
       deferred: false,
@@ -643,68 +615,75 @@ client.on(Events.MessageCreate, async (message) => {
       async reply(options: any) {
         this.replied = true;
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        const ephemeral = options.ephemeral || false;
-        
-        // Si es ephemeral simulamos enviándolo al canal o por privado, 
-        // pero para evitar bloqueos lo mandamos directo al canal o mensaje.
-        return message.reply({ content, embeds, components });
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       },
       async followUp(options: any) {
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        return message.channel.send({ content, embeds, components });
+        return message.channel.send({ content, embeds: options.embeds || [], components: options.components || [] });
       },
-      async deferReply(_options?: any) {
+      async deferReply() {
         this.deferred = true;
       },
       async editReply(options: any) {
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        return message.reply({ content, embeds, components });
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       }
     };
 
     await command.execute(fakeInteraction as any);
-
   } catch (err) {
     logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
-    console.error("DETALLE DEL ERROR DE PREFIJO:", err);
     await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
   }
 });
-  client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => { // antes de esta línea
-  // Aseguramos que solo actúe si el rol se pierde
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
   if (!role) return;
 
-  // Si tenía el rol (old) y ahora ya no lo tiene (new)
   if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
     const cooldownKey = `${newMember.guild.id}-${newMember.id}`;
-    rejectionRegistry.set(cooldownKey, Date.now());   saveCooldowns(rejectionRegistry);
+    rejectionRegistry.set(cooldownKey, Date.now());
+    saveCooldowns(rejectionRegistry);
     console.log(`[EVENTO] Rol ${POSTULADOS_ROLE_NAME} quitado a ${newMember.user.tag}. Cooldown aplicado.`);
   }
 });
-// --- EVENTO DE ENTRADA: ANÁLISIS FORENSE DE NUEVOS MIEMBROS ---
+// Registrar cuando un usuario es baneado del servidor
+client.on(Events.GuildBanAdd, async (ban) => {
+  try {
+    const fetchedLogs = await ban.guild.fetchAuditLogs({
+      limit: 1,
+      type: 22, // MEMBER_BAN_ADD
+    });
+    const banLog = fetchedLogs.entries.first();
+    const executor = banLog ? banLog.executor?.tag : "Desconocido";
+    const reason = banLog?.reason || ban.reason || "Sin razón especificada";
+
+    banRegistry.set(ban.user.id, {
+      reason,
+      timestamp: Date.now(),
+      moderator: executor || "Staff",
+    });
+    saveBansRegistry(banRegistry);
+
+    logger.info({ userId: ban.user.id, tag: ban.user.tag }, "Usuario baneado registrado en el historial forense");
+  } catch (err) {
+    logger.error({ err }, "Error al registrar baneo en ForensicRegistry");
+  }
+});
+
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
-    // Importamos el servicio forense que creamos
     const { ForensicService } = await import("./services/ForensicService");
-
     const user = member.user;
     const evaluation = ForensicService.evaluateMember(
       user.id,
       user.tag,
       user.createdAt,
-      user.bot ? false : user.avatar === null // Detecta si usa el avatar por defecto de Discord
+      user.bot ? false : user.avatar === null
     );
 
-    // Umbral de riesgo para alertar al staff (ej. 75% o más de probabilidad de alt/bot)
     if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster) {
-      // Reemplaza esto con el ID real del canal de logs o staff de tu servidor
       const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
       const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
 
@@ -712,15 +691,14 @@ client.on(Events.GuildMemberAdd, async (member) => {
         const embed = new EmbedBuilder()
           .setColor(evaluation.riskScore > 90 ? "Red" : "Orange")
           .setTitle("🚨 Alerta de Seguridad Forense (Nuevo Miembro)")
-          .setDescription(`Se ha detectado el ingreso de una cuenta con **alto índice de sospecha** (${evaluation.riskScore}% de riesgo).`)
+          .setDescription(`Se ha detectado el ingreso de una cuenta sospechosa (${evaluation.riskScore}% de riesgo).`)
           .addFields(
             { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
             { name: "Antigüedad", value: `${evaluation.accountAgeDays} días`, inline: true },
-            { name: "Razones del análisis", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
+            { name: "Razones", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
           )
           .setTimestamp();
 
-        // Botones de acción rápida para el staff (Cuarentena / Observar)
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`forensic_quarantine_${evaluation.userId}`)
@@ -740,7 +718,6 @@ client.on(Events.GuildMemberAdd, async (member) => {
   }
 });
 
-// --- FUNCIÓN DE REGISTRO AUTOMÁTICO ---
 async function registrarComandos() {
   const token = process.env["DISCORD_BOT_TOKEN"];
   const clientId = process.env["DISCORD_CLIENT_ID"];
@@ -751,7 +728,6 @@ async function registrarComandos() {
   }
 
   const rest = new REST().setToken(token);
-  // Transformamos la colección de comandos a formato JSON para Discord
   const body = Array.from(commands.values()).map(c => c.data.toJSON());
 
   try {
@@ -763,7 +739,6 @@ async function registrarComandos() {
   }
 }
 
-// Registramos comandos y hacemos login al iniciar
 registrarComandos();
 
 client.login(token).catch((err) => {
