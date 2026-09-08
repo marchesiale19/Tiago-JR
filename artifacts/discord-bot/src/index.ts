@@ -554,12 +554,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
           const rolesToKeep = guildMember.roles.cache.filter(r => r.managed || r.id === interaction.guild?.id);
           await guildMember.roles.set(rolesToKeep).catch(() => {});
 
+          // Botón para quitar cuarentena (Revertir) por si a Sowii se le vuelve a resbalar el dedo
+          const revertRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`forensic_unquarantine_${targetUserId}`)
+              .setLabel("Quitar Cuarentena (Revertir)")
+              .setStyle(ButtonStyle.Success)
+          );
+
           await interaction.update({
             content: `🚨 <@${targetUserId}> ha sido aislado correctamente por ${interaction.user.tag} (roles retirados).`,
-            components: []
+            components: [revertRow]
           });
-
-          await interaction.message.edit({ components: [] }).catch(() => {});
         } else {
           await interaction.update({ content: "❌ El usuario ya no se encuentra en el servidor.", components: [] });
         }
@@ -572,6 +578,26 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.customId === "forensic_cancel_quarantine") {
       await interaction.update({ content: "❌ Acción de aislamiento cancelada.", components: [] });
+      return;
+    }
+
+    if (interaction.customId.startsWith("forensic_unquarantine_")) {
+      const member = interaction.member as GuildMember | null;
+      if (!hasForensicPermission(member)) {
+        await interaction.reply({ content: "❌ Sin permisos.", ephemeral: true });
+        return;
+      }
+
+      const targetUserId = interaction.customId.replace("forensic_unquarantine_", "");
+
+      try {
+        await interaction.update({
+          content: `✅ La cuarentena para <@${targetUserId}> fue retirada por ${interaction.user.tag}.`,
+          components: []
+        });
+      } catch (err) {
+        logger.error({ err }, "Error al quitar cuarentena");
+      }
       return;
     }
 
@@ -708,10 +734,8 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   }
 });
 
-// Registro actualizado usando la enumeración de AuditLogEvent
 client.on(Events.GuildBanAdd, async (ban) => {
   try {
-    // Pequeño delay de 500ms para asegurar que Discord escriba el log de auditoría
     await new Promise(resolve => setTimeout(resolve, 500));
 
     const fetchedLogs = await ban.guild.fetchAuditLogs({
@@ -719,7 +743,7 @@ client.on(Events.GuildBanAdd, async (ban) => {
       type: AuditLogEvent.MemberBanAdd,
     });
     const banLog = fetchedLogs.entries.first();
-    const executor = banLog?.executor?.tag ?? "Staff"; // <-- Solucionado aquí
+    const executor = banLog?.executor?.tag ?? "Staff";
     const reason = banLog?.reason ?? ban.reason ?? "Sin razón especificada";
 
     banRegistry.set(ban.user.id, {
