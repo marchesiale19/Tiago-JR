@@ -688,6 +688,58 @@ client.on(Events.MessageCreate, async (message) => {
     console.log(`[EVENTO] Rol ${POSTULADOS_ROLE_NAME} quitado a ${newMember.user.tag}. Cooldown aplicado.`);
   }
 });
+// --- EVENTO DE ENTRADA: ANÁLISIS FORENSE DE NUEVOS MIEMBROS ---
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    // Importamos el servicio forense que creamos
+    const { ForensicService } = await import("./services/ForensicService");
+
+    const user = member.user;
+    const evaluation = ForensicService.evaluateMember(
+      user.id,
+      user.tag,
+      user.createdAt,
+      user.bot ? false : user.avatar === null // Detecta si usa el avatar por defecto de Discord
+    );
+
+    // Umbral de riesgo para alertar al staff (ej. 75% o más de probabilidad de alt/bot)
+    if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster) {
+      // Reemplaza esto con el ID real del canal de logs o staff de tu servidor
+      const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
+      const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
+
+      if (channel && channel.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setColor(evaluation.riskScore > 90 ? "Red" : "Orange")
+          .setTitle("🚨 Alerta de Seguridad Forense (Nuevo Miembro)")
+          .setDescription(`Se ha detectado el ingreso de una cuenta con **alto índice de sospecha** (${evaluation.riskScore}% de riesgo).`)
+          .addFields(
+            { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
+            { name: "Antigüedad", value: `${evaluation.accountAgeDays} días`, inline: true },
+            { name: "Razones del análisis", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
+          )
+          .setTimestamp();
+
+        // Botones de acción rápida para el staff (Cuarentena / Observar)
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`forensic_quarantine_${evaluation.userId}`)
+            .setLabel("Aislar / Cuarentena")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`forensic_ignore_${evaluation.userId}`)
+            .setLabel("Marcar como Seguro")
+            .setStyle(ButtonStyle.Success)
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Error handling guildMemberAdd forensic evaluation");
+  }
+});
+
 // --- FUNCIÓN DE REGISTRO AUTOMÁTICO ---
 async function registrarComandos() {
   const token = process.env["DISCORD_BOT_TOKEN"];
