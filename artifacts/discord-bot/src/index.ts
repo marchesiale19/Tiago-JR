@@ -512,21 +512,22 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       try {
         const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+        const moderatorName = interaction.user.tag; // Obtenemos el tag/nombre de quien presionó el botón
 
         if (action === "untimeout") {
           if (guildMember) {
-            await guildMember.timeout(null, `Revisado y marcado como seguro por ${interaction.user.tag}`);
+            await guildMember.timeout(null, `Revisado y marcado como seguro por ${moderatorName}`);
           }
           await interaction.update({
-            content: `✅ Timeout retirado. <@${targetUserId}> fue marcado como seguro por ${interaction.user.tag}.`,
+            content: `✅ Timeout retirado. <@${targetUserId}> fue marcado como seguro por **${moderatorName}**.`,
             components: []
           });
         } else {
           if (guildMember) {
-            await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${interaction.user.tag}` });
+            await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${moderatorName}` });
           }
           await interaction.update({
-            content: `🔨 <@${targetUserId}> fue baneado del servidor por ${interaction.user.tag}.`,
+            content: `🔨 <@${targetUserId}> fue baneado del servidor por **${moderatorName}**.`,
             components: []
           });
         }
