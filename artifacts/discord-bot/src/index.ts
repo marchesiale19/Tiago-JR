@@ -496,7 +496,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.customId.startsWith("forensic_quarantine_") || interaction.customId.startsWith("forensic_ignore_")) {
+    if (interaction.customId.startsWith("forensic_untimeout_") || interaction.customId.startsWith("forensic_ban_")) {
       const member = interaction.member as GuildMember | null;
 
       if (!hasForensicPermission(member)) {
@@ -507,96 +507,32 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const action = interaction.customId.startsWith("forensic_quarantine_") ? "aislar" : "ignorar";
-      const targetUserId = interaction.customId.replace(action === "aislar" ? "forensic_quarantine_" : "forensic_ignore_", "");
-
-      if (action === "aislar") {
-        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`forensic_confirm_quarantine_${targetUserId}`)
-            .setLabel("Sí, aislar usuario")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId("forensic_cancel_quarantine")
-            .setLabel("Cancelar")
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-        await interaction.reply({
-          content: `⚠️ ¿Estás seguro de que deseas enviar a cuarentena a <@${targetUserId}>? Esta acción restringirá al usuario.`,
-          components: [confirmRow],
-          ephemeral: true
-        });
-        return;
-      }
-
-      await interaction.reply({
-        content: `✅ Marcado como seguro para <@${targetUserId}> por ${interaction.user.tag}.`,
-        ephemeral: true
-      });
-
-      await interaction.message.edit({ components: [] }).catch(() => {});
-      return;
-    }
-
-    if (interaction.customId.startsWith("forensic_confirm_quarantine_")) {
-      const member = interaction.member as GuildMember | null;
-      if (!hasForensicPermission(member)) {
-        await interaction.reply({ content: "❌ Sin permisos.", ephemeral: true });
-        return;
-      }
-
-      const targetUserId = interaction.customId.replace("forensic_confirm_quarantine_", "");
+      const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
+      const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
 
       try {
-        const guildMember = await interaction.guild?.members.fetch(targetUserId);
-        if (guildMember) {
-          const rolesToKeep = guildMember.roles.cache.filter(r => r.managed || r.id === interaction.guild?.id);
-          await guildMember.roles.set(rolesToKeep).catch(() => {});
+        const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
 
-          // Botón para quitar cuarentena (Revertir) por si a Sowii se le vuelve a resbalar el dedo
-          const revertRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-            new ButtonBuilder()
-              .setCustomId(`forensic_unquarantine_${targetUserId}`)
-              .setLabel("Quitar Cuarentena (Revertir)")
-              .setStyle(ButtonStyle.Success)
-          );
-
+        if (action === "untimeout") {
+          if (guildMember) {
+            await guildMember.timeout(null, `Revisado y marcado como seguro por ${interaction.user.tag}`);
+          }
           await interaction.update({
-            content: `🚨 <@${targetUserId}> ha sido aislado correctamente por ${interaction.user.tag} (roles retirados).`,
-            components: [revertRow]
+            content: `✅ Timeout retirado. <@${targetUserId}> fue marcado como seguro por ${interaction.user.tag}.`,
+            components: []
           });
         } else {
-          await interaction.update({ content: "❌ El usuario ya no se encuentra en el servidor.", components: [] });
+          if (guildMember) {
+            await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${interaction.user.tag}` });
+          }
+          await interaction.update({
+            content: `🔨 <@${targetUserId}> fue baneado del servidor por ${interaction.user.tag}.`,
+            components: []
+          });
         }
       } catch (err) {
-        logger.error({ err }, "Error al aislar al usuario en cuarentena");
-        await interaction.update({ content: "❌ Hubo un error al intentar aplicar el aislamiento.", components: [] });
-      }
-      return;
-    }
-
-    if (interaction.customId === "forensic_cancel_quarantine") {
-      await interaction.update({ content: "❌ Acción de aislamiento cancelada.", components: [] });
-      return;
-    }
-
-    if (interaction.customId.startsWith("forensic_unquarantine_")) {
-      const member = interaction.member as GuildMember | null;
-      if (!hasForensicPermission(member)) {
-        await interaction.reply({ content: "❌ Sin permisos.", ephemeral: true });
-        return;
-      }
-
-      const targetUserId = interaction.customId.replace("forensic_unquarantine_", "");
-
-      try {
-        await interaction.update({
-          content: `✅ La cuarentena para <@${targetUserId}> fue retirada por ${interaction.user.tag}.`,
-          components: []
-        });
-      } catch (err) {
-        logger.error({ err }, "Error al quitar cuarentena");
+        logger.error({ err }, "Error procesando acción forense sobre el usuario");
+        await interaction.reply({ content: "❌ Hubo un error al ejecutar la acción sobre el usuario.", ephemeral: true }).catch(() => {});
       }
       return;
     }
@@ -779,14 +715,21 @@ client.on(Events.GuildMemberAdd, async (member) => {
     }
 
     if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster || previousBan) {
+      // Aplicar timeout preventivo automático de 10 minutos
+      try {
+        await member.timeout(10 * 60 * 1000, "Alerta Forense: Prevención de alt/spam en revisión");
+      } catch (err) {
+        logger.warn({ err }, "No se pudo aplicar el timeout automático al miembro sospechoso");
+      }
+
       const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
       const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
 
       if (channel && channel.isTextBased()) {
         const embed = new EmbedBuilder()
           .setColor("Red")
-          .setTitle("🚨 Alerta Forense: Usuario con Antecedentes")
-          .setDescription(`Se detectó el ingreso de una cuenta sospechosa o previamente sancionada.`)
+          .setTitle("🚨 Alerta Forense: Usuario Sospechoso (Timeout Aplicado)")
+          .setDescription(`Se detectó una cuenta sospechosa y se le aplicó un **timeout preventivo de 10 minutos** mientras el staff revisa su historial.`)
           .addFields(
             { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
             { name: "Riesgo Calculado", value: `${evaluation.riskScore}%`, inline: true },
@@ -796,13 +739,13 @@ client.on(Events.GuildMemberAdd, async (member) => {
 
         const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
-            .setCustomId(`forensic_quarantine_${evaluation.userId}`)
-            .setLabel("Aislar / Cuarentena")
-            .setStyle(ButtonStyle.Danger),
+            .setCustomId(`forensic_untimeout_${evaluation.userId}`)
+            .setLabel("Quitar Timeout (Seguro)")
+            .setStyle(ButtonStyle.Success),
           new ButtonBuilder()
-            .setCustomId(`forensic_ignore_${evaluation.userId}`)
-            .setLabel("Marcar como Seguro")
-            .setStyle(ButtonStyle.Success)
+            .setCustomId(`forensic_ban_${evaluation.userId}`)
+            .setLabel("Confirmar Baneo")
+            .setStyle(ButtonStyle.Danger)
         );
 
         await channel.send({ embeds: [embed], components: [row] });
