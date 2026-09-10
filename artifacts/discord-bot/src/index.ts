@@ -23,6 +23,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { checkMemberBlacklist } from "./services/blacklistService";
 
 // --- SERVIDOR HTTP PARA RENDER (WEB SERVICE) ---
 const server = http.createServer((_req, res) => {
@@ -512,7 +513,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       try {
         const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
-        const moderatorName = interaction.user.tag; // Obtenemos el tag/nombre de quien presionó el botón
+        const moderatorName = interaction.user.tag;
 
         if (action === "untimeout") {
           if (guildMember) {
@@ -698,6 +699,21 @@ client.on(Events.GuildBanAdd, async (ban) => {
 
 client.on(Events.GuildMemberAdd, async (member) => {
   try {
+    // --- VERIFICACIÓN AUTOMÁTICA DE BLACKLIST JSON ---
+    const matchedBlacklist = checkMemberBlacklist(
+      member.id,
+      member.user.username,
+      member.displayName
+    );
+
+    if (matchedBlacklist) {
+      logger.warn(`[BLACKLIST] Usuario ${member.user.tag} (ID: ${member.id}) entró al servidor pero coincide con la blacklist. Razón previa: ${matchedBlacklist.reason}`);
+
+      // Opcional: Si querés que lo banee o actúe de inmediato, podés descomentar la siguiente línea:
+      // await member.ban({ reason: `Evasión de baneo / Coincidencia en Blacklist. Motivo: ${matchedBlacklist.reason}` });
+    }
+    // ------------------------------------------------
+
     const { ForensicService } = await import("./services/ForensicService");
     const user = member.user;
 
@@ -716,7 +732,6 @@ client.on(Events.GuildMemberAdd, async (member) => {
     }
 
     if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster || previousBan) {
-      // Aplicar timeout preventivo automático de 10 minutos
       try {
         await member.timeout(10 * 60 * 1000, "Alerta Forense: Prevención de alt/spam en revisión");
       } catch (err) {
