@@ -635,10 +635,10 @@ export async function autocomplete(
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  const selectedName = interaction.options.getString("infraccion", true);
+  const selectedInput = interaction.options.getString("infraccion", true).trim().toUpperCase();
 
   const infraction = INFRACTIONS.find(
-    (inf) => inf.name === selectedName,
+    (inf) => inf.name.toUpperCase() === selectedInput || inf.name.toUpperCase().includes(selectedInput)
   );
 
   if (!infraction) {
