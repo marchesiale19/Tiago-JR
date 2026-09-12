@@ -36,7 +36,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const id = interaction.options.getInteger("id");
 
     if (id === null) {
-      // No ID provided → show active season
       const season = await seasonRepository.findActive();
       if (!season) {
         await interaction.editReply("ℹ️ No hay ninguna temporada activa en este momento.");
@@ -46,7 +45,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       temporadaNombre = season.nombre;
       temporadaActiva = true;
     } else {
-      // Specific season by ID
       const season = await seasonRepository.findById(id);
       if (!season) {
         await interaction.editReply(`❌ Temporada con ID **${id}** no encontrada.`);
@@ -57,9 +55,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       temporadaActiva = season.activa;
     }
 
-    const pagina = (interaction.options.getInteger("pagina") ?? 1) - 1; // 0-indexed offset
+    const pagina = (interaction.options.getInteger("pagina") ?? 1) - 1; 
 
-    // Fetch all rows once and paginate in memory (leaderboard is max 500 rows)
     const allRows    = await seasonRepository.leaderboard(temporadaId, 500);
     const total      = allRows.length;
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
