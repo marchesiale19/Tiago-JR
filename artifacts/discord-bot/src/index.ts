@@ -633,13 +633,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
-
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
   const args = message.content.slice(1).trim().split(/ +/);
   const commandName = args.shift()?.toLowerCase();
   if (!commandName) return;
+
+  // Validación estricta para el comando abrir por prefijo
+  if (commandName === "abrir") {
+    const sub = args[0]?.toLowerCase();
+    if (sub !== "temporada" && sub !== "postulaciones") {
+      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada <nombre>` o `-abrir postulaciones`.");
+      return;
+    }
+  }
 
   const command = commands.get(commandName);
   if (!command) return;
@@ -666,9 +674,14 @@ client.on(Events.MessageCreate, async (message) => {
           const firstArg = args[0]?.toLowerCase();
           return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
         },
-        getString: () => args.join(" ") || null,
-        getInteger: () => parseInt(args[0]) || null,
-        getBoolean: () => args[1] === "true" || args[0] === "true",
+        // Omitimos la palabra del subcomando (args[0]) para que el string devuelva solo el valor real
+        getString: () => {
+          const subArgs = [...args];
+          subArgs.shift(); // saca "temporada" o "postulaciones"
+          return subArgs.join(" ") || null;
+        },
+        getInteger: () => parseInt(args[1]) || null,
+        getBoolean: () => args[2] === "true" || args[1] === "true",
         getUser: () => message.mentions.users.first() || null,
         getMember: () => message.mentions.members?.first() || null,
         getChannel: () => message.mentions.channels.first() || null,
@@ -701,7 +714,6 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
   }
 });
-
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
   if (!role) return;
