@@ -802,26 +802,4 @@ registrarComandos();
 client.login(token).catch((err) => {
   logger.error({ err }, "Failed to log in to Discord");
   process.exit(1);
-});clientId) {
-    console.error("❌ Faltan DISCORD_BOT_TOKEN o DISCORD_CLIENT_ID para registrar comandos.");
-    return;
-  }
-
-  const rest = new REST().setToken(token);
-  const body = Array.from(commands.values()).map(c => c.data.toJSON());
-
-  try {
-    console.log("🔄 Registrando comandos globalmente...");
-    await rest.put(Routes.applicationCommands(clientId), { body });
-    console.log("✅ Comandos registrados correctamente.");
-  } catch (e) {
-    console.error("❌ Error registrando comandos:", e);
-  }
-}
-
-registrarComandos();
-
-client.login(token).catch((err) => {
-  logger.error({ err }, "Failed to log in to Discord");
-  process.exit(1);
 });
