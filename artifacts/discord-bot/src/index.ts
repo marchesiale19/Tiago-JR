@@ -636,6 +636,7 @@ client.on(Events.MessageCreate, async (message) => {
   const commandName = args.shift()?.toLowerCase();
   if (!commandName) return;
 
+  // Validación estricta para comandos principales (ej: abrir o temporada)
   if (commandName === "abrir") {
     const sub = args[0]?.toLowerCase();
     if (sub !== "temporada" && sub !== "postulaciones") {
@@ -665,15 +666,27 @@ client.on(Events.MessageCreate, async (message) => {
       channel: message.channel,
       options: {
         getSubcommand: () => {
+          // Si el comando es temporada, el subcomando viene en el primer argumento (ej: "info")
+          if (commandName === "temporada") {
+            const sub = args[0]?.toLowerCase();
+            return sub === "info" ? sub : null;
+          }
           const firstArg = args[0]?.toLowerCase();
           return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
         },
         getString: () => {
           const subArgs = [...args];
+          if (commandName === "temporada") subArgs.shift(); // Omitir el "info"
           subArgs.shift();
           return subArgs.join(" ") || null;
         },
-        getInteger: () => parseInt(args[1]) || null,
+        getInteger: () => {
+          // Si es temporada info, el número de temporada está en args[1] (ej: -temporada info 8)
+          if (commandName === "temporada") {
+            return parseInt(args[1]) || null;
+          }
+          return parseInt(args[1]) || null;
+        },
         getBoolean: () => args[2] === "true" || args[1] === "true",
         getUser: () => message.mentions.users.first() || null,
         getMember: () => message.mentions.members?.first() || null,
@@ -697,10 +710,7 @@ client.on(Events.MessageCreate, async (message) => {
       },
       async editReply(options: any) {
         const content = typeof options === "string" ? options : options.content;
-        if (this.deferred && !this.replied) {
-          this.replied = true;
-          return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
-        }
+        this.replied = true;
         return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       }
     };
