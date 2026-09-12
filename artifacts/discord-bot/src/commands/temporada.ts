@@ -102,7 +102,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       const statusText = current.activa ? "`🟢 En curso`" : "`🔴 Finalizada`";
 
       const embed = new EmbedBuilder()
-        .setColor(current.activa ? "Orange" : "Blurple")
+        .setColor(current.activa ? "Orange" : "Red")
         .setTitle(`📅 Información de Temporada: ${current.nombre}`)
         .setDescription("Resumen detallado y podio final/actual de la etapa competitiva.")
         .addFields(
