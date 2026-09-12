@@ -19,6 +19,7 @@ const ROLES_POSTULACIONES = [
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
   "1455419124732657801", // Equipo Administrativo
+  "1539368076326473868", // Developer Tiago Jr
 ];
 
 const ROLES_TEMPORADA = [
@@ -75,8 +76,8 @@ export async function execute(
   if (!authorized) {
     const errorMsg =
       sub === "postulaciones"
-        ? "❌ No tienes permiso para cerrar postulaciones. Se requiere ser parte del Equipo Administrativo."
-        : "❌ No tienes permiso para cerrar temporadas. Se requiere ser Manager o un rango superior.";
+        ? "❌ No tienes permiso para cerrar postulaciones."
+        : "❌ No tienes permiso para cerrar temporadas.";
 
     await interaction.reply({
       content: errorMsg,
