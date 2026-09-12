@@ -5,6 +5,7 @@ import {
   MessageFlags,
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
+  type GuildMember,
 } from "discord.js";
 import { logger } from "../lib/logger";
 
@@ -604,12 +605,29 @@ const INFRACTIONS: Infraction[] = [
 ];
 
 const MAX_AUTOCOMPLETE_CHOICES = 25;
-const TARGET_ROLE_ID = "1454679144230289510";
+
+const ALLOWED_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+  "1452784726413672643", // Moderador
+  "1509760381525164123", // Moderador [PB]
+  "1522808445391212674", // Support
+  "1528974868329009162", // Helper
+  "1509760269071679498", // Trial Helper
+  "1539368076326473868", // Developer Tiago Jr
+  "1454679144230289510", // STAFF
+];
 
 export const data = new SlashCommandBuilder()
   .setName("sanciones")
   .setDescription("Consulta la información de una sanción.")
-  .setDefaultMemberPermissions(PermissionFlagsBits.MuteMembers)
   .addStringOption((option) =>
     option
       .setName("infraccion")
@@ -638,7 +656,7 @@ export async function autocomplete(
 async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
-    let member = interaction.member;
+    let member = interaction.member as GuildMember | null;
 
     if (!member || !member.roles || typeof (member.roles as any).cache?.has !== 'function') {
       member = await interaction.guild.members.fetch(interaction.user.id);
@@ -647,7 +665,7 @@ async function hasPermission(interaction: ChatInputCommandInteraction): Promise<
     if (!member || !member.roles) return false;
 
     const memberRoles = (member.roles as any).cache;
-    return memberRoles.has(TARGET_ROLE_ID);
+    return ALLOWED_ROLES.some((roleId) => memberRoles.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error checking permissions for /sanciones command");
     return false;
