@@ -28,6 +28,12 @@ const ROLES_TEMPORADA = [
   "1522807097920720967", // Manager
 ];
 
+// Roles con acceso global total por bypass/desarrollador
+const ROLES_BYPASS_TOTAL = [
+  "1522434536796061816", // Desarrollador
+  "1539368076326473868", // Rol de Bypass general
+];
+
 async function hasSubcommandPermission(interaction: any, sub: string): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
@@ -38,6 +44,11 @@ async function hasSubcommandPermission(interaction: any, sub: string): Promise<b
     }
 
     if (!member || !member.roles) return false;
+
+    // Permitir acceso total si tiene rol de desarrollador o bypass general
+    if (ROLES_BYPASS_TOTAL.some((roleId) => member.roles.cache.has(roleId))) {
+      return true;
+    }
 
     const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;
     return allowedRoles.some((roleId) => member.roles.cache.has(roleId));
@@ -140,7 +151,7 @@ export async function execute(
   else if (sub === "postulaciones") {
     await interaction.reply({
       content: "✅ ¡El período de postulaciones al staff ha sido abierto exitosamente!",
-      ephemeral: false,
+      flags: MessageFlags.Ephemeral, // Opcional: mantenemos respuesta limpia
     });
   }
 }
