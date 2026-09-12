@@ -126,12 +126,13 @@ const ROLES_AUTORIZADOS = [
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador (Developer Tiago Jr)
+  "1539368076326473868"  // Rol de Bypass general
 ];
 
 const ROLES_FORENSIC_AUTORIZADOS = [
   ...ROLES_AUTORIZADOS,
   "1455419124732657801", // Equipo Administrativo
-  "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
@@ -140,20 +141,40 @@ const ROLES_FORENSIC_AUTORIZADOS = [
 ];
 
 function hasReviewPermission(member: any): boolean {
-  if (!member || typeof member !== 'object') return false;
-  if (member.id === "1369782550985445429") return true;
+  if (!member) return false;
+
+  if (typeof member !== 'object') return false;
   if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
     return false;
   }
+
+  // Permitir acceso total si tiene el rol de Desarrollador, bypass u otro rol autorizado
+  if (
+    member.roles.cache.has("1522434536796061816") || 
+    member.roles.cache.has("1539368076326473868")
+  ) {
+    return true;
+  }
+
   return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
 }
 
 function hasForensicPermission(member: any): boolean {
-  if (!member || typeof member !== 'object') return false;
-  if (member.id === "1369782550985445429") return true;
+  if (!member) return false;
+
+  if (typeof member !== 'object') return false;
   if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
     return false;
   }
+
+  // Permitir acceso total si tiene el rol de Desarrollador, bypass u otro rol forense autorizado
+  if (
+    member.roles.cache.has("1522434536796061816") || 
+    member.roles.cache.has("1539368076326473868")
+  ) {
+    return true;
+  }
+
   return ROLES_FORENSIC_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
 }
 
@@ -630,17 +651,7 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    // Inyección automática de roles y permisos si sos vos (Owner Bypass)
     const member = message.member;
-    if (message.author.id === "1369782550985445429" && member) {
-      try {
-        if (member.roles && !member.roles.cache.has("1451383215603585140")) {
-          member.roles.cache.set("1451383215603585140", { id: "1451383215603585140", name: "Owner" } as any);
-        }
-      } catch (e) {
-        // Ignorar si falla la modificación simulada del cache
-      }
-    }
 
     const fakeInteraction = {
       commandName: commandName,
