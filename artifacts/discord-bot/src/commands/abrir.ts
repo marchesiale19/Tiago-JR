@@ -18,6 +18,7 @@ const ROLES_POSTULACIONES = [
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
   "1455419124732657801", // Equipo Administrativo
+  "1539368076326473868", // Developer Tiago Jr
 ];
 
 const ROLES_TEMPORADA = [
@@ -26,12 +27,6 @@ const ROLES_TEMPORADA = [
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
-];
-
-// Roles con acceso global total por bypass/desarrollador
-const ROLES_BYPASS_TOTAL = [
-  "1522434536796061816", // Desarrollador
-  "1539368076326473868", // Rol de Bypass general
 ];
 
 async function hasSubcommandPermission(interaction: any, sub: string): Promise<boolean> {
@@ -44,11 +39,6 @@ async function hasSubcommandPermission(interaction: any, sub: string): Promise<b
     }
 
     if (!member || !member.roles) return false;
-
-    // Permitir acceso total si tiene rol de desarrollador o bypass general
-    if (ROLES_BYPASS_TOTAL.some((roleId) => member.roles.cache.has(roleId))) {
-      return true;
-    }
 
     const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;
     return allowedRoles.some((roleId) => member.roles.cache.has(roleId));
@@ -93,8 +83,8 @@ export async function execute(
   if (!authorized) {
     const errorMsg =
       sub === "postulaciones"
-        ? "❌ No tienes permiso para abrir postulaciones. Se requiere ser parte del Equipo Administrativo."
-        : "❌ No tienes permiso para abrir temporadas. Se requiere ser Manager o un rango superior.";
+        ? "❌ No tienes permiso para abrir postulaciones."
+        : "❌ No tienes permiso para abrir temporadas.";
 
     await interaction.reply({
       content: errorMsg,
@@ -151,7 +141,7 @@ export async function execute(
   else if (sub === "postulaciones") {
     await interaction.reply({
       content: "✅ ¡El período de postulaciones al staff ha sido abierto exitosamente!",
-      flags: MessageFlags.Ephemeral, // Opcional: mantenemos respuesta limpia
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
