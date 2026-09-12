@@ -2,9 +2,11 @@ import {
   SlashCommandBuilder,
   EmbedBuilder,
   PermissionFlagsBits,
+  MessageFlags,
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
 } from "discord.js";
+import { logger } from "../lib/logger";
 
 interface Infraction {
   name: string;
@@ -602,6 +604,7 @@ const INFRACTIONS: Infraction[] = [
 ];
 
 const MAX_AUTOCOMPLETE_CHOICES = 25;
+const TARGET_ROLE_ID = "1454679144230289510";
 
 export const data = new SlashCommandBuilder()
   .setName("sanciones")
@@ -632,9 +635,38 @@ export async function autocomplete(
   await interaction.respond(choices);
 }
 
+async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  if (!interaction.guild || !interaction.user) return false;
+  try {
+    let member = interaction.member;
+
+    if (!member || !member.roles || typeof (member.roles as any).cache?.has !== 'function') {
+      member = await interaction.guild.members.fetch(interaction.user.id);
+    }
+
+    if (!member || !member.roles) return false;
+
+    const memberRoles = (member.roles as any).cache;
+    return memberRoles.has(TARGET_ROLE_ID);
+  } catch (err) {
+    logger.error({ err }, "Error checking permissions for /sanciones command");
+    return false;
+  }
+}
+
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
+  const authorized = await hasPermission(interaction);
+
+  if (!authorized) {
+    await interaction.reply({
+      content: "❌ No tienes el rango suficiente para usar ese comando.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const selectedInput = interaction.options.getString("infraccion", true).trim().toUpperCase();
 
   const infraction = INFRACTIONS.find(
@@ -645,25 +677,7 @@ export async function execute(
     await interaction.reply({
       content:
         "⚠️ Infracción no reconocida. Por favor selecciona una opción del menú de autocompletado.",
-      ephemeral: true,
-    });
-    return;
-  }
-
-  // Security check: Only users with Role ID 1454679144230289510 have access
-  const TARGET_ROLE_ID = "1454679144230289510";
-  const member = interaction.member;
-  let hasAccess = false;
-
-  if (member && typeof member !== "string" && "roles" in member) {
-    const memberRoles = (member.roles as any).cache;
-    hasAccess = memberRoles.has(TARGET_ROLE_ID);
-  }
-
-  if (!hasAccess) {
-    await interaction.reply({
-      content: "❌ No tienes el rango suficiente para usar ese comando.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     });
     return;
   }
@@ -680,5 +694,5 @@ export async function execute(
     .setFooter({ text: "Sistema de Sanciones • TIAGO JR" })
     .setTimestamp();
 
-  await interaction.reply({ embeds: [embed], ephemeral: false });
+  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
 }

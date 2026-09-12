@@ -29,19 +29,20 @@ const ROLES_TEMPORADA = [
   "1522807097920720967", // Manager
 ];
 
-async function hasSubcommandPermission(interaction: any, sub: string): Promise<boolean> {
+async function hasSubcommandPermission(interaction: ChatInputCommandInteraction, sub: string): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
-    let member = interaction.member;
+    let member = interaction.member as GuildMember | null;
 
-    if (!member || !member.roles || typeof member.roles.cache?.some !== 'function') {
+    if (!member || !member.roles || typeof (member.roles as any).cache?.some !== 'function') {
       member = await interaction.guild.members.fetch(interaction.user.id);
     }
 
     if (!member || !member.roles) return false;
 
     const allowedRoles = sub === "postulaciones" ? ROLES_POSTULACIONES : ROLES_TEMPORADA;
-    return allowedRoles.some((roleId) => member.roles.cache.has(roleId));
+    const memberRoles = (member.roles as any).cache;
+    return allowedRoles.some((roleId) => memberRoles.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error checking permissions for /cerrar command");
     return false;
@@ -86,7 +87,7 @@ export async function execute(
 
   // ── /cerrar temporada ───────────────────────────────────────────────────
   if (sub === "temporada") {
-    await interaction.deferReply({ ephemeral: false });
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     try {
       const current = await seasonRepository.findActive();
@@ -126,7 +127,7 @@ export async function execute(
   else if (sub === "postulaciones") {
     await interaction.reply({
       content: "🔒 ¡El período de postulaciones al staff ha sido cerrado!",
-      ephemeral: false,
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
