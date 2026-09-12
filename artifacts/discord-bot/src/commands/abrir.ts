@@ -1,4 +1,5 @@
-// /abrir temporada & /abrir postulaciones — Subcommand-based role permissions
+// Aguante Boca
+
 
 import {
   SlashCommandBuilder,
@@ -11,7 +12,8 @@ import {
 import { openSeason } from "../services/SeasonService";
 import { logger } from "../lib/logger";
 
-// ── Role definitions ───────────────────────────────────────────────────────
+// Definición de roles
+
 const ROLES_POSTULACIONES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -48,7 +50,8 @@ async function hasSubcommandPermission(interaction: any, sub: string): Promise<b
   }
 }
 
-// ── Command definition ─────────────────────────────────────────────────────
+// Definición de comandos
+
 export const data = new SlashCommandBuilder()
   .setName("abrir")
   .setDescription("Comandos de apertura (temporada o postulaciones).")
@@ -73,7 +76,8 @@ export const data = new SlashCommandBuilder()
       .setDescription("Abre el período de postulaciones al staff."),
   );
 
-// ── Execute ────────────────────────────────────────────────────────────────
+// Execute aura pro sahur
+
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
@@ -93,7 +97,8 @@ export async function execute(
     return;
   }
 
-  // ── /abrir temporada ────────────────────────────────────────────────────
+// Abrir temporada
+
   if (sub === "temporada") {
     await interaction.deferReply({ ephemeral: false });
 
@@ -109,10 +114,11 @@ export async function execute(
       const embed = new EmbedBuilder()
         .setColor("Green")
         .setTitle("🏆 ¡Nueva temporada iniciada!")
+        .setDescription("¡Se ha dado inicio de manera oficial a una nueva etapa competitiva! Prepárense, den lo mejor de ustedes y que comience la pelea por la cima.")
         .setImage("https://i.postimg.cc/jSRgLSX3/Gemini-Generated-Image-gf14dggf14dggf14.png")
         .addFields(
-          { name: "Nombre", value: result.opened.nombre,   inline: true },
-          { name: "ID",     value: String(result.opened.id), inline: true },
+          { name: "Nombre", value: `\`${result.opened.nombre}\``,   inline: true },
+          { name: "ID",     value: `\`${result.opened.id}\``, inline: true },
           {
             name:   "Inicio",
             value:  `<t:${Math.floor(result.opened.fechaInicio.getTime() / 1000)}:D>`,
@@ -124,7 +130,7 @@ export async function execute(
       if (result.closed) {
         embed.addFields({
           name:   "⚙️ Temporada anterior cerrada automáticamente",
-          value:  `"${result.closed.nombre}" (ID: ${result.closed.id})`,
+          value:  `\`${result.closed.nombre}\` (ID: \`${result.closed.id}\`)`,
           inline: false,
         });
       }
@@ -137,11 +143,22 @@ export async function execute(
     }
   }
 
-  // ── /abrir postulaciones ────────────────────────────────────────────────
+// Abrir postulaciones
+
   else if (sub === "postulaciones") {
+    const embed = new EmbedBuilder()
+      .setColor("Green") 
+      .setTitle("📝 ¡Postulaciones al Staff Abiertas!")
+      .setDescription("¡El período de postulaciones para formar parte del STAFF ya se encuentra oficialmente abierto! Si quieres postularte y aportar a la comunidad, usa el comando ``-postular`` para iniciar el proceso.")
+      .setImage("https://i.postimg.cc/bvW9HyQg/Gemini-Generated-Image-2s3b992s3b992s3b.png") 
+      .addFields(
+        { name: "Estado", value: "`Abierto`", inline: true },
+        { name: "Fecha de apertura", value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
+      )
+      .setTimestamp();
+
     await interaction.reply({
-      content: "✅ ¡El período de postulaciones al staff ha sido abierto exitosamente!",
-      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
     });
   }
 }
