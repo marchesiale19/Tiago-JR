@@ -24,7 +24,6 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 
-// --- SERVIDOR HTTP PARA RENDER (WEB SERVICE) ---
 const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
   res.end('Bot is running successfully!\n');
@@ -34,7 +33,6 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
-// ----------------------------------------------
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,7 +65,7 @@ const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
 
-// --- REGISTRO DE BANEOS HISTÓRICOS ---
+// registro de bananeos 
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
 
@@ -120,8 +118,8 @@ function formatActionTimestamp(date: Date): string {
   return `${day}/${month}/${year}`;
 }
 
-// Listas de roles autorizados
-const ROLES_AUTORIZADOS = [
+// lista de roles auras autorizados
+  const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
@@ -148,7 +146,6 @@ function hasReviewPermission(member: any): boolean {
     return false;
   }
 
-  // Permitir acceso total si tiene el rol de Desarrollador, bypass u otro rol autorizado
   if (
     member.roles.cache.has("1522434536796061816") || 
     member.roles.cache.has("1539368076326473868")
@@ -167,7 +164,6 @@ function hasForensicPermission(member: any): boolean {
     return false;
   }
 
-  // Permitir acceso total si tiene el rol de Desarrollador, bypass u otro rol forense autorizado
   if (
     member.roles.cache.has("1522434536796061816") || 
     member.roles.cache.has("1539368076326473868")
@@ -640,7 +636,6 @@ client.on(Events.MessageCreate, async (message) => {
   const commandName = args.shift()?.toLowerCase();
   if (!commandName) return;
 
-  // Validación estricta para el comando abrir por prefijo
   if (commandName === "abrir") {
     const sub = args[0]?.toLowerCase();
     if (sub !== "temporada" && sub !== "postulaciones") {
@@ -660,7 +655,6 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     const member = message.member;
-
     const fakeInteraction = {
       commandName: commandName,
       user: message.author,
@@ -674,10 +668,9 @@ client.on(Events.MessageCreate, async (message) => {
           const firstArg = args[0]?.toLowerCase();
           return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
         },
-        // Omitimos la palabra del subcomando (args[0]) para que el string devuelva solo el valor real
         getString: () => {
           const subArgs = [...args];
-          subArgs.shift(); // saca "temporada" o "postulaciones"
+          subArgs.shift();
           return subArgs.join(" ") || null;
         },
         getInteger: () => parseInt(args[1]) || null,
@@ -704,10 +697,13 @@ client.on(Events.MessageCreate, async (message) => {
       },
       async editReply(options: any) {
         const content = typeof options === "string" ? options : options.content;
+        if (this.deferred && !this.replied) {
+          this.replied = true;
+          return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
+        }
         return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       }
     };
-
     await command.execute(fakeInteraction as any);
   } catch (err) {
     logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");

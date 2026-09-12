@@ -9,7 +9,7 @@ import { seasonRepository } from "../database/repositories/SeasonRepository";
 import type { EstadisticaTemporada } from "@workspace/db";
 import { logger } from "../lib/logger";
 
-// IDs de roles autorizados para usar /temporada info
+// Roles autorizados aurinha
 const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
