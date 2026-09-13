@@ -636,7 +636,6 @@ client.on(Events.MessageCreate, async (message) => {
   const commandName = args.shift()?.toLowerCase();
   if (!commandName) return;
 
-  // Validación estricta para comandos principales (ej: abrir o temporada)
   if (commandName === "abrir") {
     const sub = args[0]?.toLowerCase();
     if (sub !== "temporada" && sub !== "postulaciones") {
@@ -666,7 +665,6 @@ client.on(Events.MessageCreate, async (message) => {
       channel: message.channel,
       options: {
         getSubcommand: () => {
-          // Si el comando es temporada, el subcomando viene en el primer argumento (ej: "info")
           if (commandName === "temporada") {
             const sub = args[0]?.toLowerCase();
             return sub === "info" ? sub : null;
@@ -681,7 +679,6 @@ client.on(Events.MessageCreate, async (message) => {
           return subArgs.join(" ") || null;
         },
         getInteger: () => {
-          // Si es temporada info, el número de temporada está en args[1] (ej: -temporada info 8)
           if (commandName === "temporada") {
             return parseInt(args[1]) || null;
           }
@@ -815,8 +812,54 @@ client.on(Events.GuildMemberAdd, async (member) => {
   } catch (err) {
     logger.error({ err }, "Error handling guildMemberAdd forensic evaluation");
   }
-});
+}); 
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
 
+  const mentionedUser = message.mentions.users.first();
+  if (!mentionedUser) return;
+
+  if (mentionedUser.bot || mentionedUser.id === message.author.id) return;
+
+  try {
+    const { HarassmentService } = await import("./services/HarassmentService");
+    const evaluation = HarassmentService.evaluateMention(message.author.id, mentionedUser.id);
+
+    if (evaluation && evaluation.isHarassment) {
+      const STAFF_LOG_CHANNEL_ID = "1522430713746424001";
+      const channel = message.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
+
+      if (channel && channel.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setColor("Orange")
+          .setTitle("⚠️ Alerta: Posible Hostigamiento por Menciones")
+          .setDescription(`Se detectó una alta frecuencia de menciones repetidas entre usuarios en <#${message.channel.id}>.`)
+          .addFields(
+            { name: "Usuario (Agresor)", value: `<@${evaluation.authorId}>`, inline: true },
+            { name: "Usuario Mencionado (Objetivo)", value: `<@${evaluation.targetId}>`, inline: true },
+            { name: "Menciones registradas", value: `${evaluation.count} veces en 15 minutos o menos`, inline: true },
+            { name: "Motivo", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`harassment_timeout_${evaluation.authorId}`)
+            .setLabel("Aplicar Timeout (10m)")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`harassment_ignore_${evaluation.authorId}`)
+            .setLabel("Ignorar Alerta")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Error procesando la evaluación de hostigamiento por menciones");
+  }
+});
 async function registrarComandos() {
   const token = process.env["DISCORD_BOT_TOKEN"];
   const clientId = process.env["DISCORD_CLIENT_ID"];
