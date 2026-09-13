@@ -1,4 +1,3 @@
-// artifacts/discord-bot/src/services/ForensicService.ts
 
 import { logger } from "../lib/logger";
 
@@ -7,22 +6,28 @@ interface ForensicEvaluation {
   username: string;
   accountAgeDays: number;
   hasDefaultAvatar: boolean;
-  riskScore: number; // Porcentaje de probabilidad (0 a 100)
-  isSuspiciousCluster: boolean; // Detectado por huella temporal
+  riskScore: number; 
+  isSuspiciousCluster: boolean; 
   reasons: string[];
 }
 
+interface RecentJoinRecord {
+  userId: string;
+  timestamp: number;
+  accountAgeDays: number;
+}
+
 export class ForensicService {
-  // Almacén en memoria para la huella temporal de conexiones
-  private static recentJoins: { userId: string; timestamp: number }[] = [];
+   
+  private static recentJoins: RecentJoinRecord[] = [];
 
-  // Parámetro de ventana temporal actualizado a 10 segundos según pedido de Xandel
+  
   private static readonly CLUSTER_WINDOW_MS = 10 * 1000; 
-  private static readonly CLUSTER_THRESHOLD = 3; // 3 o más cuentas en el mismo margen
+  private static readonly CLUSTER_THRESHOLD = 3;
+  
+  private static readonly RECENT_ACCOUNT_LIMIT_DAYS = 7; 
 
-  /**
-   * Evalúa a un miembro nuevo utilizando Inferencia Bayesiana y huella temporal.
-   */
+
   public static evaluateMember(
     userId: string,
     username: string,
@@ -35,20 +40,19 @@ export class ForensicService {
 
     const reasons: string[] = [];
 
-    // ── 1. Inferencia Bayesiana (Evaluación de Riesgo) ───────────────────
-    // Probabilidad Base (Prior): 5% (0.05)
+// 1. Interferencia bayesiana
     const prior = 0.05;
     let likelihoodRatio = 1.0;
 
     // Condición A: Antigüedad de la cuenta
     if (accountAgeDays < 1) {
-      likelihoodRatio *= 15.0; // Cuenta creada hace menos de 24 horas
+      likelihoodRatio *= 15.0; 
       reasons.push("Cuenta creada hace menos de 24 horas");
     } else if (accountAgeDays < 7) {
-      likelihoodRatio *= 5.0;  // Cuenta creada hace menos de una semana
+      likelihoodRatio *= 5.0;  
       reasons.push("Cuenta con menos de una semana de antigüedad");
     } else {
-      likelihoodRatio *= 0.2;  // Cuenta antigua reduce drásticamente la sospecha
+      likelihoodRatio *= 0.2;  
     }
 
     // Condición B: Avatar por defecto
@@ -59,35 +63,40 @@ export class ForensicService {
       likelihoodRatio *= 0.6;
     }
 
-    // Aplicación del Teorema de Bayes simplificado para odds
+    // Aplicación del teorama de bayes simplificado para odds
     const priorOdds = prior / (1 - prior);
     const posteriorOdds = priorOdds * likelihoodRatio;
     const posteriorProbability = posteriorOdds / (1 + posteriorOdds);
 
-    // Convertir a porcentaje (0 a 100)
     let riskScore = Math.min(Math.round(posteriorProbability * 100), 100);
 
-    // ── 2. Huella Temporal de Conexiones (Detección de Alts en ráfaga de 10s) ─────
-    this.recentJoins.push({ userId, timestamp: now });
+    // 2. Huella temporal de conexiones
+    
+    this.recentJoins.push({ userId, timestamp: now, accountAgeDays });
 
-    // Limpiar registros viejos fuera de la ventana de 10 segundos
     this.recentJoins = this.recentJoins.filter(
       (entry) => now - entry.timestamp < this.CLUSTER_WINDOW_MS
     );
 
-    // Verificar si hay un cúmulo inusual de cuentas entrando juntas en segundos
-    const recentCount = this.recentJoins.length;
+    const recentClusterAccounts = this.recentJoins.filter(
+      (entry) => entry.accountAgeDays < this.RECENT_ACCOUNT_LIMIT_DAYS
+    );
+
     let isSuspiciousCluster = false;
 
-    if (recentCount >= this.CLUSTER_THRESHOLD) {
-      isSuspiciousCluster = true;
-      riskScore = Math.min(riskScore + 25, 100); // Bonificador de riesgo por racimo
-      reasons.push(`Forma parte de un ingreso masivo en ráfaga (${recentCount} cuentas en menos de 10 segundos)`);
+    if (recentClusterAccounts.length >= this.CLUSTER_THRESHOLD) {
+      const isPartOfCluster = recentClusterAccounts.some((entry) => entry.userId === userId);
+      
+      if (isPartOfCluster) {
+        isSuspiciousCluster = true;
+        riskScore = Math.min(riskScore + 25, 100); 
+        reasons.push(`Forma parte de un ingreso masivo en ráfaga de cuentas recientes (${recentClusterAccounts.length} cuentas en menos de 10 segundos)`);
+      }
     }
 
     logger.info(
-      { userId, riskScore, accountAgeDays: Number(accountAgeDays.toFixed(1)), isSuspiciousCluster },
-      "Forensic evaluation completed for incoming member"
+      { userId, riskScore, accountAgeDays: Number(accountAgeDays.toFixed(1)), isSuspiciousCluster, clusterSize: recentClusterAccounts.length },
+      "Forensic evaluation completed for incoming member with recent-burst check"
     );
 
     return {
