@@ -535,7 +535,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         return;
       }
-
+      
       const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
       const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
 
@@ -574,7 +574,52 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
+    if (interaction.customId.startsWith("harassment_timeout_") || interaction.customId.startsWith("harassment_ignore_")) {
+      const member = interaction.member as GuildMember | null;
 
+      if (!hasForensicPermission(member)) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+            ephemeral: true
+          });
+        }
+        return;
+      }
+
+      const action = interaction.customId.startsWith("harassment_timeout_") ? "timeout" : "ignore";
+      const targetUserId = interaction.customId.replace(action === "timeout" ? "harassment_timeout_" : "harassment_ignore_", "");
+
+      try {
+        const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+        const moderatorName = interaction.user.username;
+
+        if (action === "timeout") {
+          if (guildMember) {
+            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento aplicado por ${moderatorName}`);
+          }
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `⚠️ Timeout de 10 minutos aplicado a <@${targetUserId}> por **${moderatorName}**.`,
+              components: []
+            });
+          }
+        } else {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `✅ Alerta de hostigamiento ignorada por **${moderatorName}**.`,
+              components: []
+            });
+          }
+        }
+      } catch (err) {
+        logger.error({ err }, "Error procesando acción de hostigamiento");
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "❌ Hubo un error al ejecutar la acción.", ephemeral: true }).catch(() => {});
+        }
+      }
+      return;
+    }
     return;
   }
 
@@ -674,7 +719,7 @@ client.on(Events.MessageCreate, async (message) => {
         },
         getString: () => {
           const subArgs = [...args];
-          if (commandName === "temporada") subArgs.shift(); // Omitir el "info"
+          if (commandName === "temporada") subArgs.shift(); 
           subArgs.shift();
           return subArgs.join(" ") || null;
         },
