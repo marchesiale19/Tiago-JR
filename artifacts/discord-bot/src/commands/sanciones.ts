@@ -1,10 +1,14 @@
 import {
   SlashCommandBuilder,
   EmbedBuilder,
-  PermissionFlagsBits,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   MessageFlags,
   type ChatInputCommandInteraction,
-  type AutocompleteInteraction,
+  type StringSelectMenuInteraction,
+  type ButtonInteraction,
   type GuildMember,
 } from "discord.js";
 import { logger } from "../lib/logger";
@@ -604,8 +608,6 @@ const INFRACTIONS: Infraction[] = [
   },
 ];
 
-const MAX_AUTOCOMPLETE_CHOICES = 25;
-
 const ALLOWED_ROLES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -627,33 +629,10 @@ const ALLOWED_ROLES = [
 
 export const data = new SlashCommandBuilder()
   .setName("sanciones")
-  .setDescription("Consulta la información de una sanción.")
-  .addStringOption((option) =>
-    option
-      .setName("infraccion")
-      .setDescription("Nombre de la infracción a consultar.")
-      .setRequired(true)
-      .setAutocomplete(true),
-  );
-
-export async function autocomplete(
-  interaction: AutocompleteInteraction,
-): Promise<void> {
-  const focused = interaction.options.getFocused().toUpperCase().trim();
-
-  const filtered = focused
-    ? INFRACTIONS.filter((inf) => inf.name.includes(focused))
-    : INFRACTIONS;
-
-  const choices = filtered.slice(0, MAX_AUTOCOMPLETE_CHOICES).map((inf) => ({
-    name: inf.name,
-    value: inf.name,
-  }));
-
-  await interaction.respond(choices);
-}
-
-async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+  .setDescription("Consulta la información de las sanciones del servidor mediante un menú.");
+async function hasPermission(
+  interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | ButtonInteraction | any
+): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
     let member = interaction.member as GuildMember | null;
@@ -671,6 +650,102 @@ async function hasPermission(interaction: ChatInputCommandInteraction): Promise<
     return false;
   }
 }
+function createHomeEmbed(): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor("Red")
+    .setTitle("⚖️ Sistema de Sanciones — TIAGO JR")
+    .setDescription("Bienvenido al centro de información de sanciones y normativas.\n\nSeleccioná una categoría en el menú desplegable de abajo para ver el detalle de cada infracción, su nivel y duración.")
+    .addFields(
+      { name: "📊 Niveles Disponibles", value: "• Nivel 1 (1 Minuto)\n• Nivel 2 (5 - 10 Minutos)\n• Nivel 3 (1 Hora - 1 Día)\n• Nivel 4 (1 Día - 1 Semana)\n• Nivel 5 (1 Semana o BAN)", inline: false }
+    )
+    .setFooter({ text: "TIAGO JR • Menú de Sanciones" })
+    .setTimestamp();
+}
+
+function createComponents(selectedNivel?: number) {
+  // Como Discord limita las opciones del select menu a 25 máximo, 
+  // agrupamos o creamos un selector de niveles principales o seccionado.
+  // Aquí creamos un menú para seleccionar el Nivel de Sanción:
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId("sanciones_menu")
+    .setPlaceholder("Seleccioná un nivel de sanción...")
+    .addOptions([
+      {
+        label: "Nivel 1 — Sanciones Leves",
+        description: "Duración: 1 Minuto",
+        value: "nivel_1",
+        emoji: "🟢",
+        default: selectedNivel === 1,
+      },
+      {
+        label: "Nivel 2 — Sanciones Moderadas",
+        description: "Duración: 5 - 10 Minutos",
+        value: "nivel_2",
+        emoji: "🟡",
+        default: selectedNivel === 2,
+      },
+      {
+        label: "Nivel 3 — Sanciones Graves",
+        description: "Duración: 1 Hora - 1 Día",
+        value: "nivel_3",
+        emoji: "🟠",
+        default: selectedNivel === 3,
+      },
+      {
+        label: "Nivel 4 — Sanciones Muy Graves",
+        description: "Duración: 1 Día - 1 Semana",
+        value: "nivel_4",
+        emoji: "🔴",
+        default: selectedNivel === 4,
+      },
+      {
+        label: "Nivel 5 — Sanciones Extremas / Ban",
+        description: "Duración: 1 Semana o BAN",
+        value: "nivel_5",
+        emoji: "⛔",
+        default: selectedNivel === 5,
+      },
+    ]);
+
+  const rowMenu = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+
+  const rowButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId("sanciones_inicio")
+      .setLabel("Inicio")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("🏠"),
+    new ButtonBuilder()
+      .setCustomId("sanciones_cerrar")
+      .setLabel("Cerrar")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("✖️")
+  );
+
+  return [rowMenu, rowButtons];
+}
+
+function createNivelEmbed(nivel: number): EmbedBuilder {
+  const infractionsInLevel = INFRACTIONS.filter((inf) => inf.nivel === nivel);
+
+  const embed = new EmbedBuilder()
+    .setColor("Red")
+    .setTitle(`⚖️ Sanciones de Nivel ${nivel}`)
+    .setDescription(`Lista completa de infracciones correspondientes al Nivel ${nivel}.`)
+    .setFooter({ text: `TIAGO JR • Total de infracciones en este nivel: ${infractionsInLevel.length}` })
+    .setTimestamp();
+
+  // Dividimos o agregamos campos (Discord permite hasta 25 fields por embed)
+  infractionsInLevel.forEach((inf) => {
+    embed.addFields({
+      name: `📌 ${inf.name}`,
+      value: `⏳ **Duración:** ${inf.tiempo}\n📖 ${inf.descripcion}`,
+      inline: false,
+    });
+  });
+
+  return embed;
+}
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
@@ -685,32 +760,61 @@ export async function execute(
     return;
   }
 
-  const selectedInput = interaction.options.getString("infraccion", true).trim().toUpperCase();
+  await interaction.reply({
+    embeds: [createHomeEmbed()],
+    components: createComponents(),
+    flags: MessageFlags.Ephemeral,
+  });
 
-  const infraction = INFRACTIONS.find(
-    (inf) => inf.name.toUpperCase() === selectedInput || inf.name.toUpperCase().includes(selectedInput)
-  );
+  const message = await interaction.fetchReply();
 
-  if (!infraction) {
-    await interaction.reply({
-      content:
-        "⚠️ Infracción no reconocida. Por favor selecciona una opción del menú de autocompletado.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+  const collector = message.createMessageComponentCollector({
+    time: 300_000, // 5 minutos de duración del colector
+  });
 
-  const embed = new EmbedBuilder()
-    .setColor("Red")
-    .setTitle("⚖️ Información de la sanción")
-    .addFields(
-      { name: "📌 **Infracción:**", value: infraction.name, inline: false },
-      { name: "📊 **Nivel:**", value: `Nivel ${infraction.nivel}`, inline: true },
-      { name: "⏳ **Duración:**", value: infraction.tiempo, inline: true },
-      { name: "📖 **Descripción:**", value: infraction.descripcion, inline: false },
-    )
-    .setFooter({ text: "Sistema de Sanciones • TIAGO JR" })
-    .setTimestamp();
+  collector.on("collect", async (i) => {
+    if (!await hasPermission(i)) {
+      await i.reply({
+        content: "❌ No tienes permisos para interactuar con este menú.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    if (i.customId === "sanciones_cerrar") {
+      await i.update({
+        content: "🔒 Menú de sanciones cerrado.",
+        embeds: [],
+        components: [],
+      });
+      collector.stop();
+      return;
+    }
+
+    if (i.customId === "sanciones_inicio") {
+      await i.update({
+        embeds: [createHomeEmbed()],
+        components: createComponents(),
+      });
+      return;
+    }
+
+    if (i.customId === "sanciones_menu" && i.isStringSelectMenu()) {
+      const selectedValue = i.values[0];
+      const nivelNumber = parseInt(selectedValue.replace("nivel_", ""), 10);
+
+      await i.update({
+        embeds: [createNivelEmbed(nivelNumber)],
+        components: createComponents(nivelNumber),
+      });
+    }
+  });
+
+  collector.on("end", async () => {
+    try {
+      await interaction.editReply({
+        components: [],
+      });
+    } catch {}
+  });
 }
