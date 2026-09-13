@@ -124,8 +124,10 @@ function formatActionTimestamp(date: Date): string {
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
-  "1522434536796061816", // Desarrollador (Developer Tiago Jr)
-  "1539368076326473868"  // Rol de Bypass general
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
 ];
 
 const ROLES_FORENSIC_AUTORIZADOS = [
@@ -187,24 +189,16 @@ const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
     .setDisabled(true),
 );
 
-const POSTULADOS_ROLE_NAME = "Postulados";
+const POSTULADOS_ROLE_ID = "1509745451224797274";
 
 async function assignPostuladosRole(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   const guild = interaction.guild;
   if (!guild) return;
 
-  await guild.roles.fetch();
-  const role = guild.roles.cache.find((r) => r.name === POSTULADOS_ROLE_NAME);
-
-  if (!role) {
-    console.log(`[DEBUG] Error: No encontré el rol llamado "${POSTULADOS_ROLE_NAME}"`);
-    return;
-  }
-
   try {
     const member = await guild.members.fetch(applicantId);
-    await member.roles.add(role);
-    console.log(`[DEBUG] ¡Rol "${role.name}" asignado correctamente a ${member.user.username}!`);
+    await member.roles.add(POSTULADOS_ROLE_ID);
+    console.log(`[DEBUG] ¡Rol con ID "${POSTULADOS_ROLE_ID}" asignado correctamente a ${member.user.username}!`);
   } catch (err) {
     console.log(`[DEBUG] Error crítico: No pude asignar el rol.`);
     console.error(err);
@@ -302,12 +296,11 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
     const applicant = await interaction.client.users.fetch(applicantId);
     await applicant.send(`❌ Tu postulación fue RECHAZADA. Razón: ${reason}`);
 
-    const guild = interaction.guild;
+   const guild = interaction.guild;
     if (guild) {
-      const role = guild.roles.cache.find((r) => r.name === POSTULADOS_ROLE_NAME);
       const member = await guild.members.fetch(applicantId);
-      if (role && member.roles.cache.has(role.id)) {
-        await member.roles.remove(role);
+      if (member.roles.cache.has(POSTULADOS_ROLE_ID)) {
+        await member.roles.remove(POSTULADOS_ROLE_ID);
       }
     }
   } catch (err) {
@@ -378,7 +371,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     const member = interaction.member;
     if (member && typeof member !== 'string' && 'roles' in member) {
-      const tieneRolActivo = (member.roles as any).cache.some((r: any) => r.name === POSTULADOS_ROLE_NAME);
+      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
       if (tieneRolActivo) {
         await interaction.reply({
           content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
@@ -575,7 +568,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    // --- HOSTIGAMIENTO: Botones de Timeout e Ignorar ---
     if (interaction.customId.startsWith("harassment_timeout_") || 
         interaction.customId.startsWith("harassment_ignore_") ||
         interaction.customId.startsWith("harassment_confirm_") ||
@@ -702,8 +694,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
     }
-  } // <--- CIERRE FALTANTE CORREGIDO PARA interaction.isButton()
-
+  }
+  
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith("postular_reject_modal_")) {
       try {
@@ -849,14 +841,14 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-  const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
+  const role = newMember.guild.roles.cache.get(POSTULADOS_ROLE_ID);
   if (!role) return;
 
   if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
     const cooldownKey = `${newMember.guild.id}-${newMember.id}`;
     rejectionRegistry.set(cooldownKey, Date.now());
     saveCooldowns(rejectionRegistry);
-    console.log(`[EVENTO] Rol ${POSTULADOS_ROLE_NAME} quitado a ${newMember.user.username}. Cooldown aplicado.`);
+    console.log(`[EVENTO] Rol con ID ${POSTULADOS_ROLE_ID} quitado a ${newMember.user.username}. Cooldown aplicado.`);
   }
 });
 
