@@ -630,9 +630,8 @@ const ALLOWED_ROLES = [
 export const data = new SlashCommandBuilder()
   .setName("sanciones")
   .setDescription("Consulta la información de las sanciones del servidor mediante un menú.");
-async function hasPermission(
-  interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | ButtonInteraction | any
-): Promise<boolean> {
+// de acá
+async function hasPermission(interaction: ChatInputCommandInteraction | StringSelectMenuInteraction | ButtonInteraction): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
   try {
     let member = interaction.member as GuildMember | null;
@@ -650,6 +649,7 @@ async function hasPermission(
     return false;
   }
 }
+// hasta acá
 function createHomeEmbed(): EmbedBuilder {
   return new EmbedBuilder()
     .setColor("Red")
