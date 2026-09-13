@@ -717,7 +717,10 @@ client.on(Events.MessageCreate, async (message) => {
           const firstArg = args[0]?.toLowerCase();
           return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
         },
-        getString: () => {
+        getString: (name: string) => {
+          if (name === "infraccion" || args.length === 1) {
+            return args.join(" ") || null;
+          }
           const subArgs = [...args];
           if (commandName === "temporada") subArgs.shift(); 
           subArgs.shift();
