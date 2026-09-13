@@ -1,4 +1,4 @@
-// /cerrar temporada & /cerrar postulaciones — Subcommand-based role permissions
+// cerrar temporada y cerrar postulaciones by aurazinho
 
 import {
   SlashCommandBuilder,
@@ -12,7 +12,7 @@ import { closeSeason } from "../services/SeasonService";
 import { seasonRepository } from "../database/repositories/SeasonRepository";
 import { logger } from "../lib/logger";
 
-// ── Role definitions ───────────────────────────────────────────────────────
+// definición de roles niggerdiddy67
 const ROLES_POSTULACIONES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -50,7 +50,7 @@ async function hasSubcommandPermission(interaction: ChatInputCommandInteraction,
   }
 }
 
-// ── Command definition ─────────────────────────────────────────────────────
+// definición de comandos 
 export const data = new SlashCommandBuilder()
   .setName("cerrar")
   .setDescription("Comandos de cierre (temporada o postulaciones).")
@@ -66,7 +66,7 @@ export const data = new SlashCommandBuilder()
       .setDescription("Cierra el período de postulaciones al staff."),
   );
 
-// ── Execute ────────────────────────────────────────────────────────────────
+// execute, xandel se la come
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
@@ -86,7 +86,7 @@ export async function execute(
     return;
   }
 
-  // ── /cerrar temporada ───────────────────────────────────────────────────
+// cerrar temporada pro
   if (sub === "temporada") {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -124,11 +124,20 @@ export async function execute(
     }
   }
 
-  // ── /cerrar postulaciones ───────────────────────────────────────────────
+// cerrar postulaciones
   else if (sub === "postulaciones") {
+    const embed = new EmbedBuilder()
+      .setColor("Red")
+      .setTitle("🔒 ¡Postulaciones al Staff Cerradas!")
+      .setDescription("El período de postulaciones para formar parte del STAFF ha sido cerrado oficialmente. Gracias a todos los que enviaron sus postulaciones.")
+      .addFields(
+        { name: "Estado", value: "`Cerrado`", inline: true },
+        { name: "Fecha de cierre", value: `<t:${Math.floor(Date.now() / 1000)}:D>`, inline: true },
+      )
+      .setTimestamp();
+
     await interaction.reply({
-      content: "🔒 ¡El período de postulaciones al staff ha sido cerrado!",
-      flags: MessageFlags.Ephemeral,
+      embeds: [embed],
     });
   }
 }
