@@ -905,6 +905,14 @@ client.on(Events.MessageCreate, async (message) => {
     logger.error({ err }, "Error procesando la evaluación de hostigamiento por menciones");
   }
 });
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    const { TrafficMonitorService } = await import("./services/TrafficMonitorService");
+    TrafficMonitorService.handleMessage(message);
+  } catch (err) {
+    logger.error({ err }, "Error en TrafficMonitorService");
+  }
+});
 async function registrarComandos() {
   const token = process.env["DISCORD_BOT_TOKEN"];
   const clientId = process.env["DISCORD_CLIENT_ID"];
