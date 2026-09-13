@@ -535,7 +535,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         }
         return;
       }
-      
+
       const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
       const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
 
@@ -574,7 +574,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-    if (interaction.customId.startsWith("harassment_timeout_") || interaction.customId.startsWith("harassment_ignore_")) {
+
+    // --- HOSTIGAMIENTO: Botones de Timeout e Ignorar ---
+    if (interaction.customId.startsWith("harassment_timeout_") || 
+        interaction.customId.startsWith("harassment_ignore_") ||
+        interaction.customId.startsWith("harassment_confirm_") ||
+        interaction.customId.startsWith("harassment_cancel_")) {
+
       const member = interaction.member as GuildMember | null;
 
       if (!hasForensicPermission(member)) {
@@ -587,41 +593,116 @@ client.on(Events.InteractionCreate, async (interaction) => {
         return;
       }
 
-      const action = interaction.customId.startsWith("harassment_timeout_") ? "timeout" : "ignore";
-      const targetUserId = interaction.customId.replace(action === "timeout" ? "harassment_timeout_" : "harassment_ignore_", "");
+      const targetUserId = interaction.customId.split('_').pop();
+      if (!targetUserId) return;
 
-      try {
-        const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+      if (interaction.customId.startsWith("harassment_cancel_")) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.update({
+            content: `⚠️ Acción de timeout cancelada por **${interaction.user.username}**.`,
+            components: []
+          });
+        }
+        return;
+      }
+
+      if (interaction.customId.startsWith("harassment_timeout_")) {
+        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+
+        if (!targetMember) {
+          await interaction.reply({
+            content: "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté aquí.",
+            ephemeral: true
+          });
+          return;
+        }
+
+        const moderatorHighestRole = member?.roles.highest;
+        const targetHighestRole = targetMember.roles.highest;
+
+        if (interaction.guild?.ownerId !== member?.id) {
+            if (moderatorHighestRole && targetHighestRole && 
+                moderatorHighestRole.position <= targetHighestRole.position) {
+                await interaction.reply({
+                    content: "❌ **Error de Jerarquía:** No puedes sancionar a un usuario con un rol igual o superior al tuyo.",
+                    ephemeral: true
+                });
+                return;
+            }
+        }
+
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`harassment_confirm_${targetUserId}`)
+            .setLabel("✅ Sí, aplicar timeout (10m)")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`harassment_cancel_${targetUserId}`)
+            .setLabel("❌ Cancelar")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.reply({
+          content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que deseas aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción es inmediata al confirmar.`,
+          components: [confirmRow],
+          ephemeral: true
+        });
+        return;
+      }
+
+      if (interaction.customId.startsWith("harassment_confirm_")) {
         const moderatorName = interaction.user.username;
 
-        if (action === "timeout") {
+        try {
+          const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+
           if (guildMember) {
-            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento aplicado por ${moderatorName}`);
-          }
-          if (!interaction.replied && !interaction.deferred) {
+            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento aplicado por ${moderatorName} (Confirmado)`);
+
+            if (interaction.message && interaction.message.editable) {
+                await interaction.message.edit({
+                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@${targetUserId}> ha recibido un timeout de 10 minutos por **${moderatorName}**.`,
+                    components: []
+                }).catch(() => logger.warn("No se pudo editar el mensaje original de alerta"));
+            }
+
             await interaction.update({
-              content: `⚠️ Timeout de 10 minutos aplicado a <@${targetUserId}> por **${moderatorName}**.`,
+              content: `✅ Sanción aplicada correctamente a <@${targetUserId}>.`,
               components: []
             });
+
+          } else {
+             await interaction.update({
+                content: "❌ El usuario ya no está en el servidor, no se pudo aplicar la sanción.",
+                components: []
+             });
           }
-        } else {
+
+        } catch (err) {
+          logger.error({ err, userId: targetUserId }, "Error crítico al aplicar timeout confirmado");
           if (!interaction.replied && !interaction.deferred) {
-            await interaction.update({
-              content: `✅ Alerta de hostigamiento ignorada por **${moderatorName}**.`,
-              components: []
-            });
+            await interaction.reply({ content: "❌ Hubo un error grave al intentar aplicar el timeout.", ephemeral: true });
           }
         }
-      } catch (err) {
-        logger.error({ err }, "Error procesando acción de hostigamiento");
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "❌ Hubo un error al ejecutar la acción.", ephemeral: true }).catch(() => {});
-        }
+        return;
       }
-      return;
+
+      if (interaction.customId.startsWith("harassment_ignore_")) {
+        const moderatorName = interaction.user.username;
+        try {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `✅ Alerta de hostigamiento marcada como **resuelta/ignorada** por **${moderatorName}**.`,
+              components: []
+            });
+          }
+        } catch (err) {
+          logger.error({ err }, "Error procesando ignorar alerta de hostigamiento");
+        }
+        return;
+      }
     }
-    return;
-  }
+  } // <--- CIERRE FALTANTE CORREGIDO PARA interaction.isButton()
 
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith("postular_reject_modal_")) {
@@ -674,6 +755,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
@@ -765,6 +847,7 @@ client.on(Events.MessageCreate, async (message) => {
     await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
   }
 });
+
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   const role = newMember.guild.roles.cache.find(r => r.name === POSTULADOS_ROLE_NAME);
   if (!role) return;
@@ -861,6 +944,7 @@ client.on(Events.GuildMemberAdd, async (member) => {
     logger.error({ err }, "Error handling guildMemberAdd forensic evaluation");
   }
 }); 
+
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.guild) return;
 
@@ -908,6 +992,7 @@ client.on(Events.MessageCreate, async (message) => {
     logger.error({ err }, "Error procesando la evaluación de hostigamiento por menciones");
   }
 });
+
 client.on(Events.MessageCreate, async (message) => {
   try {
     const { TrafficMonitorService } = await import("./services/TrafficMonitorService");
@@ -916,6 +1001,7 @@ client.on(Events.MessageCreate, async (message) => {
     logger.error({ err }, "Error en TrafficMonitorService");
   }
 });
+
 async function registrarComandos() {
   const token = process.env["DISCORD_BOT_TOKEN"];
   const clientId = process.env["DISCORD_CLIENT_ID"];
