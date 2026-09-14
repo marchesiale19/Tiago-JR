@@ -8,6 +8,7 @@ import {
 import { syncTopCasinoRole } from "./luckybox"; // Importamos la función desde luckybox
 
 const ROLES_AUTORIZADOS = [
+  
   "1522807097920720967", // Manager
   "1509760475653472287", // Admin-pb
   "1453211902267228160", // Admin
@@ -16,6 +17,7 @@ const ROLES_AUTORIZADOS = [
   "1512634750152478851", // Jefe staff
   "1508266687689003039", // Co-owner
   "1451383215603585140", // Owner
+  "1539368076326473868", // Developer Tiago Jr
 ];
 
 function tienePermisoSync(member: any): boolean {
