@@ -12,6 +12,8 @@ import { logger } from "../lib/logger";
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
 export const ROL_TOP_CASINO_ID = "1546068235072442398";
+export const ROL_SEGURO_ID = "1461499864457412865";
+export const ROL_QUEBRADO_ID = "1478210697199353976";
 
 export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "45,000 Frijoles", valor: 45000, tipo: "positivo", probabilidad: "25.0%" },
@@ -23,18 +25,38 @@ export const COMMON_LUCKYBOX_REWARDS = [
   { texto: "-25,000 Frijoles", valor: -25000, tipo: "negativo", probabilidad: "9.0%" },
 ] as const;
 
-export function pickReward() {
+export const RARE_LUCKYBOX_REWARDS = [
+  { texto: "400,000 Frijoles", valor: 400000, tipo: "positivo", probabilidad: "25.0%" },
+  { texto: "1,000,000 Frijoles", valor: 1000000, tipo: "positivo", probabilidad: "5.0%" },
+  { texto: "Rol \"Seguro\"", valor: 0, tipo: "rol_seguro", probabilidad: "10.0%" },
+  { texto: "Rol \"Quebrado\"", valor: 0, tipo: "rol_quebrado", probabilidad: "10.0%" },
+  { texto: "-100,000 Frijoles", valor: -100000, tipo: "negativo", probabilidad: "30.0%" },
+  { texto: "-50,000 Frijoles", valor: -50000, tipo: "negativo", probabilidad: "20.0%" },
+] as const;
+
+export function pickReward(cajaNombre: string) {
   const rand = Math.random() * 100;
   let acumulado = 0;
-  const probabilidadesNumericas = [25.0, 20.0, 15.0, 8.0, 3.0, 20.0, 9.0];
 
-  for (let i = 0; i < COMMON_LUCKYBOX_REWARDS.length; i++) {
-    acumulado += probabilidadesNumericas[i];
-    if (rand <= acumulado) {
-      return COMMON_LUCKYBOX_REWARDS[i];
+  if (cajaNombre.toLowerCase().includes("raro")) {
+    const probabilidadesRaro = [25.0, 5.0, 10.0, 10.0, 30.0, 20.0];
+    for (let i = 0; i < RARE_LUCKYBOX_REWARDS.length; i++) {
+      acumulado += probabilidadesRaro[i];
+      if (rand <= acumulado) {
+        return RARE_LUCKYBOX_REWARDS[i];
+      }
     }
+    return RARE_LUCKYBOX_REWARDS[0];
+  } else {
+    const probabilidadesComun = [25.0, 20.0, 15.0, 8.0, 3.0, 20.0, 9.0];
+    for (let i = 0; i < COMMON_LUCKYBOX_REWARDS.length; i++) {
+      acumulado += probabilidadesComun[i];
+      if (rand <= acumulado) {
+        return COMMON_LUCKYBOX_REWARDS[i];
+      }
+    }
+    return COMMON_LUCKYBOX_REWARDS[0];
   }
-  return COMMON_LUCKYBOX_REWARDS[0];
 }
 
 export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolean; added: number; removed: number; error?: string }> {
@@ -113,28 +135,36 @@ export const data = new SlashCommandBuilder()
           .setName("caja")
           .setDescription("Tipo de Mr lucky a abrir")
           .setRequired(true)
-          .addChoices({ name: "Mr lucky Común", value: "Mr lucky Común" }),
+          .addChoices(
+            { name: "Mr lucky Común", value: "Mr lucky Común" },
+            { name: "Mr lucky Raro", value: "Mr lucky Raro" },
+          ),
       ),
   )
   .addSubcommand((subcommand) =>
     subcommand
       .setName("info")
-      .setDescription("Muestra la información y recompensas posibles del Mr lucky Común.")
+      .setDescription("Muestra la información y recompensas posibles de los Mr lucky.")
       .addStringOption((option) =>
         option
           .setName("caja")
           .setDescription("Tipo de caja para ver información")
           .setRequired(true)
-          .addChoices({ name: "Mr lucky Común", value: "Mr lucky Común" }),
+          .addChoices(
+            { name: "Mr lucky Común", value: "Mr lucky Común" },
+            { name: "Mr lucky Raro", value: "Mr lucky Raro" },
+          ),
       ),
   );
 
 async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre: string) {
-  const positivos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "positivo")
+  const rewards = cajaNombre.toLowerCase().includes("raro") ? RARE_LUCKYBOX_REWARDS : COMMON_LUCKYBOX_REWARDS;
+
+  const positivos = rewards.filter((r) => r.tipo === "positivo" || r.tipo.startsWith("rol"))
     .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
     .join("\n");
 
-  const negativos = COMMON_LUCKYBOX_REWARDS.filter((r) => r.tipo === "negativo")
+  const negativos = rewards.filter((r) => r.tipo === "negativo")
     .map((r) => `• **${r.texto}** — \`${r.probabilidad}\``)
     .join("\n");
 
@@ -143,8 +173,8 @@ async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre:
     .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
     .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
     .addFields(
-      { name: "✨ Recompensas Positivas", value: positivos, inline: false },
-      { name: "⚠️ Recompensas Negativas (Castigos)", value: negativos, inline: false },
+      { name: "✨ Recompensas y Roles Positivos", value: positivos || "Ninguno", inline: false },
+      { name: "⚠️ Recompensas Negativas (Castigos)", value: negativos || "Ninguno", inline: false },
     )
     .setFooter({ text: "Sistema de Mr Lucky • Probabilidades Oficiales" })
     .setTimestamp();
@@ -155,11 +185,12 @@ async function handleInfo(sendReply: (options: any) => Promise<any>, cajaNombre:
 async function handleAbrir(
   sendReply: (options: any) => Promise<any>,
   sendChannelMessage: (options: any) => Promise<any>,
-  guildId: string,
+  guild: Guild,
   targetUser: any,
   cajaNombre: string
 ) {
   try {
+    const guildId = guild.id;
     const response = await (fetch as any)(`https://unbelievaboat.com/api/v1/guilds/${guildId}/users/${targetUser.id}/inventory`, {
       headers: {
         Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
@@ -196,8 +227,25 @@ async function handleAbrir(
       body: JSON.stringify({ quantity: 1 }),
     }).catch(() => {});
 
-    const rewardObj = pickReward();
-    await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
+    const rewardObj = pickReward(cajaNombre);
+    let rewardDescription = rewardObj.texto;
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+
+    if (rewardObj.tipo === "rol_seguro" && member) {
+      const role = await guild.roles.fetch(ROL_SEGURO_ID).catch(() => null);
+      if (role) {
+        await member.roles.add(role, "Premio de Mr lucky Raro").catch(() => {});
+        rewardDescription = `Rol <@&${ROL_SEGURO_ID}>`;
+      }
+    } else if (rewardObj.tipo === "rol_quebrado" && member) {
+      const role = await guild.roles.fetch(ROL_QUEBRADO_ID).catch(() => null);
+      if (role) {
+        await member.roles.add(role, "Premio de Mr lucky Raro").catch(() => {});
+        rewardDescription = `Rol <@&${ROL_QUEBRADO_ID}>`;
+      }
+    } else if (rewardObj.valor !== 0) {
+      await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
+    }
 
     const embed = new EmbedBuilder()
       .setColor("Orange")
@@ -205,8 +253,8 @@ async function handleAbrir(
       .setDescription(`¡<@${targetUser.id}> abrió su **${cajaNombre}**!`)
       .addFields(
         { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
-        { name: "🎉 Premio obtenido", value: ` ${rewardObj.texto}`, inline: false },
-        { name: "💸 Estado", value: `El item fue validado del inventario y los **${rewardObj.texto}** fueron aplicados a tu cuenta.`, inline: false },
+        { name: "🎉 Premio obtenido", value: ` ${rewardDescription}`, inline: false },
+        { name: "💸 Estado", value: `El item fue validado del inventario y el resultado fue aplicado a tu cuenta.`, inline: false },
       )
       .setFooter({ text: "Sistema de Mr Lucky • Inventario Verificado" })
       .setTimestamp();
@@ -242,7 +290,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await handleAbrir(
     (opts) => interaction.editReply(opts),
     (opts) => channel.send(opts),
-    interaction.guildId,
+    interaction.guild,
     interaction.user,
     cajaNombre
   );
@@ -273,7 +321,7 @@ export async function run(message: Message, args: string[]): Promise<void> {
   await handleAbrir(
     (opts) => message.reply(opts),
     (opts) => channel.send(opts),
-    message.guildId,
+    message.guild,
     message.author,
     cajaNombre
   );
