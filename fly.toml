@@ -1,0 +1,22 @@
+app = "tiago-jr"
+primary_region = "gru"
+
+[build]
+  # Forzamos a que use un builder de Node.js
+  image = "node:20-slim"
+
+[env]
+  PORT = "10000"
+
+[http_service]
+  internal_port = 10000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 10000
+  [[services.ports]]
+    port = 10000
