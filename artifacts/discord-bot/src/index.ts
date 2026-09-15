@@ -1014,7 +1014,9 @@ async function registrarComandos() {
     console.error("❌ Error registrando comandos:", e);
   }
 }
-registrarComandos();
+registrarComandos().catch((err) => {
+  console.error("[DEBUG] Error en registrarComandos:", err);
+});
 
 console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 client.login(token).then(() => {
