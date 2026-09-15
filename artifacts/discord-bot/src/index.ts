@@ -1019,10 +1019,19 @@ registrarComandos().catch((err) => {
 });
 
 console.log("[DEBUG] Intentando conectar el cliente de Discord...");
-client.login(token).then(() => {
-  console.log("[DEBUG] ¡Login exitoso!");
-}).catch((err) => {
-  console.error("[DEBUG] Error en client.login:", err);
-  logger.error({ err }, "Failed to log in to Discord");
-  process.exit(1);
-});
+
+// Agregamos una promesa con timeout para detectar si Discord no responde
+const loginPromise = client.login(token);
+const timeoutPromise = new Promise((_, reject) => 
+  setTimeout(() => reject(new Error("Timeout: Discord tardó demasiado en responder al login")), 15000)
+);
+
+Promise.race([loginPromise, timeoutPromise])
+  .then(() => {
+    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}!`);
+  })
+  .catch((err) => {
+    console.error("[DEBUG] Error crítico al conectar con Discord:", err);
+    logger.error({ err }, "Failed to log in to Discord");
+    process.exit(1);
+  });
