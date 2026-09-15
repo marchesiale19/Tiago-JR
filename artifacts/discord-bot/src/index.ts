@@ -1014,10 +1014,13 @@ async function registrarComandos() {
     console.error("❌ Error registrando comandos:", e);
   }
 }
-
 registrarComandos();
 
-client.login(token).catch((err) => {
+console.log("[DEBUG] Intentando conectar el cliente de Discord...");
+client.login(token).then(() => {
+  console.log("[DEBUG] ¡Login exitoso!");
+}).catch((err) => {
+  console.error("[DEBUG] Error en client.login:", err);
   logger.error({ err }, "Failed to log in to Discord");
   process.exit(1);
 });
