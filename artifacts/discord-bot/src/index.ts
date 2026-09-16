@@ -425,7 +425,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-
+    
+    if (interaction.customId.startsWith("tateti_")) {
+      try {
+        const tatetiModule = commands.get("tateti") as any;
+        if (tatetiModule && typeof tatetiModule.handleButton === "function") {
+          await tatetiModule.handleButton(interaction);
+        }
+      } catch (err) {
+        logger.error({ err }, "Error handling tateti button");
+      }
+      return;
+    }
     if (interaction.customId.startsWith("supervision_accept_")) {
       const lobbyId = interaction.customId.slice("supervision_accept_".length);
       const member = interaction.member as GuildMember | null;
@@ -804,7 +815,7 @@ client.on(Events.MessageCreate, async (message) => {
           if (commandName === "temporada") {
             return parseInt(args[1]) || null;
           }
-          return parseInt(args[1]) || null;
+          return parseInt(args[0]) || null;
         },
         getBoolean: () => args[2] === "true" || args[1] === "true",
         getUser: () => message.mentions.users.first() || null,

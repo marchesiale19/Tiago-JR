@@ -49,8 +49,7 @@ export class HarassmentService {
     const count = userMentionsToTarget.length;
 
     // Si cruza o iguala el umbral, se dispara la alerta
-    if (count >= this.ENTION_THRESHOLD || count === this.MENTION_THRESHOLD) {
-      // Opcional: limpiar las menciones de este par para evitar spam constante de alertas por cada mensaje extra
+      if (count >= this.MENTION_THRESHOLD) {      // Opcional: limpiar las menciones de este par para evitar spam constante de alertas por cada mensaje extra
       this.recentMentions = this.recentMentions.filter(
         (entry) => !(entry.authorId === authorId && entry.targetId === targetId)
       );

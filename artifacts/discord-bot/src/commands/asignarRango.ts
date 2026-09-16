@@ -1,3 +1,5 @@
+// asignar nigger 67
+
 import { SlashCommandBuilder, ChatInputCommandInteraction } from "discord.js";
 import { setSimulatedLevel, MY_DISCORD_ID } from "./roleOverride";
 
@@ -33,10 +35,14 @@ export async function run(message: any, args: string[]): Promise<void> {
     return;
   }
 
-  const numero = parseInt(args[0]);
+  // Ignoramos el args que viene mal y leemos el texto directamente del mensaje
+  const contenido = message.content.trim().split(/\s+/);
+  // contenido[0] es "-asignarrango", contenido[1] debería ser el número (ej. "3")
+  const argNumero = contenido[1];
+  const numero = argNumero ? parseInt(argNumero, 10) : NaN;
 
   if (isNaN(numero)) {
-    await message.reply("❌ Uso correcto: `-asignar rango [número]` (Ej: `-asignar rango 2`, o `0` para apagar).");
+    await message.reply("❌ Uso correcto: `-asignarrango [número]` (Ej: `-asignarrango 2`, o `0` para apagar).");
     return;
   }
 

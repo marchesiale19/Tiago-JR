@@ -130,7 +130,7 @@ function getCategories(access: AccessLevel): CategoryData[] {
       title: "Administración",
       content: [
         "-sanciones — Consulta la información de una sanción.",
-        ...(access === "owner" ? ["-lb sync — Sincroniza y actualiza la tabla de clasificación del casino de forma manual con los datos más recientes de los usuarios."] : []),
+        ...(access === "owner" ? ["-leaderboard sync — Sincroniza y actualiza la tabla de clasificación del casino de forma manual con los datos más recientes de los usuarios."] : []),
       ].join("\n"),
     });
 

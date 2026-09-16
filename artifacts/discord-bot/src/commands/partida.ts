@@ -45,7 +45,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .join(", ");
 
     const embed = new EmbedBuilder()
-      .setColor("Blue")
+      .setColor("Orange")
       .setTitle("🎮 Estado de la Partida")
       .addFields(
         { name: "Partida ID",   value: `\`${partida.id.slice(0, 8)}\``,                         inline: true },

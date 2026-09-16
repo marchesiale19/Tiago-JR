@@ -1,3 +1,5 @@
+// me gusta haru
+
 import {
   EmbedBuilder,
   PermissionFlagsBits,
@@ -5,7 +7,7 @@ import {
   type ChatInputCommandInteraction,
   type Message,
 } from "discord.js";
-import { syncTopCasinoRole } from "./luckybox"; // Importamos la función desde luckybox
+import { syncTopCasinoRole } from "./luckybox"; 
 
 const ROLES_AUTORIZADOS = [
   
@@ -49,6 +51,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     await interaction.deferReply({ flags: 64 });
+
     const result = await syncTopCasinoRole(interaction.guild);
 
     const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
@@ -62,6 +65,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     } else {
       embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
     }
+    
     await interaction.editReply({ embeds: [embed] });
   }
 }

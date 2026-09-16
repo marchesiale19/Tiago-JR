@@ -28,24 +28,22 @@ export const COMMON_LUCKYBOX_REWARDS = [
 ] as const;
 
 export const RARE_LUCKYBOX_REWARDS = [
-  { texto: "400,000 Frijoles", valor: 400000, tipo: "positivo", probabilidad: "25.0%" },
-  { texto: "1,000,000 Frijoles", valor: 1000000, tipo: "positivo", probabilidad: "5.0%" },
-  { texto: "Rol \"Seguro\"", valor: 0, tipo: "rol_seguro", probabilidad: "10.0%" },
-  { texto: "Rol \"Quebrado\"", valor: 0, tipo: "rol_quebrado", probabilidad: "10.0%" },
-  { texto: "-100,000 Frijoles", valor: -100000, tipo: "negativo", probabilidad: "30.0%" },
-  { texto: "-50,000 Frijoles", valor: -50000, tipo: "negativo", probabilidad: "20.0%" },
+  { texto: "350,000 Frijoles", valor: 350000, tipo: "positivo", probabilidad: "25.0%" },
+  { texto: "550,000 Frijoles", valor: 550000, tipo: "positivo", probabilidad: "12.0%" },
+  { texto: `Rol <@&${ROL_SEGURO_ID}>`, valor: 0, tipo: "rol_seguro", probabilidad: "8.0%" },
+  { texto: `Rol <@&${ROL_QUEBRADO_ID}>`, valor: 0, tipo: "rol_quebrado", probabilidad: "1.0%" },
+  { texto: "-150,000 Frijoles", valor: -150000, tipo: "negativo", probabilidad: "34.0%" },
+  { texto: "-250,000 Frijoles", valor: -250000, tipo: "negativo", probabilidad: "20.0%" },
 ] as const;
 
 export const EPIC_LUCKYBOX_REWARDS = [
-  { texto: "850,000 Frijoles", valor: 850000, tipo: "positivo", probabilidad: "20.0%" },
-  { texto: "950,000 Frijoles", valor: 950000, tipo: "positivo", probabilidad: "15.0%" },
-  { texto: "1,200,000 Frijoles", valor: 1200000, tipo: "positivo", probabilidad: "10.0%" },
-  { texto: "1,500,000 Frijoles", valor: 1500000, tipo: "positivo", probabilidad: "5.0%" },
-  { texto: "1,750,000 Frijoles", valor: 1750000, tipo: "positivo", probabilidad: "2.0%" },
-  { texto: "Rol \"esclavo de sady\"", valor: 0, tipo: "rol_esclavo_sady", probabilidad: "4.0%" },
-  { texto: "Rol \"esclavo de rayii\"", valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "4.0%" },
-  { texto: "-500,000 Frijoles", valor: -500000, tipo: "negativo", probabilidad: "25.0%" },
-  { texto: "-625,000 Frijoles", valor: -625000, tipo: "negativo", probabilidad: "15.0%" },
+  { texto: "1,200,000 Frijoles", valor: 1200000, tipo: "positivo", probabilidad: "22.0%" },
+  { texto: "1,800,000 Frijoles", valor: 1800000, tipo: "positivo", probabilidad: "12.0%" },
+  { texto: "2,500,000 Frijoles", valor: 2500000, tipo: "positivo", probabilidad: "5.0%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_SADY_ID}>`, valor: 0, tipo: "rol_esclavo_sady", probabilidad: "0.8%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_RAYII_ID}>`, valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "0.2%" },
+  { texto: "-600,000 Frijoles", valor: -600000, tipo: "negativo", probabilidad: "35.0%" },
+  { texto: "-1,000,000 Frijoles", valor: -1000000, tipo: "negativo", probabilidad: "25.0%" },
 ] as const;
 
 export function pickReward(cajaNombre: string) {
@@ -54,7 +52,7 @@ export function pickReward(cajaNombre: string) {
   const nombreLower = cajaNombre.toLowerCase();
 
   if (nombreLower.includes("épico") || nombreLower.includes("epico")) {
-    const probabilidadesEpico = [20.0, 15.0, 10.0, 5.0, 2.0, 4.0, 4.0, 25.0, 15.0];
+    const probabilidadesEpico = [22.0, 12.0, 5.0, 0.8, 0.2, 35.0, 25.0];
     for (let i = 0; i < EPIC_LUCKYBOX_REWARDS.length; i++) {
       acumulado += probabilidadesEpico[i];
       if (rand <= acumulado) {
@@ -63,7 +61,7 @@ export function pickReward(cajaNombre: string) {
     }
     return EPIC_LUCKYBOX_REWARDS[0];
   } else if (nombreLower.includes("raro")) {
-    const probabilidadesRaro = [25.0, 5.0, 10.0, 10.0, 30.0, 20.0];
+    const probabilidadesRaro = [25.0, 12.0, 8.0, 1.0, 34.0, 20.0];
     for (let i = 0; i < RARE_LUCKYBOX_REWARDS.length; i++) {
       acumulado += probabilidadesRaro[i];
       if (rand <= acumulado) {

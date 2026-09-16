@@ -2,7 +2,22 @@ import {
   SlashCommandBuilder, EmbedBuilder, type ChatInputCommandInteraction,
 } from "discord.js";
 import { joinQueue } from "../services/QueueService";
-import { logger }    from "../lib/logger";
+import { logger }     from "../lib/logger";
+
+// canales
+const AMONG_US_VOICE_CHANNELS = [
+  "1452030683588333568",
+  "1478541699041984583",
+  "1452030713791774882",
+  "1452030742602453174",
+  "1452174467441627208",
+  "1462162035185029356",
+  "1462517911607316480",
+  "1478541393470292211",
+  "1478541114695749702",
+  "1499495604680917124",
+  "1538256157347418183"
+];
 
 export const data = new SlashCommandBuilder()
   .setName("buscar")
@@ -26,17 +41,24 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply({ ephemeral: true });
 
   try {
-    // Fetch the member to inspect their voice state
     const member = await interaction.guild.members.fetch(interaction.user.id);
     const voiceChannel = member.voice.channel;
-    const vcName       = voiceChannel?.name ?? null;
+
+    console.log(`[DEBUG_VC] Usuario en canal: "${voiceChannel?.name}" con ID: "${voiceChannel?.id}"`);
+    if (!voiceChannel || !AMONG_US_VOICE_CHANNELS.includes(voiceChannel.id)) {
+      await interaction.editReply({ 
+        content: `❌ Tu canal actual (ID: \`${voiceChannel?.id ?? "Ninguno"}\`) no está autorizado.` 
+      });
+      return;
+    }
+
 
     const result = await joinQueue(
       interaction.user.id,
       interaction.guild.id,
       interaction.client,
-      vcName,
-    );
+    voiceChannel.id, 
+      );
 
     if (!result.joined) {
       await interaction.editReply(`❌ ${result.reason}`);
