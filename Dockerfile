@@ -6,6 +6,6 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY . .
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 CMD ["pnpm", "--filter", "@workspace/discord-bot", "run", "dev"]
