@@ -1016,7 +1016,7 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-async function registrarComandos() {
+async function iniciarBot() {
   const token = process.env["DISCORD_BOT_TOKEN"];
   const clientId = process.env["DISCORD_CLIENT_ID"];
 
@@ -1035,19 +1035,19 @@ async function registrarComandos() {
   } catch (e) {
     console.error("❌ Error registrando comandos:", e);
   }
-}
-registrarComandos().catch((err) => {
-  console.error("[DEBUG] Error en registrarComandos:", err);
-});
 
-console.log("[DEBUG] Intentando conectar el cliente de Discord...");
+  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
-client.login(token)
-  .then(() => {
+  try {
+    await client.login(token);
     console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}!`);
-  })
-  .catch((err) => {
+  } catch (err) {
     console.error("[DEBUG] Error crítico al conectar con Discord:", err);
     logger.error({ err }, "Failed to log in to Discord");
     process.exit(1);
-  });
+  }
+}
+
+iniciarBot().catch((err) => {
+  console.error("[DEBUG] Error crítico en la inicialización:", err);
+});
