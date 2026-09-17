@@ -3,30 +3,31 @@ import {
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
 } from "discord.js";
-import * as postular               from "./postular";
+import * as postular                     from "./postular";
 import { data as helpData, execute as helpExecute } from "./help";
 import { data as asignarRangoData, execute as asignarRangoExecute } from "./asignarRango";
-import * as sanciones                from "./sanciones";
-import * as temporada                from "./temporada";
-import * as ranking                  from "./ranking";
-import * as perfil                   from "./perfil";
-import * as logros                   from "./logros";
-import * as luckybox                 from "./luckybox";
-import * as tateti                   from "./tateti"; 
+import * as sanciones                 from "./sanciones";
+import * as temporada                 from "./temporada";
+import * as ranking                   from "./ranking";
+import * as perfil                    from "./perfil";
+import * as logros                    from "./logros";
+import * as luckybox                  from "./luckybox";
+import * as tateti                    from "./tateti"; 
+import * as ppt                       from "./ppt";
 import * as leaderboard from "./leaderboard";
 // nuevo flujo de ranked
-import * as buscarPartida            from "./buscar-partida";
-import * as partida                  from "./partida";
-import * as registrarPartida         from "./registrar-partida";
-import * as sala                     from "./sala";
-import * as finalizarPartida         from "./finalizar-partida";
-import * as supervisorInactivo       from "./supervisor-inactivo";
+import * as buscarPartida             from "./buscar-partida";
+import * as partida                   from "./partida";
+import * as registrarPartida          from "./registrar-partida";
+import * as sala                      from "./sala";
+import * as finalizarPartida          from "./finalizar-partida";
+import * as supervisorInactivo        from "./supervisor-inactivo";
 // parche 2 o ni idea, solo pq sí 
-import * as cancelar                 from "./cancelar";
-import * as emparejamiento           from "./emparejamiento";
+import * as cancelar                  from "./cancelar";
+import * as emparejamiento            from "./emparejamiento";
 // gestión de temporadas (separado aunrinha)
-import * as abrir                    from "./abrir";
-import * as cerrar                   from "./cerrar";
+import * as abrir                     from "./abrir";
+import * as cerrar                    from "./cerrar";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -47,6 +48,7 @@ commands.set(perfil.data.name,              perfil);
 commands.set(logros.data.name,              logros);
 commands.set(luckybox.data.name,            luckybox);
 commands.set(tateti.data.name,              tateti);  
+commands.set(ppt.data.name,                 ppt);
 commands.set(asignarRangoData.name,         { data: asignarRangoData, execute: asignarRangoExecute });
 commands.set(leaderboard.data.name, leaderboard);
 
