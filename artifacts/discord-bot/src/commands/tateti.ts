@@ -20,8 +20,7 @@ interface TatetiGame {
   apuesta: number;
   board: string[]; // 25 posiciones ("" | "X" | "O")
   turn: string; // ID del jugador actual
-  messageId?: string;
-  timeout?: NodeJS.Timeout;
+  inactivityTimeout?: NodeJS.Timeout; // Temporizador de inactividad de la partida
 }
 
 // Mapa global activo de partidas en curso
@@ -39,7 +38,7 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((option) =>
     option
       .setName("apuesta")
-      .setDescription("Cantidad de frijoles a apostar (Sin límite)")
+      .setDescription("Cantidad de frijoles a apostar")
       .setMinValue(1)
       .setRequired(true),
   );
@@ -89,7 +88,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     // 2. Crear Embed y Botones de Reto
     const challengeEmbed = new EmbedBuilder()
-      .setColor("Blue")
+      .setColor("Orange")
       .setTitle("⚔️ ¡Desafío de Ta-Te-Ti 5x5!")
       .setDescription(`<@${opponent.id}>, has sido retado por <@${challenger.id}> a un duelo de Ta-Te-Ti.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n⏳ **Tiempo límite:** 10 minutos para aceptar.`)
       .setFooter({ text: "Ta-Te-Ti 5x5 • Apuestas 1v1" })
@@ -112,14 +111,17 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       components: [row],
     });
 
-    // Timeout de 10 minutos para el reto inicial
+    // Timeout de 10 minutos para el reto inicial (si no aceptan)
     setTimeout(async () => {
       try {
-        const expiredEmbed = new EmbedBuilder()
-          .setColor("Grey")
-          .setTitle("⌛ Desafío Expirado")
-          .setDescription("El tiempo para aceptar el desafío de Ta-Te-Ti ha expirado.");
-        await message.edit({ embeds: [expiredEmbed], components: [] });
+        const fetchedMsg = await interaction.fetchReply();
+        if (fetchedMsg.components.length > 0) {
+          const expiredEmbed = new EmbedBuilder()
+            .setColor("Grey")
+            .setTitle("⌛ Desafío Expirado")
+            .setDescription("El tiempo para aceptar el desafío de Ta-Te-Ti ha expirado.");
+          await message.edit({ embeds: [expiredEmbed], components: [] });
+        }
       } catch {}
     }, 10 * 60 * 1000);
 
@@ -193,6 +195,43 @@ function checkWin(board: string[], playerChar: string): boolean {
   return false;
 }
 
+// Función para programar el resguardo por inactividad de una partida ya empezada
+function setupInactivityTimeout(gameId: string, interactionOrMessage: ButtonInteraction) {
+  const game = activeGames.get(gameId);
+  if (!game) return;
+
+  if (game.inactivityTimeout) {
+    clearTimeout(game.inactivityTimeout);
+  }
+
+  game.inactivityTimeout = setTimeout(async () => {
+    const currentGame = activeGames.get(gameId);
+    if (!currentGame) return;
+
+    try {
+      await Promise.all([
+        unb.editUserBalance(interactionOrMessage.guildId!, currentGame.p1, { cash: currentGame.apuesta }),
+        unb.editUserBalance(interactionOrMessage.guildId!, currentGame.p2, { cash: currentGame.apuesta }),
+      ]);
+
+      const timeoutEmbed = new EmbedBuilder()
+        .setColor("Grey")
+        .setTitle("⌛ Partida Expirada por Inactividad")
+        .setDescription("Han pasado 10 minutos sin actividad en la partida.\n\n💸 **Se han devuelto las apuestas** intactas a ambos jugadores.");
+
+      activeGames.delete(gameId);
+
+      await interactionOrMessage.message.edit({
+        embeds: [timeoutEmbed],
+        components: buildBoardComponents(currentGame, gameId, true),
+      });
+    } catch (err) {
+      logger.error({ err }, "Error al expirar partida de tateti por inactividad");
+      activeGames.delete(gameId);
+    }
+  }, 10 * 60 * 1000); // 10 minutos
+}
+
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
@@ -207,7 +246,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    await interaction.deferUpdate();
+    // Usar update directamente para evitar desfases de ID en el mensaje del tablero
+    await interaction.update({ content: "⏳ Preparando tablero...", embeds: [], components: [] });
 
     try {
       // Descontar saldo a ambos por la apuesta
@@ -225,8 +265,12 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         turn: Math.random() < 0.5 ? p1 : p2,
       };
 
-      const gameId = `${interaction.channelId}_${Date.now()}`;
+      // Usar el ID del mensaje actualizado de manera segura
+      const gameId = interaction.message.id;
       activeGames.set(gameId, game);
+
+      // Configurar el temporizador de inactividad de 10 minutos
+      setupInactivityTimeout(gameId, interaction);
 
       await updateBoardMessage(interaction, game, gameId);
     } catch (err: any) {
@@ -253,7 +297,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     const game = activeGames.get(gameId);
     if (!game) {
-      await interaction.reply({ content: "❌ Esta partida ya ha expirado o finalizado.", ephemeral: true });
+      logger.warn({ gameId, activeKeys: Array.from(activeGames.keys()) }, "Partida de tateti no encontrada en memoria al intentar mover");
+      await interaction.reply({ content: "❌ Esta partida ha expirado por inactividad o ya ha finalizado.", ephemeral: true });
       return;
     }
 
@@ -274,6 +319,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     // Verificar victoria (línea de 4)
     if (checkWin(game.board, symbol)) {
+      if (game.inactivityTimeout) clearTimeout(game.inactivityTimeout);
+
       const winnerId = interaction.user.id;
       const totalPozo = game.apuesta * 2;
 
@@ -291,13 +338,15 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     // Verificar empate
     if (game.board.every((cell) => cell !== "")) {
+      if (game.inactivityTimeout) clearTimeout(game.inactivityTimeout);
+
       await Promise.all([
         unb.editUserBalance(interaction.guildId!, game.p1, { cash: game.apuesta }),
         unb.editUserBalance(interaction.guildId!, game.p2, { cash: game.apuesta }),
       ]);
 
       const drawEmbed = new EmbedBuilder()
-        .setColor("Orange")
+        .setColor("Yellow")
         .setTitle("🤝 ¡Empate!")
         .setDescription("El tablero se llenó y nadie logró hacer línea de 4.\n\n💸 Se han devuelto las apuestas intactas a ambos jugadores.");
 
@@ -306,8 +355,10 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Cambiar de turno
+    // Cambiar de turno y reiniciar el temporizador de inactividad
     game.turn = game.turn === game.p1 ? game.p2 : game.p1;
+    setupInactivityTimeout(gameId, interaction);
+
     await updateBoardMessage(interaction, game, gameId);
   }
 }
@@ -342,7 +393,7 @@ function buildBoardComponents(game: TatetiGame, gameId: string, disabled: boolea
 
 async function updateBoardMessage(interaction: ButtonInteraction, game: TatetiGame, gameId: string) {
   const embed = new EmbedBuilder()
-    .setColor("Gold")
+    .setColor("Orange")
     .setTitle("⭕ Ta-Te-Ti 5x5 (Línea de 4) ❌")
     .setDescription(`Turno actual: <@${game.turn}> (${game.turn === game.p1 ? "❌" : "⭕"})\n\n• **Jugador 1 (❌):** <@${game.p1}>\n• **Jugador 2 (⭕):** <@${game.p2}>\n• **Pozo en juego:** \`${(game.apuesta * 2).toLocaleString()} Frijoles\``);
 
