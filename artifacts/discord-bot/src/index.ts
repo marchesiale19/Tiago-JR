@@ -1042,10 +1042,9 @@ registrarComandos().catch((err) => {
 
 console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
-// Agregamos una promesa con timeout para detectar si Discord no responde
 const loginPromise = client.login(token);
 const timeoutPromise = new Promise((_, reject) => 
-  setTimeout(() => reject(new Error("Timeout: Discord tardó demasiado en responder al login")), 15000)
+  setTimeout(() => reject(new Error("Timeout: Discord tardó demasiado en responder al login")), 30000) 
 );
 
 Promise.race([loginPromise, timeoutPromise])
