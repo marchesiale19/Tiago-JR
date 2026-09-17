@@ -437,6 +437,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
+    if (interaction.customId.startsWith("ppt_")) {
+      try {
+        const pptModule = commands.get("piedrapapeltijera") as any;
+        if (pptModule && typeof pptModule.handleButton === "function") {
+          await pptModule.handleButton(interaction);
+        }
+      } catch (err) {
+        logger.error({ err }, "Error handling ppt button");
+      }
+      return;
+    }
     if (interaction.customId.startsWith("supervision_accept_")) {
       const lobbyId = interaction.customId.slice("supervision_accept_".length);
       const member = interaction.member as GuildMember | null;
