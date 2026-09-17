@@ -1042,12 +1042,7 @@ registrarComandos().catch((err) => {
 
 console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
-const loginPromise = client.login(token);
-const timeoutPromise = new Promise((_, reject) => 
-  setTimeout(() => reject(new Error("Timeout: Discord tardó demasiado en responder al login")), 30000) 
-);
-
-Promise.race([loginPromise, timeoutPromise])
+client.login(token)
   .then(() => {
     console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}!`);
   })
