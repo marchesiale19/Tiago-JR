@@ -49,6 +49,7 @@ commands.set(logros.data.name,              logros);
 commands.set(luckybox.data.name,            luckybox);
 commands.set(tateti.data.name,              tateti);  
 commands.set(ppt.data.name,                 ppt);
+commands.set("ppt",                         ppt); // <-- Alias para que el prefijo -ppt funcione al instante
 commands.set(asignarRangoData.name,         { data: asignarRangoData, execute: asignarRangoExecute });
 commands.set(leaderboard.data.name, leaderboard);
 
