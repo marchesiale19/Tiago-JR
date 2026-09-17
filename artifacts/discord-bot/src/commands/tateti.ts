@@ -24,7 +24,7 @@ interface TatetiGame {
   timeout?: NodeJS.Timeout;
 }
 
-// Mapa global activo de partidas en curso (guildId-channelId o sessionId)
+// Mapa global activo de partidas en curso
 const activeGames = new Map<string, TatetiGame>();
 
 export const data = new SlashCommandBuilder()
@@ -39,9 +39,8 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((option) =>
     option
       .setName("apuesta")
-      .setDescription("Cantidad de frijoles a apostar (Máx. 50,000)")
-      .setMinValue(100)
-      .setMaxValue(50000)
+      .setDescription("Cantidad de frijoles a apostar (Sin límite)")
+      .setMinValue(1)
       .setRequired(true),
   );
 
@@ -58,6 +57,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   // Validaciones iniciales
   if (opponent.bot || opponent.id === challenger.id) {
     await interaction.reply({ content: "❌ No puedes retar a un bot o a ti mismo.", ephemeral: true });
+    return;
+  }
+
+  if (apuesta <= 0) {
+    await interaction.reply({ content: "❌ La apuesta debe ser mayor a 0 frijoles.", ephemeral: true });
     return;
   }
 
@@ -97,7 +101,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .setLabel("Aceptar Desafío")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
-        .setCustomId(`tateti_拒绝_${challenger.id}_${opponent.id}`)
+        .setCustomId(`tateti_reject_${challenger.id}_${opponent.id}`)
         .setLabel("Rechazar")
         .setStyle(ButtonStyle.Danger),
     );
@@ -109,7 +113,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     });
 
     // Timeout de 10 minutos para el reto inicial
-    const timeout = setTimeout(async () => {
+    setTimeout(async () => {
       try {
         const expiredEmbed = new EmbedBuilder()
           .setColor("Grey")
@@ -119,7 +123,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       } catch {}
     }, 10 * 60 * 1000);
 
-    // Guardar referencia temporal si es necesario para coleccionadores globales o manejadores de componentes
   } catch (err: any) {
     logger.error({ err }, "Error al iniciar el reto de tateti");
     await interaction.editReply({ content: `❌ Ocurrió un error al procesar el desafío: \`${err?.message || "Error desconocido"}\`` });
@@ -128,7 +131,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
 // Función auxiliar para verificar si hay línea de 4 en tablero 5x5
 function checkWin(board: string[], playerChar: string): boolean {
-  // Dimensiones: 5x5
   const size = 5;
   const winLength = 4;
 
@@ -220,7 +222,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         p2,
         apuesta,
         board: Array(25).fill(""),
-        turn: Math.random() < 0.5 ? p1 : p2, // Sorteo inicial aleatorio
+        turn: Math.random() < 0.5 ? p1 : p2,
       };
 
       const gameId = `${interaction.channelId}_${Date.now()}`;
@@ -230,8 +232,21 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     } catch (err: any) {
       await interaction.followUp({ content: `❌ Error al descontar los fondos para la apuesta: ${err?.message}`, ephemeral: true });
     }
+  } else if (customId.startsWith("tateti_reject_")) {
+    const parts = customId.split("_");
+    const p2 = parts[3];
+
+    if (interaction.user.id !== p2) {
+      await interaction.reply({ content: "❌ No puedes rechazar un desafío que no va dirigido a ti.", ephemeral: true });
+      return;
+    }
+
+    await interaction.update({
+      content: "❌ El desafío ha sido rechazado.",
+      embeds: [],
+      components: [],
+    });
   } else if (customId.startsWith("tateti_move_")) {
-    // Formato: tateti_move_gameId_index
     const parts = customId.split("_");
     const gameId = parts[2];
     const index = parseInt(parts[3], 10);
@@ -254,17 +269,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     await interaction.deferUpdate();
 
-    // Marcar ficha (P1 es ❌, P2 es ⭕)
     const symbol = interaction.user.id === game.p1 ? "❌" : "⭕";
     game.board[index] = symbol;
 
-    // Verificar victoria
+    // Verificar victoria (línea de 4)
     if (checkWin(game.board, symbol)) {
       const winnerId = interaction.user.id;
-      const loserId = winnerId === game.p1 ? game.p2 : game.p1;
       const totalPozo = game.apuesta * 2;
 
-      // Entregar premio completo al ganador
       await unb.editUserBalance(interaction.guildId!, winnerId, { cash: totalPozo });
 
       const winEmbed = new EmbedBuilder()
@@ -277,9 +289,8 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Verificar empate (tablero lleno)
+    // Verificar empate
     if (game.board.every((cell) => cell !== "")) {
-      // Devolver apuestas originales
       await Promise.all([
         unb.editUserBalance(interaction.guildId!, game.p1, { cash: game.apuesta }),
         unb.editUserBalance(interaction.guildId!, game.p2, { cash: game.apuesta }),
