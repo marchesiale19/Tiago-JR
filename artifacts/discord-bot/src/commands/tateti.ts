@@ -6,6 +6,7 @@ import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type ButtonInteraction,
+  type Message,
 } from "discord.js";
 import pkg from "unb-api";
 const { Client: UnbClient } = pkg;
@@ -13,17 +14,15 @@ import { logger } from "../lib/logger";
 
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
-// Interfaz para el estado de la partida
 interface TatetiGame {
   p1: string; // ID del Retador (Cruz ❌)
   p2: string; // ID del Retado (Círculo ⭕)
   apuesta: number;
   board: string[]; // 25 posiciones ("" | "X" | "O")
   turn: string; // ID del jugador actual
-  inactivityTimeout?: NodeJS.Timeout; // Temporizador de inactividad de la partida
+  inactivityTimeout?: NodeJS.Timeout;
 }
 
-// Mapa global activo de partidas en curso
 const activeGames = new Map<string, TatetiGame>();
 
 export const data = new SlashCommandBuilder()
@@ -43,50 +42,60 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   );
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (!interaction.guildId || !interaction.guild) {
-    await interaction.reply({ content: "Este comando solo se usa en servidores.", ephemeral: true });
-    return;
+// Función centralizada para iniciar el duelo (reutilizable para Slash y Prefix)
+async function startTatetiChallenge(
+  guildId: string,
+  challenger: { id: string },
+  opponent: { id: string; bot: boolean },
+  apuesta: number,
+  replyMethod: {
+    reply: (options: any) => Promise<any>;
+    editReply: (options: any) => Promise<any>;
+    fetchReply?: () => Promise<any>;
   }
-
-  const challenger = interaction.user;
-  const opponent = interaction.options.getUser("usuario", true);
-  const apuesta = interaction.options.getInteger("apuesta", true);
-
-  // Validaciones iniciales
+): Promise<void> {
   if (opponent.bot || opponent.id === challenger.id) {
-    await interaction.reply({ content: "❌ No puedes retar a un bot o a ti mismo.", ephemeral: true });
+    await replyMethod.reply({ content: "❌ No puedes retar a un bot o a ti mismo.", ephemeral: true });
     return;
   }
 
   if (apuesta <= 0) {
-    await interaction.reply({ content: "❌ La apuesta debe ser mayor a 0 frijoles.", ephemeral: true });
+    await replyMethod.reply({ content: "❌ La apuesta debe ser mayor a 0 frijoles.", ephemeral: true });
     return;
   }
 
-  await interaction.deferReply();
+  // Si usa deferReply/editReply o reply normal
+  if (typeof replyMethod.reply === "function" && !replyMethod.fetchReply) {
+    // Para mensajes de texto con prefijo
+    await replyMethod.reply({ content: "⏳ Verificando saldos y preparando desafío..." });
+  } else {
+    await (replyMethod as ChatInputCommandInteraction).deferReply();
+  }
 
   try {
-    // 1. Validar saldos usando UnbelievaBoat
     const [balChallenger, balOpponent] = await Promise.all([
-      unb.getUserBalance(interaction.guildId, challenger.id),
-      unb.getUserBalance(interaction.guildId, opponent.id),
+      unb.getUserBalance(guildId, challenger.id),
+      unb.getUserBalance(guildId, opponent.id),
     ]);
 
     const cashChallenger = balChallenger.cash || 0;
     const cashOpponent = balOpponent.cash || 0;
 
-    if (cashChallenger < apuesta) {
-      await interaction.editReply({ content: `❌ No tienes suficientes frijoles. Tienes **${cashChallenger.toLocaleString()}** frijoles en efectivo.` });
+    const errorMsg = cashChallenger < apuesta
+      ? `❌ No tienes suficientes frijoles. Tienes **${cashChallenger.toLocaleString()}** frijoles en efectivo.`
+      : cashOpponent < apuesta
+      ? `❌ El usuario <@${opponent.id}> no tiene suficientes frijoles (necesita **${apuesta.toLocaleString()}**).`
+      : null;
+
+    if (errorMsg) {
+      if (typeof replyMethod.editReply === "function") {
+        await replyMethod.editReply({ content: errorMsg });
+      } else {
+        await replyMethod.reply({ content: errorMsg });
+      }
       return;
     }
 
-    if (cashOpponent < apuesta) {
-      await interaction.editReply({ content: `❌ El usuario <@${opponent.id}> no tiene suficientes frijoles (necesita **${apuesta.toLocaleString()}**).` });
-      return;
-    }
-
-    // 2. Crear Embed y Botones de Reto
     const challengeEmbed = new EmbedBuilder()
       .setColor("Orange")
       .setTitle("⚔️ ¡Desafío de Ta-Te-Ti 5x5!")
@@ -105,38 +114,93 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .setStyle(ButtonStyle.Danger),
     );
 
-    const message = await interaction.editReply({
-      content: `<@${opponent.id}>`,
-      embeds: [challengeEmbed],
-      components: [row],
-    });
+    let sentMessage: any;
+    if (typeof replyMethod.editReply === "function" && replyMethod.fetchReply) {
+      sentMessage = await replyMethod.editReply({
+        content: `<@${opponent.id}>`,
+        embeds: [challengeEmbed],
+        components: [row],
+      });
+    } else {
+      sentMessage = await replyMethod.reply({
+        content: `<@${opponent.id}>`,
+        embeds: [challengeEmbed],
+        components: [row],
+      });
+    }
 
-    // Timeout de 10 minutos para el reto inicial (si no aceptan)
     setTimeout(async () => {
       try {
-        const fetchedMsg = await interaction.fetchReply();
-        if (fetchedMsg.components.length > 0) {
-          const expiredEmbed = new EmbedBuilder()
-            .setColor("Grey")
-            .setTitle("⌛ Desafío Expirado")
-            .setDescription("El tiempo para aceptar el desafío de Ta-Te-Ti ha expirado.");
-          await message.edit({ embeds: [expiredEmbed], components: [] });
+        if (sentMessage && typeof sentMessage.fetch === "function") {
+          const fetchedMsg = await sentMessage.fetch();
+          if (fetchedMsg.components.length > 0) {
+            const expiredEmbed = new EmbedBuilder()
+              .setColor("Grey")
+              .setTitle("⌛ Desafío Expirado")
+              .setDescription("El tiempo para aceptar el desafío de Ta-Te-Ti ha expirado.");
+            await sentMessage.edit({ embeds: [expiredEmbed], components: [] });
+          }
         }
       } catch {}
     }, 10 * 60 * 1000);
 
   } catch (err: any) {
     logger.error({ err }, "Error al iniciar el reto de tateti");
-    await interaction.editReply({ content: `❌ Ocurrió un error al procesar el desafío: \`${err?.message || "Error desconocido"}\`` });
+    const errMsg = `❌ Ocurrió un error al procesar el desafío: \`${err?.message || "Error desconocido"}\``;
+    if (typeof replyMethod.editReply === "function") {
+      await replyMethod.editReply({ content: errMsg });
+    } else {
+      await replyMethod.reply({ content: errMsg });
+    }
   }
 }
 
-// Función auxiliar para verificar si hay línea de 4 en tablero 5x5
+// Ejecución para Slash Commands (/)
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  if (!interaction.guildId || !interaction.guild) {
+    await interaction.reply({ content: "Este comando solo se usa en servidores.", ephemeral: true });
+    return;
+  }
+
+  const challenger = interaction.user;
+  const opponent = interaction.options.getUser("usuario", true);
+  const apuesta = interaction.options.getInteger("apuesta", true);
+
+  await startTatetiChallenge(interaction.guildId, challenger, opponent, apuesta, {
+    reply: (opts) => interaction.reply(opts),
+    editReply: (opts) => interaction.editReply(opts),
+    fetchReply: () => interaction.fetchReply(),
+  });
+}
+
+// Ejecución para Prefijo tradicional (ej: -tateti @usuario 500)
+export async function run(message: Message, args: string[]): Promise<void> {
+  if (!message.guildId || !message.guild) {
+    await message.reply("Este comando solo se usa en servidores.");
+    return;
+  }
+
+  const opponent = message.mentions.users.first();
+  // Busca automáticamente un argumento numérico válido que no sea la mención
+  const apuestaStr = args.find((arg) => !arg.startsWith("<@") && !isNaN(Number(arg)));
+
+  if (!opponent || !apuestaStr) {
+    await message.reply("❌ Uso correcto: `-tateti @usuario <cantidad>`");
+    return;
+  }
+
+  const apuesta = parseInt(apuestaStr, 10);
+
+  await startTatetiChallenge(message.guildId, message.author, opponent, apuesta, {
+    reply: (opts) => message.reply(opts),
+    editReply: (opts) => message.edit(opts),
+  });
+}
+
 function checkWin(board: string[], playerChar: string): boolean {
   const size = 5;
   const winLength = 4;
 
-  // 1. Horizontales
   for (let r = 0; r < size; r++) {
     for (let c = 0; c <= size - winLength; c++) {
       let win = true;
@@ -150,7 +214,6 @@ function checkWin(board: string[], playerChar: string): boolean {
     }
   }
 
-  // 2. Verticales
   for (let c = 0; c < size; c++) {
     for (let r = 0; r <= size - winLength; r++) {
       let win = true;
@@ -164,7 +227,6 @@ function checkWin(board: string[], playerChar: string): boolean {
     }
   }
 
-  // 3. Diagonales (Principal ↘)
   for (let r = 0; r <= size - winLength; r++) {
     for (let c = 0; c <= size - winLength; c++) {
       let win = true;
@@ -178,7 +240,6 @@ function checkWin(board: string[], playerChar: string): boolean {
     }
   }
 
-  // 4. Diagonales (Secundaria ↙)
   for (let r = 0; r <= size - winLength; r++) {
     for (let c = winLength - 1; c < size; c++) {
       let win = true;
@@ -195,7 +256,6 @@ function checkWin(board: string[], playerChar: string): boolean {
   return false;
 }
 
-// Función para programar el resguardo por inactividad de una partida ya empezada
 function setupInactivityTimeout(gameId: string, interactionOrMessage: ButtonInteraction) {
   const game = activeGames.get(gameId);
   if (!game) return;
@@ -229,7 +289,7 @@ function setupInactivityTimeout(gameId: string, interactionOrMessage: ButtonInte
       logger.error({ err }, "Error al expirar partida de tateti por inactividad");
       activeGames.delete(gameId);
     }
-  }, 10 * 60 * 1000); // 10 minutos
+  }, 10 * 60 * 1000);
 }
 
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
@@ -246,17 +306,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Usar update directamente para evitar desfases de ID en el mensaje del tablero
     await interaction.update({ content: "⏳ Preparando tablero...", embeds: [], components: [] });
 
     try {
-      // Descontar saldo a ambos por la apuesta
       await Promise.all([
         unb.editUserBalance(interaction.guildId!, p1, { cash: -apuesta }),
         unb.editUserBalance(interaction.guildId!, p2, { cash: -apuesta }),
       ]);
 
-      // Inicializar juego 5x5 (25 casillas vacías)
       const game: TatetiGame = {
         p1,
         p2,
@@ -265,11 +322,9 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         turn: Math.random() < 0.5 ? p1 : p2,
       };
 
-      // Usar el ID del mensaje actualizado de manera segura
       const gameId = interaction.message.id;
       activeGames.set(gameId, game);
 
-      // Configurar el temporizador de inactividad de 10 minutos
       setupInactivityTimeout(gameId, interaction);
 
       await updateBoardMessage(interaction, game, gameId);
@@ -297,7 +352,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     const game = activeGames.get(gameId);
     if (!game) {
-      logger.warn({ gameId, activeKeys: Array.from(activeGames.keys()) }, "Partida de tateti no encontrada en memoria al intentar mover");
       await interaction.reply({ content: "❌ Esta partida ha expirado por inactividad o ya ha finalizado.", ephemeral: true });
       return;
     }
@@ -317,7 +371,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     const symbol = interaction.user.id === game.p1 ? "❌" : "⭕";
     game.board[index] = symbol;
 
-    // Verificar victoria (línea de 4)
     if (checkWin(game.board, symbol)) {
       if (game.inactivityTimeout) clearTimeout(game.inactivityTimeout);
 
@@ -336,7 +389,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Verificar empate
     if (game.board.every((cell) => cell !== "")) {
       if (game.inactivityTimeout) clearTimeout(game.inactivityTimeout);
 
@@ -355,7 +407,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Cambiar de turno y reiniciar el temporizador de inactividad
     game.turn = game.turn === game.p1 ? game.p2 : game.p1;
     setupInactivityTimeout(gameId, interaction);
 
@@ -363,7 +414,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 }
 
-// Generador visual del tablero 5x5 con botones
 function buildBoardComponents(game: TatetiGame, gameId: string, disabled: boolean = false) {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
 
