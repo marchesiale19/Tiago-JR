@@ -17,9 +17,13 @@ const body = commands.map((command) => command.data.toJSON());
 const rest = new REST().setToken(token);
 
 async function main() {
-  logger.info({ count: body.length }, "Registering global slash commands");
-  await rest.put(Routes.applicationCommands(clientId as string), { body });
-  logger.info("Slash commands registered successfully");
+  const guildId = "1437644356977823884"; // Tu ID de servidor para registro instantáneo
+  logger.info({ count: body.length, guildId }, "Registering guild slash commands");
+
+  // Cambiamos Routes.applicationCommands por Routes.applicationGuildCommands
+  await rest.put(Routes.applicationGuildCommands(clientId as string, guildId), { body });
+
+  logger.info("Guild slash commands registered successfully");
 }
 
 main().catch((err) => {

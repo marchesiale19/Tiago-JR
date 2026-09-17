@@ -3,7 +3,7 @@ import {
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
 } from "discord.js";
-import * as postular                 from "./postular";
+import * as postular               from "./postular";
 import { data as helpData, execute as helpExecute } from "./help";
 import { data as asignarRangoData, execute as asignarRangoExecute } from "./asignarRango";
 import * as sanciones                from "./sanciones";
@@ -13,7 +13,6 @@ import * as perfil                   from "./perfil";
 import * as logros                   from "./logros";
 import * as luckybox                 from "./luckybox";
 import * as tateti                   from "./tateti"; 
-import * as roleOverride             from "./roleOverride";
 import * as leaderboard from "./leaderboard";
 // nuevo flujo de ranked
 import * as buscarPartida            from "./buscar-partida";
