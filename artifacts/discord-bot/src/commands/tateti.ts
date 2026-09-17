@@ -64,9 +64,7 @@ async function startTatetiChallenge(
     return;
   }
 
-  // Si usa deferReply/editReply o reply normal
   if (typeof replyMethod.reply === "function" && !replyMethod.fetchReply) {
-    // Para mensajes de texto con prefijo
     await replyMethod.reply({ content: "⏳ Verificando saldos y preparando desafío..." });
   } else {
     await (replyMethod as ChatInputCommandInteraction).deferReply();
@@ -173,7 +171,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   });
 }
 
-// Ejecución para Prefijo tradicional (ej: -tateti @usuario 500)
+// Ejecución para Prefijo tradicional corregida (-tateti @usuario cantidad)
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
@@ -181,7 +179,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
   }
 
   const opponent = message.mentions.users.first();
-  // Busca automáticamente un argumento numérico válido que no sea la mención
   const apuestaStr = args.find((arg) => !arg.startsWith("<@") && !isNaN(Number(arg)));
 
   if (!opponent || !apuestaStr) {
@@ -191,9 +188,12 @@ export async function run(message: Message, args: string[]): Promise<void> {
 
   const apuesta = parseInt(apuestaStr, 10);
 
+  // El bot crea y guarda su propio mensaje para editarlo de forma segura
+  const loadingMessage = await message.reply("⏳ Verificando saldos y preparando desafío...");
+
   await startTatetiChallenge(message.guildId, message.author, opponent, apuesta, {
-    reply: (opts) => message.reply(opts),
-    editReply: (opts) => message.edit(opts),
+    reply: (opts) => loadingMessage.edit(opts),
+    editReply: (opts) => loadingMessage.edit(opts),
   });
 }
 
