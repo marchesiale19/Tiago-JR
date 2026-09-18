@@ -218,7 +218,7 @@ async function handleApprove(interaction: ButtonInteraction, applicantId: string
         .setColor("Green")
         .setTitle("✅ Postulación APROBADA")
         .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
-        .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el ${now}` })
+        .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el${now}` })
     : null;
 
   try {
@@ -272,7 +272,7 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
         .setTitle("❌ Postulación RECHAZADA")
         .addFields({ name: "Razón del rechazo", value: reason })
         .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
-        .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el ${now}` })
+        .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el${now}` })
     : null;
 
   try {
@@ -425,7 +425,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-    
+
     if (interaction.customId.startsWith("tateti_")) {
       try {
         const tatetiModule = commands.get("tateti") as any;
@@ -717,7 +717,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
   }
-  
+
   if (interaction.isModalSubmit()) {
     if (interaction.customId.startsWith("postular_reject_modal_")) {
       try {
@@ -857,6 +857,10 @@ client.on(Events.MessageCreate, async (message) => {
     };
     await command.execute(fakeInteraction as any);
   } catch (err) {
+    console.error("❌ ERROR CRÍTICO EN COMANDO POR PREFIJO:", err);
+    if (err instanceof Error) {
+      console.error("Stack trace:", err.stack);
+    }
     logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
     await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
   }
