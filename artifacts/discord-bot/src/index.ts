@@ -846,12 +846,13 @@ client.on(Events.MessageCreate, async (message) => {
         const content = typeof options === "string" ? options : options.content;
         return message.channel.send({ content, embeds: options.embeds || [], components: options.components || [] });
       },
-      async deferReply() {
+      async deferReply(options: any) {
         this.deferred = true;
+        return message.channel.send({ content: "⏳ Procesando...", flags: options?.flags });
       },
       async editReply(options: any) {
-        const content = typeof options === "string" ? options : options.content;
         this.replied = true;
+        const content = typeof options === "string" ? options : options.content;
         return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       }
     };
