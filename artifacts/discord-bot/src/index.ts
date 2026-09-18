@@ -65,7 +65,7 @@ const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
 
-// registro de bananeos 
+// registro de baneos 
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
 
@@ -119,7 +119,7 @@ function formatActionTimestamp(date: Date): string {
 }
 
 // lista de roles auras autorizados
-  const ROLES_AUTORIZADOS = [
+const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
@@ -296,7 +296,7 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
     const applicant = await interaction.client.users.fetch(applicantId);
     await applicant.send(`❌ Tu postulación fue RECHAZADA. Razón: ${reason}`);
 
-   const guild = interaction.guild;
+    const guild = interaction.guild;
     if (guild) {
       const member = await guild.members.fetch(applicantId);
       if (member.roles.cache.has(POSTULADOS_ROLE_ID)) {
@@ -822,7 +822,13 @@ client.on(Events.MessageCreate, async (message) => {
           subArgs.shift();
           return subArgs.join(" ") || null;
         },
-        getInteger: () => {
+        getInteger: (name?: string) => {
+          if (commandName === "piedrapapeltijera" || commandName === "ppt") {
+            if (name === "apuesta") return parseInt(args[1]) || 0;
+            if (name === "opcion") return parseInt(args[2]) || 0;
+            const numbers = args.map(arg => parseInt(arg)).filter(n => !isNaN(n));
+            return numbers[0] || parseInt(args[1]) || null;
+          }
           if (commandName === "temporada") {
             return parseInt(args[1]) || null;
           }
