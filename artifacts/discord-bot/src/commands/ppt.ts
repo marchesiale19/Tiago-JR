@@ -14,8 +14,6 @@ import { logger } from "../lib/logger";
 
 const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
-const APUESTA_MINIMA = 10000;
-
 export const data = new SlashCommandBuilder()
   .setName("piedrapapeltijera") 
   .setDescription("Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.")
@@ -28,8 +26,8 @@ export const data = new SlashCommandBuilder()
   .addIntegerOption((option) =>
     option
       .setName("apuesta")
-      .setDescription(`Cantidad a apostar (Mínimo ${APUESTA_MINIMA.toLocaleString()} - Sin límite máximo)`)
-      .setMinValue(APUESTA_MINIMA)
+      .setDescription("Cantidad a apostar (Sin límites)")
+      .setMinValue(0)
       .setRequired(true),
   )
   .addIntegerOption((option) =>
@@ -40,7 +38,6 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   );
 
-// Función para determinar el ganador de una tirada
 function getRoundWinner(choice1: string, choice2: string): number {
   if (choice1 === choice2) return 0; // Empate
   if (
@@ -65,16 +62,6 @@ async function startPPTChallenge(
 ) {
   if (opponent.bot || opponent.id === challenger.id) {
     const content = "❌ No puedes retar a un bot o a ti mismo.";
-    if (isSlash && interaction) {
-      await interaction.reply({ content, ephemeral: true });
-    } else {
-      await channel.send({ content });
-    }
-    return;
-  }
-
-  if (apuesta < APUESTA_MINIMA) {
-    const content = `❌ La apuesta mínima es de **${APUESTA_MINIMA.toLocaleString()} Frijoles** (sin límite máximo).`;
     if (isSlash && interaction) {
       await interaction.reply({ content, ephemeral: true });
     } else {
@@ -163,10 +150,8 @@ async function startPPTChallenge(
           return;
         }
 
-        // Paramos el collector inicial de invitación
         collector.stop("accepted");
 
-        // Verificamos saldos de nuevo justo antes de arrancar
         const [checkC, checkO] = await Promise.all([
           unb.getUserBalance(guildId, targetChallengerId),
           unb.getUserBalance(guildId, targetOpponentId),
@@ -181,7 +166,6 @@ async function startPPTChallenge(
           return;
         }
 
-        // Iniciamos el juego de rondas
         await runGameSession(i, channel, guildId, targetChallengerId, targetOpponentId, apuesta, rondasObjetivo, sentMessage);
       }
     });
@@ -190,7 +174,7 @@ async function startPPTChallenge(
       if (reason === "time") {
         try {
           const expiredEmbed = EmbedBuilder.from(embed)
-            .setColor("Gray")
+            .setColor("Grey")
             .setDescription(`⏱️ **Este duelo ha expirado.** Nadie aceptó la invitación en el tiempo límite de 10 minutos.`);
 
           await sentMessage.edit({
@@ -214,7 +198,6 @@ async function startPPTChallenge(
   }
 }
 
-// Lógica de las rondas de juego con botones efímeros secretos
 async function runGameSession(
   initialInteraction: ButtonInteraction,
   channel: any,
@@ -229,12 +212,11 @@ async function runGameSession(
   let opponentScore = 0;
   let roundNumber = 1;
 
-  // Actualizamos el mensaje principal para mostrar que el juego comenzó
   await initialInteraction.update({
     content: `🎮 ¡Duelo en curso entre <@${challengerId}> y <@${opponentId}>!`,
     embeds: [
       new EmbedBuilder()
-        .setColor("Orange")
+        .setColor("Blue")
         .setTitle("✊ 📄 ✂️ Duelo en Progreso")
         .setDescription(`Marcador actual:\n<@${challengerId}>: **${challengerScore}** | <@${opponentId}>: **${opponentScore}**\n\n*Rondas necesarias para ganar:* \`${rondasObjetivo}\``)
     ],
@@ -243,7 +225,7 @@ async function runGameSession(
 
   while (challengerScore < rondasObjetivo && opponentScore < rondasObjetivo) {
     const roundEmbed = new EmbedBuilder()
-      .setColor("Orange")
+      .setColor("Yellow")
       .setTitle(`⚔️ Ronda #${roundNumber}`)
       .setDescription("¡Elige tu jugada en los botones de abajo! Tienes **30 segundos**.\n*Tu elección es secreta y no se puede cambiar.*");
 
@@ -253,7 +235,6 @@ async function runGameSession(
       new ButtonBuilder().setCustomId(`ppt_play_scissors_${roundNumber}`).setLabel("Tijera ✂️").setStyle(ButtonStyle.Primary)
     );
 
-    // Mandamos un mensaje público avisando la ronda actual
     const roundMsg = await channel.send({
       content: `<@${challengerId}> y <@${opponentId}>, revisen sus opciones.`,
       embeds: [roundEmbed],
@@ -263,7 +244,6 @@ async function runGameSession(
     let challengerChoice: string | null = null;
     let opponentChoice: string | null = null;
 
-    // Creamos un collector para capturar las elecciones de forma efímera/privada
     const roundCollector = roundMsg.createMessageComponentCollector({
       time: 30 * 1000,
     });
@@ -274,7 +254,7 @@ async function runGameSession(
         return;
       }
 
-      const choice = i.customId.split("_")[2]; // rock, paper o scissors
+      const choice = i.customId.split("_")[2];
 
       if (i.user.id === challengerId) {
         if (challengerChoice) {
@@ -292,7 +272,6 @@ async function runGameSession(
         await i.reply({ content: `✅ Elegiste **${choice.toUpperCase()}**. Esperando al retador...`, ephemeral: true });
       }
 
-      // Si ambos ya eligieron, cerramos el collector de esta ronda antes de tiempo
       if (challengerChoice && opponentChoice) {
         roundCollector.stop("finished");
       }
@@ -306,7 +285,6 @@ async function runGameSession(
       await roundMsg.delete().catch(() => {});
     } catch {}
 
-    // Si alguien no eligió a tiempo
     if (!challengerChoice || !opponentChoice) {
       await channel.send({
         content: `⏱️ El tiempo de la ronda expiró porque uno de los jugadores no eligió. ¡Duelo cancelado!`,
@@ -314,10 +292,8 @@ async function runGameSession(
       return;
     }
 
-    // Calculamos el ganador de la ronda
     const winner = getRoundWinner(challengerChoice, opponentChoice);
     let roundResultText = "";
-
     const emojiMap: Record<string, string> = { rock: "🪨 Piedra", paper: "📄 Papel", scissors: "✂️ Tijera" };
 
     if (winner === 1) {
@@ -339,15 +315,13 @@ async function runGameSession(
     }
   }
 
-  // Fin del juego: Determinar ganador total
   const totalWinnerId = challengerScore > opponentScore ? challengerId : opponentId;
   const totalLoserId = challengerScore > opponentScore ? opponentId : challengerId;
 
   try {
-    // Transacción de UnbelievableBoat: Se le quita al perdedor y se le paga al ganador el pozo total
     const pozoTotal = apuesta * 2;
     await unb.editUserBalance(guildId, totalLoserId, { cash: -apuesta });
-    await unb.editUserBalance(guildId, totalWinnerId, { cash: apuesta }); // Suma su apuesta original + la del contrincante
+    await unb.editUserBalance(guildId, totalWinnerId, { cash: apuesta });
 
     const finalEmbed = new EmbedBuilder()
       .setColor("Green")
