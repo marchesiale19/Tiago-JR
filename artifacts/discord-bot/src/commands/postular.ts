@@ -4,11 +4,9 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ChannelType,
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
   type Message,
-  type OverwriteResolvable,
   type TextChannel,
 } from "discord.js";
 import {
@@ -25,7 +23,19 @@ export const data = new SlashCommandBuilder()
   );
 (data as any).category = "Postulaciones";
 
-const STAFF_ROLE_ID = process.env["STAFF_ROLE_ID"];
+const ADMIN_CHANNEL_ID = "1534891104380649554";
+
+// Roles autorizados para interactuar con los botones de Aceptar/Rechazar
+const ROLES_ADMIN_POSTULACIONES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+];
 
 const QUESTIONS = [
   "Nombre:",
@@ -37,7 +47,6 @@ const QUESTIONS = [
 ];
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 días
-const APPLICATIONS_CHANNEL_NAME = "postulaciones-staff";
 
 // Mapeo de roles de niveles por ID, ordenados del mayor al menor para priorizar el rango más alto
 const NIVELES_ROLES_MAP: { id: string; name: string; level: number }[] = [
@@ -73,111 +82,6 @@ function formatRemainingCooldown(msRemaining: number): string {
   return `${seconds}s`;
 }
 
-async function getOrCreateApplicationsChannel(
-  interaction: ChatInputCommandInteraction,
-): Promise<TextChannel | null> {
-  const guild = interaction.guild;
-  if (!guild) return null;
-
-  const botUserId = interaction.client.user.id;
-
-  let existing;
-  try {
-    await guild.channels.fetch();
-    existing = guild.channels.cache.find(
-      (channel) =>
-        channel.name === APPLICATIONS_CHANNEL_NAME &&
-        channel.type === ChannelType.GuildText,
-    );
-  } catch (err) {
-    console.error(`[postular] ERROR searching channels:`, err);
-    return null;
-  }
-
-  if (existing) {
-    const existingChannel = existing as TextChannel;
-    try {
-      await applyApplicationsChannelPermissions(
-        existingChannel,
-        guild.id,
-        botUserId,
-      );
-    } catch (err) {
-      logger.warn({ err, channelId: existingChannel.id }, "Failed to update permissions");
-    }
-    return existingChannel;
-  }
-
-  try {
-    const created = await guild.channels.create({
-      name: APPLICATIONS_CHANNEL_NAME,
-      type: ChannelType.GuildText,
-      reason: "Canal privado para revisar postulaciones de staff",
-      permissionOverwrites: buildApplicationsChannelOverwrites(
-        guild.id,
-        botUserId,
-      ),
-    });
-    return created;
-  } catch (err) {
-    logger.warn({ err, guildId: guild.id }, "Failed to create applications channel");
-    return null;
-  }
-}
-
-function buildApplicationsChannelOverwrites(
-  guildId: string,
-  botUserId: string,
-): OverwriteResolvable[] {
-  const overwrites: OverwriteResolvable[] = [
-    {
-      id: guildId,
-      deny: [PermissionFlagsBits.ViewChannel],
-    },
-    {
-      id: botUserId,
-      allow: [
-        PermissionFlagsBits.ViewChannel,
-        PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ManageChannels,
-        PermissionFlagsBits.ManageRoles,
-      ],
-    },
-  ];
-
-  if (STAFF_ROLE_ID) {
-    overwrites.push({
-      id: STAFF_ROLE_ID,
-      allow: [PermissionFlagsBits.ViewChannel],
-    });
-  }
-
-  return overwrites;
-}
-
-async function applyApplicationsChannelPermissions(
-  channel: TextChannel,
-  guildId: string,
-  botUserId: string,
-): Promise<void> {
-  await channel.permissionOverwrites.edit(botUserId, {
-    ViewChannel: true,
-    SendMessages: true,
-    ManageChannels: true,
-    ManageRoles: true,
-  });
-
-  await channel.permissionOverwrites.edit(guildId, {
-    ViewChannel: false,
-  });
-
-  if (STAFF_ROLE_ID) {
-    await channel.permissionOverwrites.edit(STAFF_ROLE_ID, {
-      ViewChannel: true,
-    });
-  }
-}
-
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
@@ -211,10 +115,19 @@ export async function execute(
     }
   }
 
-  const checkChannel = await getOrCreateApplicationsChannel(interaction);
-  if (checkChannel) {
+  let adminChannel: TextChannel | null = null;
+  try {
+    const fetchedChannel = await interaction.guild.channels.fetch(ADMIN_CHANNEL_ID);
+    if (fetchedChannel && fetchedChannel.isTextBased()) {
+      adminChannel = fetchedChannel as TextChannel;
+    }
+  } catch (err) {
+    console.error(`[postular] ERROR searching admin channel:`, err);
+  }
+
+  if (adminChannel) {
     try {
-      const messages = await checkChannel.messages.fetch({ limit: 100 });
+      const messages = await adminChannel.messages.fetch({ limit: 100 });
       const existingApplication = messages.find(msg => 
         msg.author.id === interaction.client.user.id &&
         msg.embeds.length > 0 &&
@@ -333,8 +246,7 @@ export async function execute(
     }
   }
 
-  let applicationsChannel: TextChannel | null = await getOrCreateApplicationsChannel(interaction);
-  if (!applicationsChannel) {
+  if (!adminChannel) {
     try {
       await dmChannel.send("⚠️ Hubo un problema al enviar tu postulación al staff. Por favor contacta a un administrador.");
     } catch (err) {}
@@ -391,7 +303,7 @@ export async function execute(
   );
 
   try {
-    await applicationsChannel.send({
+    await adminChannel.send({
       embeds: [embed],
       components: [row],
     });
@@ -403,5 +315,30 @@ export async function execute(
     await interaction.editReply({
       content: "⚠️ Tu postulación fue enviada al staff, pero hubo un detalle con los mensajes directos.",
     });
+  }
+}
+
+// Validación de botones para aceptar/rechazar
+export async function handleButton(interaction: any): Promise<void> {
+  if (!interaction.isButton()) return;
+  if (!interaction.customId.startsWith("postular_approve_") && !interaction.customId.startsWith("postular_reject_")) {
+    return;
+  }
+
+  const member = interaction.member;
+  if (!member || !member.roles) {
+    await interaction.reply({ content: "❌ No se pudieron verificar tus roles.", ephemeral: true });
+    return;
+  }
+
+  const memberRolesCache = member.roles.cache;
+  const hasPermission = ROLES_ADMIN_POSTULACIONES.some((roleId) => memberRolesCache.has(roleId));
+
+  if (!hasPermission) {
+    await interaction.reply({
+      content: "❌ No tienes los permisos necesarios para aceptar o rechazar esta postulación.",
+      ephemeral: true,
+    });
+    return;
   }
 }
