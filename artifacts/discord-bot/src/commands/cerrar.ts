@@ -11,6 +11,7 @@ import {
 import { closeSeason } from "../services/SeasonService";
 import { seasonRepository } from "../database/repositories/SeasonRepository";
 import { logger } from "../lib/logger";
+import { setApplicationsOpen } from "../lib/applications-state";
 
 // definición de roles niggerdiddy67
 const ROLES_POSTULACIONES = [
@@ -126,6 +127,7 @@ export async function execute(
 
 // cerrar postulaciones
   else if (sub === "postulaciones") {
+    setApplicationsOpen(false);
     const embed = new EmbedBuilder()
       .setColor("Red")
       .setTitle("🔒 ¡Postulaciones al Staff Cerradas!")
