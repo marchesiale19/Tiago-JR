@@ -14,6 +14,7 @@ import * as logros from "./logros";
 import * as luckybox from "./luckybox";
 import * as tateti from "./tateti";  
 import * as ppt from "./ppt";
+import * as mensaje from "./mensaje"; // <-- NUEVO: Importamos el archivo de mensajes anónimos
 import * as leaderboard from "./leaderboard";
 // nuevo flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -49,6 +50,7 @@ commands.set(logros.data.name, logros);
 commands.set(luckybox.data.name, luckybox);
 commands.set(tateti.data.name, tateti);  
 commands.set(ppt.data.name, ppt);
+commands.set(mensaje.data.name, mensaje); // <-- NUEVO: Registramos el comando en la colección
 commands.set(asignarRangoData.name, { data: asignarRangoData, execute: asignarRangoExecute });
 commands.set(leaderboard.data.name, leaderboard);
 
