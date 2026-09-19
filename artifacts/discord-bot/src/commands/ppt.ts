@@ -99,7 +99,7 @@ async function startPPTChallenge(
     }
 
     const embed = new EmbedBuilder()
-      .setColor("Blue")
+      .setColor("Orange")
       .setTitle("✊ 📄 ✂️ ¡Duelo de Piedra, Papel o Tijera!")
       .setDescription(`<@${opponent.id}>, has sido retado por <@${challenger.id}>.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n🔄 **Rondas para ganar:** \`${rondas}\`\n\n*Al aceptar, se retendrá el pozo inicial de ambos jugadores.*\n⏳ Tienes 10 minutos para aceptar.`);
 
@@ -158,7 +158,7 @@ async function startPPTChallenge(
       if (reason === "time") {
         try {
           const expiredEmbed = EmbedBuilder.from(embed)
-            .setColor("Red")
+            .setColor("Gray")
             .setDescription(`⏱️ **Este duelo ha expirado.** Nadie aceptó la invitación en el tiempo límite de 10 minutos.`);
 
           await sentMessage.edit({
