@@ -11,6 +11,7 @@ import {
 } from "discord.js";
 import { openSeason } from "../services/SeasonService";
 import { logger } from "../lib/logger";
+import { setApplicationsOpen } from "../lib/applications-state";
 
 // Definición de roles
 
@@ -146,6 +147,7 @@ export async function execute(
 // Abrir postulaciones
 
   else if (sub === "postulaciones") {
+    setApplicationsOpen(true);
     const embed = new EmbedBuilder()
       .setColor("Green") 
       .setTitle("📝 ¡Postulaciones al Staff Abiertas!")
