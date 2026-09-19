@@ -349,7 +349,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId) return;
 
   const opponent = message.mentions.users.first();
-
   const cleanArgs = args.filter(arg => !arg.includes(opponent?.id ?? ""));
   const apuesta = parseInt(cleanArgs[0], 10);
   const rondas = parseInt(cleanArgs[1], 10);
