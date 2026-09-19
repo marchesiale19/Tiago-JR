@@ -17,7 +17,6 @@ const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 const APUESTA_MINIMA = 10000;
 
 export const data = new SlashCommandBuilder()
-  // Discord no permite espacios en Slash Commands, así que va todo junto
   .setName("piedrapapeltijera") 
   .setDescription("Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.")
   .addUserOption((option) =>
@@ -41,33 +40,38 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   );
 
-// Función centralizada para Slash (/) y Prefix (-)
 async function startPPTChallenge(
   guildId: string,
   challenger: { id: string },
   opponent: { id: string; bot: boolean },
   apuesta: number,
   rondas: number,
-  replyMethod: {
-    reply: (options: any) => Promise<any>;
-    editReply: (options: any) => Promise<any>;
-    fetchReply?: () => Promise<any>;
-  }
+  channel: any,
+  isSlash: boolean,
+  interaction?: ChatInputCommandInteraction
 ) {
   if (opponent.bot || opponent.id === challenger.id) {
-    await replyMethod.reply({ content: "❌ No puedes retar a un bot o a ti mismo.", ephemeral: true });
+    const content = "❌ No puedes retar a un bot o a ti mismo.";
+    if (isSlash && interaction) {
+      await interaction.reply({ content, ephemeral: true });
+    } else {
+      await channel.send({ content });
+    }
     return;
   }
 
   if (apuesta < APUESTA_MINIMA) {
-    await replyMethod.reply({ content: `❌ La apuesta mínima es de **${APUESTA_MINIMA.toLocaleString()} Frijoles** (sin límite máximo).`, ephemeral: true });
+    const content = `❌ La apuesta mínima es de **${APUESTA_MINIMA.toLocaleString()} Frijoles** (sin límite máximo).`;
+    if (isSlash && interaction) {
+      await interaction.reply({ content, ephemeral: true });
+    } else {
+      await channel.send({ content });
+    }
     return;
   }
 
-  if (typeof replyMethod.reply === "function" && !replyMethod.fetchReply) {
-    await replyMethod.reply({ content: "⏳ Preparando el duelo de Piedra, Papel o Tijera..." });
-  } else {
-    await (replyMethod as ChatInputCommandInteraction).deferReply();
+  if (isSlash && interaction) {
+    await interaction.deferReply();
   }
 
   try {
@@ -86,10 +90,10 @@ async function startPPTChallenge(
       : null;
 
     if (errorMsg) {
-      if (typeof replyMethod.editReply === "function") {
-        await replyMethod.editReply({ content: errorMsg });
+      if (isSlash && interaction) {
+        await interaction.editReply({ content: errorMsg });
       } else {
-        await replyMethod.reply({ content: errorMsg });
+        await channel.send({ content: errorMsg });
       }
       return;
     }
@@ -110,23 +114,24 @@ async function startPPTChallenge(
         .setStyle(ButtonStyle.Danger),
     );
 
-    if (typeof replyMethod.editReply === "function" && replyMethod.fetchReply) {
-      await replyMethod.editReply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row] });
+    const payload = { content: `<@${opponent.id}>`, embeds: [embed], components: [row] };
+
+    if (isSlash && interaction) {
+      await interaction.editReply(payload);
     } else {
-      await replyMethod.reply({ content: `<@${opponent.id}>`, embeds: [embed], components: [row] });
+      await channel.send(payload);
     }
   } catch (err: any) {
     logger.error({ err }, "Error al iniciar duelo de PPT");
     const errMsg = `❌ Ocurrió un error: ${err?.message}`;
-    if (typeof replyMethod.editReply === "function") {
-      await replyMethod.editReply({ content: errMsg });
+    if (isSlash && interaction) {
+      await interaction.editReply({ content: errMsg });
     } else {
-      await replyMethod.reply({ content: errMsg });
+      await channel.send({ content: errMsg });
     }
   }
 }
 
-// Ejecución para Slash Commands (/)
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId) return;
   const challenger = interaction.user;
@@ -134,37 +139,27 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const apuesta = interaction.options.getInteger("apuesta", true);
   const rondas = interaction.options.getInteger("rondas", true);
 
-  await startPPTChallenge(interaction.guildId, challenger, opponent, apuesta, rondas, {
-    reply: (opts) => interaction.reply(opts),
-    editReply: (opts) => interaction.editReply(opts),
-    fetchReply: () => interaction.fetchReply(),
-  });
+  await startPPTChallenge(interaction.guildId, challenger, opponent, apuesta, rondas, interaction.channel, true, interaction);
 }
 
-// Ejecución para Prefix (-ppt @usuario apuesta rondas)
 export async function run(message: Message, args: string[]): Promise<void> {
   if (!message.guildId) return;
 
   const opponent = message.mentions.users.first();
-  const argsWithoutMentions = args.filter(arg => !arg.startsWith('<@'));
 
-  const apuesta = parseInt(argsWithoutMentions[0], 10);
-  const rondas = parseInt(argsWithoutMentions[1], 10);
+  // Limpiamos los argumentos excluyendo la mención para extraer apuesta y rondas de forma segura
+  const cleanArgs = args.filter(arg => !arg.includes(opponent?.id ?? ""));
+  const apuesta = parseInt(cleanArgs[0], 10);
+  const rondas = parseInt(cleanArgs[1], 10);
 
   if (!opponent || isNaN(apuesta) || isNaN(rondas)) {
     await message.reply("❌ Uso correcto: `-ppt @usuario <apuesta> <rondas>`");
     return;
   }
 
-  const loadingMessage = await message.reply("⏳ Procesando desafío...");
-
-  await startPPTChallenge(message.guildId, message.author, opponent, apuesta, rondas, {
-    reply: (opts) => loadingMessage.edit(opts),
-    editReply: (opts) => loadingMessage.edit(opts),
-  });
+  await startPPTChallenge(message.guildId, message.author, opponent, apuesta, rondas, message.channel, false);
 }
 
-// Manejador de botones (Aquí agregaremos la lógica efímera y el Doble o Nada luego)
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (interaction.customId.startsWith("ppt_accept_")) {
     await interaction.reply({ content: "🚀 ¡Sistema de juego en desarrollo! Se enviarán los menús efímeros pronto.", ephemeral: true });
