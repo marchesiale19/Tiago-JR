@@ -151,7 +151,7 @@ export async function execute(
     const embed = new EmbedBuilder()
       .setColor("Green") 
       .setTitle("📝 ¡Postulaciones al Staff Abiertas!")
-      .setDescription("¡El período de postulaciones para formar parte del STAFF ya se encuentra oficialmente abierto! Si quieres postularte y aportar a la comunidad, usa el comando ``-postular`` para iniciar el proceso.")
+      .setDescription("¡El período de postulaciones para formar parte del STAFF ya se encuentra oficialmente abierto! Si quieres postularte y aportar a la comunidad, usa el comando ``/postular`` para iniciar el proceso.")
       .setImage("https://i.postimg.cc/bvW9HyQg/Gemini-Generated-Image-2s3b992s3b992s3b.png") 
       .addFields(
         { name: "Estado", value: "`Abierto`", inline: true },
