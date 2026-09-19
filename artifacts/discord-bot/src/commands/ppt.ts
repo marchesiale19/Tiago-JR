@@ -40,12 +40,25 @@ export const data = new SlashCommandBuilder()
       .setRequired(true),
   );
 
+// Función para determinar el ganador de una tirada
+function getRoundWinner(choice1: string, choice2: string): number {
+  if (choice1 === choice2) return 0; // Empate
+  if (
+    (choice1 === "rock" && choice2 === "scissors") ||
+    (choice1 === "paper" && choice2 === "rock") ||
+    (choice1 === "scissors" && choice2 === "paper")
+  ) {
+    return 1; // Gana jugador 1
+  }
+  return 2; // Gana jugador 2
+}
+
 async function startPPTChallenge(
   guildId: string,
-  challenger: { id: string },
-  opponent: { id: string; bot: boolean },
+  challenger: { id: string; toString(): string },
+  opponent: { id: string; bot: boolean; toString(): string },
   apuesta: number,
-  rondas: number,
+  rondasObjetivo: number,
   channel: any,
   isSlash: boolean,
   interaction?: ChatInputCommandInteraction
@@ -86,7 +99,7 @@ async function startPPTChallenge(
     const errorMsg = cashChallenger < apuesta
       ? `❌ No tienes suficientes frijoles para esta apuesta.`
       : cashOpponent < apuesta
-      ? `❌ El usuario <@${opponent.id}> no tiene suficientes frijoles para igualar tu apuesta de **${apuesta.toLocaleString()}**.`
+      ? `❌ El usuario ${opponent.toString()} no tiene suficientes frijoles para igualar tu apuesta de **${apuesta.toLocaleString()}**.`
       : null;
 
     if (errorMsg) {
@@ -101,11 +114,11 @@ async function startPPTChallenge(
     const embed = new EmbedBuilder()
       .setColor("Orange")
       .setTitle("✊ 📄 ✂️ ¡Duelo de Piedra, Papel o Tijera!")
-      .setDescription(`<@${opponent.id}>, has sido retado por <@${challenger.id}>.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n🔄 **Rondas para ganar:** \`${rondas}\`\n\n*Al aceptar, se retendrá el pozo inicial de ambos jugadores.*\n⏳ Tienes 10 minutos para aceptar.`);
+      .setDescription(`${opponent.toString()}, has sido retado por${challenger.toString()}.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n🔄 **Rondas para ganar:** \`${rondasObjetivo}\`\n\n*El ganador se lleva el pozo total.* \n⏳ Tienes 10 minutos para aceptar.`);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`ppt_accept_${challenger.id}_${opponent.id}_${apuesta}_${rondas}`)
+        .setCustomId(`ppt_accept_${challenger.id}_${opponent.id}_${apuesta}_${rondasObjetivo}`)
         .setLabel("Aceptar Duelo")
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
@@ -114,43 +127,62 @@ async function startPPTChallenge(
         .setStyle(ButtonStyle.Danger),
     );
 
-    const payload = { content: `<@${opponent.id}>`, embeds: [embed], components: [row] };
+    const payload = { content: opponent.toString(), embeds: [embed], components: [row] };
 
     const sentMessage = isSlash && interaction
       ? await interaction.editReply(payload)
       : await channel.send(payload);
 
-    // Creamos un collector para manejar los botones y la expiración de 10 minutos
     const collector = sentMessage.createMessageComponentCollector({
-      time: 10 * 60 * 1000, // 10 minutos en milisegundos
+      time: 10 * 60 * 1000,
     });
 
     collector.on("collect", async (i: ButtonInteraction) => {
-      // Validar que el que hace click sea el oponente o el retador (para rechazar)
-      if (i.customId.startsWith("ppt_accept_") || i.customId.startsWith("ppt_reject_")) {
-        const parts = i.customId.split("_");
-        const targetOpponentId = parts[3];
+      const parts = i.customId.split("_");
+      const action = parts[1];
+      const targetChallengerId = parts[2];
+      const targetOpponentId = parts[3];
 
-        if (i.user.id !== targetOpponentId && (i.customId.startsWith("ppt_accept_") || i.user.id !== parts[2])) {
-          await i.reply({ content: "❌ No puedes interactuar con este duelo porque no eres el retado.", ephemeral: true });
+      if (action === "reject") {
+        if (i.user.id !== targetOpponentId && i.user.id !== targetChallengerId) {
+          await i.reply({ content: "❌ No puedes rechazar este duelo.", ephemeral: true });
+          return;
+        }
+        await i.update({
+          content: `❌ El duelo fue rechazado por ${i.user.toString()}.`,
+          embeds: [],
+          components: [],
+        });
+        collector.stop("rejected");
+        return;
+      }
+
+      if (action === "accept") {
+        if (i.user.id !== targetOpponentId) {
+          await i.reply({ content: "❌ Solo el usuario retado puede aceptar el duelo.", ephemeral: true });
           return;
         }
 
-        if (i.customId.startsWith("ppt_reject_")) {
+        // Paramos el collector inicial de invitación
+        collector.stop("accepted");
+
+        // Verificamos saldos de nuevo justo antes de arrancar
+        const [checkC, checkO] = await Promise.all([
+          unb.getUserBalance(guildId, targetChallengerId),
+          unb.getUserBalance(guildId, targetOpponentId),
+        ]);
+
+        if ((checkC.cash || 0) < apuesta || (checkO.cash || 0) < apuesta) {
           await i.update({
-            content: `❌ El duelo fue rechazado por <@${i.user.id}>.`,
+            content: "❌ Uno de los jugadores ya no tiene suficientes fondos para cubrir la apuesta.",
             embeds: [],
             components: [],
           });
-          collector.stop("rejected");
           return;
         }
 
-        if (i.customId.startsWith("ppt_accept_")) {
-          // AQUÍ IMPLEMENTAS LA LÓGICA DE LAS JUGADAS Y EL JUEGO EN SÍ
-          await i.reply({ content: "🚀 ¡Has aceptado el duelo! Aquí comenzarán las rondas pronto.", ephemeral: true });
-          collector.stop("accepted");
-        }
+        // Iniciamos el juego de rondas
+        await runGameSession(i, channel, guildId, targetChallengerId, targetOpponentId, apuesta, rondasObjetivo, sentMessage);
       }
     });
 
@@ -182,6 +214,153 @@ async function startPPTChallenge(
   }
 }
 
+// Lógica de las rondas de juego con botones efímeros secretos
+async function runGameSession(
+  initialInteraction: ButtonInteraction,
+  channel: any,
+  guildId: string,
+  challengerId: string,
+  opponentId: string,
+  apuesta: number,
+  rondasObjetivo: number,
+  gameMessage: Message
+) {
+  let challengerScore = 0;
+  let opponentScore = 0;
+  let roundNumber = 1;
+
+  // Actualizamos el mensaje principal para mostrar que el juego comenzó
+  await initialInteraction.update({
+    content: `🎮 ¡Duelo en curso entre <@${challengerId}> y <@${opponentId}>!`,
+    embeds: [
+      new EmbedBuilder()
+        .setColor("Blue")
+        .setTitle("✊ 📄 ✂️ Duelo en Progreso")
+        .setDescription(`Marcador actual:\n<@${challengerId}>: **${challengerScore}** | <@${opponentId}>: **${opponentScore}**\n\n*Rondas necesarias para ganar:* \`${rondasObjetivo}\``)
+    ],
+    components: [],
+  });
+
+  while (challengerScore < rondasObjetivo && opponentScore < rondasObjetivo) {
+    const roundEmbed = new EmbedBuilder()
+      .setColor("Yellow")
+      .setTitle(`⚔️ Renda #${roundNumber}`)
+      .setDescription("¡Elige tu jugada en los botones de abajo! Tienes **30 segundos**.\n*Tu elección es secreta y no se puede cambiar.*");
+
+    const playRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`ppt_play_rock_${roundNumber}`).setLabel("Piedra 🪨").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`ppt_play_paper_${roundNumber}`).setLabel("Papel 📄").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`ppt_play_scissors_${roundNumber}`).setLabel("Tijera ✂️").setStyle(ButtonStyle.Primary)
+    );
+
+    // Mandamos un mensaje público avisando la ronda actual
+    const roundMsg = await channel.send({
+      content: `<@${challengerId}> y <@${opponentId}>, revisen sus opciones.`,
+      embeds: [roundEmbed],
+      components: [playRow],
+    });
+
+    let challengerChoice: string | null = null;
+    let opponentChoice: string | null = null;
+
+    // Creamos un collector para capturar las elecciones de forma efímera/privada
+    const roundCollector = roundMsg.createMessageComponentCollector({
+      time: 30 * 1000,
+    });
+
+    roundCollector.on("collect", async (i: ButtonInteraction) => {
+      if (i.user.id !== challengerId && i.user.id !== opponentId) {
+        await i.reply({ content: "❌ No eres parte de este duelo.", ephemeral: true });
+        return;
+      }
+
+      const choice = i.customId.split("_")[2]; // rock, paper o scissors
+
+      if (i.user.id === challengerId) {
+        if (challengerChoice) {
+          await i.reply({ content: "❌ Ya elegiste tu jugada para esta ronda y no puedes cambiarla.", ephemeral: true });
+          return;
+        }
+        challengerChoice = choice;
+        await i.reply({ content: `✅ Elegiste **${choice.toUpperCase()}**. Esperando al oponente...`, ephemeral: true });
+      } else if (i.user.id === opponentId) {
+        if (opponentChoice) {
+          await i.reply({ content: "❌ Ya elegiste tu jugada para esta ronda y no puedes cambiarla.", ephemeral: true });
+          return;
+        }
+        opponentChoice = choice;
+        await i.reply({ content: `✅ Elegiste **${choice.toUpperCase()}**. Esperando al retador...`, ephemeral: true });
+      }
+
+      // Si ambos ya eligieron, cerramos el collector de esta ronda antes de tiempo
+      if (challengerChoice && opponentChoice) {
+        roundCollector.stop("finished");
+      }
+    });
+
+    await new Promise((resolve) => {
+      roundCollector.on("end", resolve);
+    });
+
+    try {
+      await roundMsg.delete().catch(() => {});
+    } catch {}
+
+    // Si alguien no eligió a tiempo
+    if (!challengerChoice || !opponentChoice) {
+      await channel.send({
+        content: `⏱️ El tiempo de la ronda expiró porque uno de los jugadores no eligió. ¡Duelo cancelado!`,
+      });
+      return;
+    }
+
+    // Calculamos el ganador de la ronda
+    const winner = getRoundWinner(challengerChoice, opponentChoice);
+    let roundResultText = "";
+
+    const emojiMap: Record<string, string> = { rock: "🪨 Piedra", paper: "📄 Papel", scissors: "✂️ Tijera" };
+
+    if (winner === 1) {
+      challengerScore++;
+      roundResultText = `🏆 ¡Punto para <@${challengerId}>! (${emojiMap[challengerChoice]} vs ${emojiMap[opponentChoice]})`;
+    } else if (winner === 2) {
+      opponentScore++;
+      roundResultText = `🏆 ¡Punto para <@${opponentId}>! (${emojiMap[opponentChoice]} vs ${emojiMap[challengerChoice]})`;
+    } else {
+      roundResultText = `🤝 ¡Empate en esta ronda! Ambos sacaron ${emojiMap[challengerChoice]}. Se repetirá.`;
+    }
+
+    await channel.send({
+      content: `📊 **Resultado de la Ronda ${roundNumber}:**\n${roundResultText}\n\nMarcador parcial: <@${challengerId}> (**${challengerScore}**) - <@${opponentId}> (**${opponentScore}**)`,
+    });
+
+    if (winner !== 0) {
+      roundNumber++;
+    }
+  }
+
+  // Fin del juego: Determinar ganador total
+  const totalWinnerId = challengerScore > opponentScore ? challengerId : opponentId;
+  const totalLoserId = challengerScore > opponentScore ? opponentId : challengerId;
+
+  try {
+    // Transacción de UnbelievableBoat: Se le quita al perdedor y se le paga al ganador el pozo total
+    const pozoTotal = apuesta * 2;
+    await unb.editUserBalance(guildId, totalLoserId, { cash: -apuesta });
+    await unb.editUserBalance(guildId, totalWinnerId, { cash: apuesta }); // Suma su apuesta original + la del contrincante
+
+    const finalEmbed = new EmbedBuilder()
+      .setColor("Green")
+      .setTitle("👑 ¡Fin del Duelo de Piedra, Papel o Tijera!")
+      .setDescription(`¡El gran ganador del duelo es <@${totalWinnerId}>!\n\n💰 **Pozo entregado:** \`${pozoTotal.toLocaleString()} Frijoles\`\n📊 **Marcador final:** ${challengerScore} - ${opponentScore}`);
+
+    await channel.send({ embeds: [finalEmbed] });
+  } catch (err) {
+    logger.error({ err }, "Error al transferir los frijoles en el duelo de PPT");
+    await channel.send({ content: "⚠️ Hubo un error al procesar la transferencia de los frijoles con UnbelievableBoat." });
+  }
+}
+
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId) return;
   const challenger = interaction.user;
@@ -209,8 +388,4 @@ export async function run(message: Message, args: string[]): Promise<void> {
   await startPPTChallenge(message.guildId, message.author, opponent, apuesta, rondas, message.channel, false);
 }
 
-// Ya no necesitas manejarlo de forma global en handleButton si usas el collector aquí mismo, 
-// pero si tu manejador global requiere que exista esta función, puedes dejarla vacía o exportarla así:
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  // Si usas collector local, esto puede quedar vació o como fallback.
-}
+export async function handleButton(_interaction: ButtonInteraction): Promise<void> {}
