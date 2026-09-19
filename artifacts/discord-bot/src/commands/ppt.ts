@@ -101,7 +101,7 @@ async function startPPTChallenge(
     const embed = new EmbedBuilder()
       .setColor("Blue")
       .setTitle("✊ 📄 ✂️ ¡Duelo de Piedra, Papel o Tijera!")
-      .setDescription(`<@${opponent.id}>, has sido retado por <@${challenger.id}>.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n🔄 **Rondas para ganar:** \`${rondas}\`\n\n*Al aceptar, se retendrá el pozo inicial de ambos jugadores.*\n⏳ Tienes 5 minutos para aceptar.`);
+      .setDescription(`<@${opponent.id}>, has sido retado por <@${challenger.id}>.\n\n💰 **Apuesta en juego:** \`${apuesta.toLocaleString()} Frijoles\`\n🔄 **Rondas para ganar:** \`${rondas}\`\n\n*Al aceptar, se retendrá el pozo inicial de ambos jugadores.*\n⏳ Tienes 10 minutos para aceptar.`);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
@@ -116,11 +116,61 @@ async function startPPTChallenge(
 
     const payload = { content: `<@${opponent.id}>`, embeds: [embed], components: [row] };
 
-    if (isSlash && interaction) {
-      await interaction.editReply(payload);
-    } else {
-      await channel.send(payload);
-    }
+    const sentMessage = isSlash && interaction
+      ? await interaction.editReply(payload)
+      : await channel.send(payload);
+
+    // Creamos un collector para manejar los botones y la expiración de 10 minutos
+    const collector = sentMessage.createMessageComponentCollector({
+      time: 10 * 60 * 1000, // 10 minutos en milisegundos
+    });
+
+    collector.on("collect", async (i: ButtonInteraction) => {
+      // Validar que el que hace click sea el oponente o el retador (para rechazar)
+      if (i.customId.startsWith("ppt_accept_") || i.customId.startsWith("ppt_reject_")) {
+        const parts = i.customId.split("_");
+        const targetOpponentId = parts[3];
+
+        if (i.user.id !== targetOpponentId && (i.customId.startsWith("ppt_accept_") || i.user.id !== parts[2])) {
+          await i.reply({ content: "❌ No puedes interactuar con este duelo porque no eres el retado.", ephemeral: true });
+          return;
+        }
+
+        if (i.customId.startsWith("ppt_reject_")) {
+          await i.update({
+            content: `❌ El duelo fue rechazado por <@${i.user.id}>.`,
+            embeds: [],
+            components: [],
+          });
+          collector.stop("rejected");
+          return;
+        }
+
+        if (i.customId.startsWith("ppt_accept_")) {
+          // AQUÍ IMPLEMENTAS LA LÓGICA DE LAS JUGADAS Y EL JUEGO EN SÍ
+          await i.reply({ content: "🚀 ¡Has aceptado el duelo! Aquí comenzarán las rondas pronto.", ephemeral: true });
+          collector.stop("accepted");
+        }
+      }
+    });
+
+    collector.on("end", async (_, reason) => {
+      if (reason === "time") {
+        try {
+          const expiredEmbed = EmbedBuilder.from(embed)
+            .setColor("Red")
+            .setDescription(`⏱️ **Este duelo ha expirado.** Nadie aceptó la invitación en el tiempo límite de 10 minutos.`);
+
+          await sentMessage.edit({
+            embeds: [expiredEmbed],
+            components: [],
+          });
+        } catch (err) {
+          logger.error({ err }, "Error al expirar el mensaje de PPT");
+        }
+      }
+    });
+
   } catch (err: any) {
     logger.error({ err }, "Error al iniciar duelo de PPT");
     const errMsg = `❌ Ocurrió un error: ${err?.message}`;
@@ -147,7 +197,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
 
   const opponent = message.mentions.users.first();
 
-  // Limpiamos los argumentos excluyendo la mención para extraer apuesta y rondas de forma segura
   const cleanArgs = args.filter(arg => !arg.includes(opponent?.id ?? ""));
   const apuesta = parseInt(cleanArgs[0], 10);
   const rondas = parseInt(cleanArgs[1], 10);
@@ -160,8 +209,8 @@ export async function run(message: Message, args: string[]): Promise<void> {
   await startPPTChallenge(message.guildId, message.author, opponent, apuesta, rondas, message.channel, false);
 }
 
+// Ya no necesitas manejarlo de forma global en handleButton si usas el collector aquí mismo, 
+// pero si tu manejador global requiere que exista esta función, puedes dejarla vacía o exportarla así:
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  if (interaction.customId.startsWith("ppt_accept_")) {
-    await interaction.reply({ content: "🚀 ¡Sistema de juego en desarrollo! Se enviarán los menús efímeros pronto.", ephemeral: true });
-  }
+  // Si usas collector local, esto puede quedar vació o como fallback.
 }
