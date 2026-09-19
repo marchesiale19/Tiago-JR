@@ -216,7 +216,7 @@ async function runGameSession(
     content: `🎮 ¡Duelo en curso entre <@${challengerId}> y <@${opponentId}>!`,
     embeds: [
       new EmbedBuilder()
-        .setColor("Blue")
+        .setColor("Orange")
         .setTitle("✊ 📄 ✂️ Duelo en Progreso")
         .setDescription(`Marcador actual:\n<@${challengerId}>: **${challengerScore}** | <@${opponentId}>: **${opponentScore}**\n\n*Rondas necesarias para ganar:* \`${rondasObjetivo}\``)
     ],
@@ -225,7 +225,7 @@ async function runGameSession(
 
   while (challengerScore < rondasObjetivo && opponentScore < rondasObjetivo) {
     const roundEmbed = new EmbedBuilder()
-      .setColor("Yellow")
+      .setColor("Orange")
       .setTitle(`⚔️ Ronda #${roundNumber}`)
       .setDescription("¡Elige tu jugada en los botones de abajo! Tienes **30 segundos**.\n*Tu elección es secreta y no se puede cambiar.*");
 
