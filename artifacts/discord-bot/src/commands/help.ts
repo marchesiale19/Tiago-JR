@@ -98,12 +98,14 @@ function getCategories(access: AccessLevel): CategoryData[] {
     },
     {
       label: "Casino",
-      description: "Sistema de Lucky Boxes y economía.",
+      description: "Sistema de Economía.",
       emoji: "🎰",
       title: "Casino",
       content: [
         "-luckybox abrir — Abre una Lucky Box.",
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
+        "-piedrapapeltijera - Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
+        "-tateti - Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
       ].join("\n"),
     },
   ];
