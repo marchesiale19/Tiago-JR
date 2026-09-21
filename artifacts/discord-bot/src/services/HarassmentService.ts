@@ -20,8 +20,8 @@ export class HarassmentService {
   // Almacén en memoria para las menciones recientes
   private static recentMentions: MentionRecord[] = [];
 
-  // Configuración de la ventana temporal y el umbral
-  private static readonly WINDOW_MS = 15 * 60 * 1000; // 15 minutos
+  // Configuración de la ventana temporal (5 minutos) y el umbral
+  private static readonly WINDOW_MS = 5 * 60 * 1000; // 5 minutos
   private static readonly MENTION_THRESHOLD = 7; // 7 menciones o más
 
   /**
@@ -36,7 +36,7 @@ export class HarassmentService {
     // Registrar la nueva mención
     this.recentMentions.push({ authorId, targetId, timestamp: now });
 
-    // Limpiar registros antiguos fuera de la ventana de 15 minutos
+    // Limpiar registros antiguos fuera de la ventana de 5 minutos
     this.recentMentions = this.recentMentions.filter(
       (entry) => now - entry.timestamp < this.WINDOW_MS
     );
@@ -49,7 +49,8 @@ export class HarassmentService {
     const count = userMentionsToTarget.length;
 
     // Si cruza o iguala el umbral, se dispara la alerta
-      if (count >= this.MENTION_THRESHOLD) {      // Opcional: limpiar las menciones de este par para evitar spam constante de alertas por cada mensaje extra
+    if (count >= this.MENTION_THRESHOLD) {      
+      // Limpiar las menciones de este par para evitar spam constante de alertas por cada mensaje extra
       this.recentMentions = this.recentMentions.filter(
         (entry) => !(entry.authorId === authorId && entry.targetId === targetId)
       );
@@ -59,7 +60,7 @@ export class HarassmentService {
         count,
         authorId,
         targetId,
-        reasons: [`El usuario ha mencionado a la misma persona ${count} veces en un lapso de 15 minutos o menos.`],
+        reasons: [`El usuario ha mencionado a la misma persona ${count} veces en un lapso de 5 minutos o menos.`],
       };
     }
 
