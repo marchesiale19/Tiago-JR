@@ -56,6 +56,10 @@ const client = new Client({
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
+  
+  // 🟢 Inicialización del filtro de nombres para nuevos miembros
+  setupNameFilter(client);
+
   import("./database/init")
     .then(({ initDatabase }) => initDatabase(readyClient))
     .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
@@ -573,11 +577,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
           if (!interaction.replied && !interaction.deferred) {
             await interaction.update({
-              content: `🔨 <@${targetUserId}> fue baneado del servidor por **${moderatorName}**.`,
+              content: `🔨 <@${targetUserId}> fue baneado del servidor por **{moderatorName}**.`,
               components: []
             });
           }
-        }
+                }
       } catch (err) {
         logger.error({ err }, "Error procesando acción forense sobre el usuario");
         if (!interaction.replied && !interaction.deferred) {
