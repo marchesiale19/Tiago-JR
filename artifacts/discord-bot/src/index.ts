@@ -1,32 +1,33 @@
 import http from 'node:http';
-import {
-  Client,
-  Events,
-  GatewayIntentBits,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  type ButtonInteraction,
-  type ModalSubmitInteraction,
-  type GuildMember,
-  REST,
-  Routes,
-  AuditLogEvent
-} from "discord.js";
-import { commands } from "./commands";
-import { logger } from "./lib/logger";
+import { 
+  Client, 
+  Events, 
+  GatewayIntentBits, 
+  EmbedBuilder, 
+  ActionRowBuilder, 
+  ButtonBuilder, 
+  ButtonStyle, 
+  ModalBuilder, 
+  TextInputBuilder, 
+  TextInputStyle, 
+  type ButtonInteraction, 
+  type ModalSubmitInteraction, 
+  type GuildMember, 
+  REST, 
+  Routes, 
+  AuditLogEvent 
+} from 'discord.js';
+import { commands } from './commands';
+import { logger } from './lib/logger';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { setupNameFilter } from './services/NameFilterService';
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is running successfully!\n');
+  res.end('Bot is running successfully!');
 });
 
 const PORT = process.env.PORT || 3000;
@@ -55,17 +56,21 @@ const client = new Client({
 
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
+
+  // Inicializamos el filtro automático de nombres al arrancar
+  setupNameFilter(readyClient);
+
   import("./database/init")
     .then(({ initDatabase }) => initDatabase(readyClient))
     .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
 });
 
-const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000; 
+const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000;
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
 
-// registro de baneos 
+// registro de baneos
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
 
@@ -127,7 +132,7 @@ const ROLES_AUTORIZADOS = [
   "1455419124732657801", // Equipo Administrativo
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
-  "1509760475653472287", // Administrador [PB]
+  "1509760475653472287"  // Administrador [PB]
 ];
 
 const ROLES_FORENSIC_AUTORIZADOS = [
@@ -148,7 +153,7 @@ function hasReviewPermission(member: any): boolean {
   }
 
   if (
-    member.roles.cache.has("1522434536796061816") || 
+    member.roles.cache.has("1522434536796061816") ||
     member.roles.cache.has("1539368076326473868")
   ) {
     return true;
@@ -165,7 +170,7 @@ function hasForensicPermission(member: any): boolean {
   }
 
   if (
-    member.roles.cache.has("1522434536796061816") || 
+    member.roles.cache.has("1522434536796061816") ||
     member.roles.cache.has("1539368076326473868")
   ) {
     return true;
@@ -205,19 +210,17 @@ async function assignPostuladosRole(interaction: ButtonInteraction, applicantId:
 
 async function handleApprove(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   if (interaction.message.embeds[0]?.title?.includes("APROBADA")) {
-    return; 
+    return;
   }
 
   const originalEmbed = interaction.message.embeds[0];
   const now = formatActionTimestamp(new Date());
 
-  const updatedEmbed = originalEmbed
-    ? EmbedBuilder.from(originalEmbed)
-        .setColor("Green")
-        .setTitle("✅ Postulación APROBADA")
-        .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
-        .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el${now}` })
-    : null;
+  const updatedEmbed = originalEmbed ? EmbedBuilder.from(originalEmbed)
+    .setColor("Green")
+    .setTitle("✅ Postulación APROBADA")
+    .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
+    .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el${now}` }) : null;
 
   try {
     await interaction.update({
@@ -241,7 +244,7 @@ async function handleApprove(interaction: ButtonInteraction, applicantId: string
 }
 
 async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
-  const match = interaction.customId.match(/^postular_reject_modal_(\d+)$/);
+  const match = interaction.customId.match(/^postular_reject_modal_(.+)$/);
 
   if (!match) {
     console.error(`[ERROR] El ID del modal no coincide con el formato esperado: ${interaction.customId}`);
@@ -264,14 +267,12 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
   const originalEmbed = message?.embeds[0];
   const now = formatActionTimestamp(new Date());
 
-  const updatedEmbed = originalEmbed
-    ? EmbedBuilder.from(originalEmbed)
-        .setColor("Red")
-        .setTitle("❌ Postulación RECHAZADA")
-        .addFields({ name: "Razón del rechazo", value: reason })
-        .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
-        .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el${now}` })
-    : null;
+  const updatedEmbed = originalEmbed ? EmbedBuilder.from(originalEmbed)
+    .setColor("Red")
+    .setTitle("❌ Postulación RECHAZADA")
+    .addFields({ name: "Razón del rechazo", value: reason })
+    .setImage("https://i.postimg.cc/k5NXJHjB/file-000000003dfc720e904bc161db2db57a.png")
+    .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el${now}` }) : null;
 
   try {
     if (interaction.isFromMessage()) {
@@ -329,7 +330,7 @@ async function handleRejectButton(interaction: ButtonInteraction, applicantId: s
 }
 
 async function handlePostulationDecision(interaction: ButtonInteraction): Promise<void> {
-  const match = interaction.customId.match(/^postular_(approve|reject)_(\d+)$/);
+  const match = interaction.customId.match(/^postular_(approve|reject)_(.+)$/);
   if (!match) return;
 
   const [, decision, applicantId] = match;
@@ -435,6 +436,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
+
     if (interaction.customId.startsWith("ppt_")) {
       try {
         const pptModule = commands.get("piedrapapeltijera") as any;
@@ -446,6 +448,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
+
     if (interaction.customId.startsWith("supervision_accept_")) {
       const lobbyId = interaction.customId.slice("supervision_accept_".length);
       const member = interaction.member as GuildMember | null;
@@ -578,4 +581,330 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
         }
       } catch (err) {
-        logger.error({ err }, "
+        logger.error({ err, targetUserId, action }, "Error handling forensic action");
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "❌ No se pudo ejecutar la acción.",
+            ephemeral: true
+          }).catch(() => {});
+        }
+      }
+      return;
+    }
+  }
+
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId.startsWith("postular_reject_modal_")) {
+      try {
+        await handleRejectionModalSubmit(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error handling rejection modal");
+      }
+      return;
+    }
+  }
+
+  if (interaction.isChatInputCommand()) {
+    const command = commands.get(interaction.commandName);
+    if (!command) return;
+
+    try {
+      await command.execute(interaction);
+    } catch (err) {
+      logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ Hubo un error al ejecutar este comando.",
+          ephemeral: true,
+        }).catch(() => {});
+      }
+    }
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.content.startsWith("-")) return;
+
+  const args = message.content.slice(1).trim().split(/ +/);
+  const commandName = args.shift()?.toLowerCase();
+  if (!commandName) return;
+
+  if (commandName === "abrir") {
+    const sub = args[0]?.toLowerCase();
+    if (sub !== "temporada" && sub !== "postulaciones") {
+      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada <nombre>` o `-abrir postulaciones`.");
+      return;
+    }
+  }
+
+  const command = commands.get(commandName);
+  if (!command) return;
+
+  try {
+    const cmdAny = command as any;
+    if (typeof cmdAny.run === "function") {
+      await cmdAny.run(message, args);
+      return;
+    }
+
+    const member = message.member;
+    const fakeInteraction = {
+      commandName: commandName,
+      user: message.author,
+      client: message.client,
+      guild: message.guild,
+      guildId: message.guild?.id,
+      member: member,
+      channel: message.channel,
+      options: {
+        getSubcommand: () => {
+          if (commandName === "temporada") {
+            const sub = args[0]?.toLowerCase();
+            return sub === "info" ? sub : null;
+          }
+          const firstArg = args[0]?.toLowerCase();
+          return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
+        },
+        getString: (name: string) => {
+          if (name === "infraccion" || args.length === 1) {
+            return args.join(" ") || null;
+          }
+          const subArgs = [...args];
+          if (commandName === "temporada") subArgs.shift(); 
+          subArgs.shift();
+          return subArgs.join(" ") || null;
+        },
+        getInteger: () => {
+          if (commandName === "temporada") {
+            return parseInt(args[1]) || null;
+          }
+          return parseInt(args[0]) || null;
+        },
+        getBoolean: () => args[2] === "true" || args[1] === "true",
+        getUser: () => message.mentions.users.first() || null,
+        getMember: () => message.mentions.members?.first() || null,
+        getChannel: () => message.mentions.channels.first() || null,
+      },
+      replied: false,
+      deferred: false,
+      isChatInputCommand: () => true,
+      isCommand: () => true,
+      async reply(options: any) {
+        this.replied = true;
+        const content = typeof options === "string" ? options : options.content;
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
+      },
+      async followUp(options: any) {
+        const content = typeof options === "string" ? options : options.content;
+        return message.channel.send({ content, embeds: options.embeds || [], components: options.components || [] });
+      },
+      async deferReply(options: any) {
+        this.deferred = true;
+        return message.channel.send({ content: "⏳ Procesando...", flags: options?.flags });
+      },
+      async editReply(options: any) {
+        this.replied = true;
+        const content = typeof options === "string" ? options : options.content;
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
+      }
+    };
+    await command.execute(fakeInteraction as any);
+  } catch (err) {
+    console.error("❌ ERROR CRÍTICO EN COMANDO POR PREFIJO:", err);
+    if (err instanceof Error) {
+      console.error("Stack trace:", err.stack);
+    }
+    logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
+    await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
+  }
+});
+
+client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
+  const role = newMember.guild.roles.cache.get(POSTULADOS_ROLE_ID);
+  if (!role) return;
+
+  if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
+    const cooldownKey = `${newMember.guild.id}-${newMember.id}`;
+    rejectionRegistry.set(cooldownKey, Date.now());
+    saveCooldowns(rejectionRegistry);
+    console.log(`[EVENTO] Rol con ID ${POSTULADOS_ROLE_ID} quitado a ${newMember.user.username}. Cooldown aplicado.`);
+  }
+});
+
+client.on(Events.GuildBanAdd, async (ban) => {
+  try {
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const fetchedLogs = await ban.guild.fetchAuditLogs({
+      limit: 1,
+      type: AuditLogEvent.MemberBanAdd,
+    });
+    const banLog = fetchedLogs.entries.first();
+    const executor = banLog?.executor?.username ?? "Staff";
+    const reason = banLog?.reason ?? ban.reason ?? "Sin razón especificada";
+
+    banRegistry.set(ban.user.id, {
+      reason,
+      timestamp: Date.now(),
+      moderator: executor,
+    });
+    saveBansRegistry(banRegistry);
+
+    logger.info({ userId: ban.user.id, username: ban.user.username }, "Usuario baneado registrado en el historial forense");
+  } catch (err) {
+    logger.error({ err }, "Error al registrar baneo en ForensicRegistry");
+  }
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    const { ForensicService } = await import("./services/ForensicService");
+    const user = member.user;
+
+    const previousBan = banRegistry.get(user.id);
+
+    const evaluation = ForensicService.evaluateMember(
+      user.id,
+      user.username ?? "Desconocido",
+      user.createdAt,
+      user.bot ? false : user.avatar === null
+    );
+
+    if (previousBan) {
+      evaluation.riskScore = 100;
+      evaluation.reasons.unshift(`🚨 ¡ESTUVO BANEADO ANTES! Razón previa: "${previousBan.reason}"`);
+    }
+
+    if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster || previousBan) {
+      try {
+        await member.timeout(10 * 60 * 1000, "Alerta Forense: Prevención de alt/spam en revisión");
+      } catch (err) {
+        logger.warn({ err }, "No se pudo aplicar el timeout automático al miembro sospechoso");
+      }
+
+      const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
+      const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
+
+      if (channel && channel.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setColor("Red")
+          .setTitle("🚨 Alerta Forense: Usuario Sospechoso (Timeout Aplicado)")
+          .setDescription(`Se detectó una cuenta sospechosa y se le aplicó un **timeout preventivo de 10 minutos** mientras el staff revisa su historial.`)
+          .addFields(
+            { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
+            { name: "Riesgo Calculado", value: `${evaluation.riskScore}%`, inline: true },
+            { name: "Razones", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`forensic_untimeout_${evaluation.userId}`)
+            .setLabel("Quitar Timeout (Seguro)")
+            .setStyle(ButtonStyle.Success),
+          new ButtonBuilder()
+            .setCustomId(`forensic_ban_${evaluation.userId}`)
+            .setLabel("Confirmar Baneo")
+            .setStyle(ButtonStyle.Danger)
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Error handling guildMemberAdd forensic evaluation");
+  }
+}); 
+
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot || !message.guild) return;
+
+  const mentionedUser = message.mentions.users.first();
+  if (!mentionedUser) return;
+
+  if (mentionedUser.bot || mentionedUser.id === message.author.id) return;
+
+  try {
+    const { HarassmentService } = await import("./services/HarassmentService");
+    const evaluation = HarassmentService.evaluateMention(message.author.id, mentionedUser.id);
+
+    if (evaluation && evaluation.isHarassment) {
+      const STAFF_LOG_CHANNEL_ID = "1522430713746424001";
+      const channel = message.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
+
+      if (channel && channel.isTextBased()) {
+        const embed = new EmbedBuilder()
+          .setColor("Red")
+          .setTitle("⚠️ Alerta: Posible Hostigamiento por Menciones")
+          .setDescription(`Se detectó una alta frecuencia de menciones repetidas entre usuarios en <#${message.channel.id}>.`)
+          .addFields(
+            { name: "Usuario (Agresor)", value: `<@${evaluation.authorId}>`, inline: true },
+            { name: "Usuario Mencionado (Objetivo)", value: `<@${evaluation.targetId}>`, inline: true },
+            { name: "Menciones registradas", value: `${evaluation.count} veces en 15 minutos o menos`, inline: true },
+            { name: "Motivo", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
+          )
+          .setTimestamp();
+
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`harassment_timeout_${evaluation.authorId}`)
+            .setLabel("Aplicar Timeout (10m)")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`harassment_ignore_${evaluation.authorId}`)
+            .setLabel("Ignorar Alerta")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await channel.send({ embeds: [embed], components: [row] });
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, "Error procesando la evaluación de hostigamiento por menciones");
+  }
+});
+
+client.on(Events.MessageCreate, async (message) => {
+  try {
+    const { TrafficMonitorService } = await import("./services/TrafficMonitorService");
+    TrafficMonitorService.handleMessage(message);
+  } catch (err) {
+    logger.error({ err }, "Error en TrafficMonitorService");
+  }
+});
+
+async function iniciarBot() {
+  const token = process.env["DISCORD_BOT_TOKEN"];
+  const clientId = process.env["DISCORD_CLIENT_ID"];
+
+  if (!token || !clientId) {
+    console.error("❌ Faltan DISCORD_BOT_TOKEN o DISCORD_CLIENT_ID para registrar comandos.");
+    return;
+  }
+
+  const rest = new REST().setToken(token);
+  const body = Array.from(commands.values()).map(c => c.data.toJSON());
+
+  try {
+    console.log("🔄 Registrando comandos globalmente...");
+    await rest.put(Routes.applicationCommands(clientId), { body });
+    console.log("✅ Comandos registrados correctamente.");
+  } catch (e) {
+    console.error("❌ Error registrando comandos:", e);
+  }
+
+  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
+
+  try {
+    await client.login(token);
+    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}!`);
+  } catch (err) {
+    console.error("[DEBUG] Error crítico al conectar con Discord:", err);
+    logger.error({ err }, "Failed to log in to Discord");
+    process.exit(1);
+  }
+}
+
+iniciarBot().catch((err) => {
+  console.error("[DEBUG] Error crítico en la inicialización:", err);
+});
