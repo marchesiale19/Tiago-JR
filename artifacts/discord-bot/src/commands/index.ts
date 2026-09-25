@@ -29,6 +29,7 @@ import * as emparejamiento from "./emparejamiento";
 import * as abrir from "./abrir";
 import * as cerrar from "./cerrar";
 import * as reputacion from "./reputacion";
+import * as ver from "./ver";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -65,6 +66,7 @@ commands.set(supervisorInactivo.data.name, supervisorInactivo);
 commands.set(abrir.data.name, abrir);
 commands.set(cerrar.data.name, cerrar);
 commands.set(reputacion.data.name, reputacion);
+commands.set(ver.data.name, ver);
 
 // gestión de cola
 commands.set(cancelar.data.name, cancelar);
