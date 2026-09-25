@@ -1,4 +1,3 @@
-```ts
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -33,12 +32,12 @@ async function sendReputationMenu(
   targetName: string,
   channel: any,
   reply?: (payload: any) => Promise<any>,
-) {
+): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor("Orange")
     .setTitle("⭐ Reputación")
     .setDescription(
-      `¿Qué reputación quieres darle a **${targetName}**?\n\n` +
+      `Que reputación quieres darle a **${targetName}**?\n\n` +
         `👍 **Positiva**\n` +
         `👎 **Negativa**`,
     )
@@ -48,13 +47,17 @@ async function sendReputationMenu(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`reputacion_positiva_${giverId}_${targetId}`)
+      .setCustomId(
+        `reputacion_positiva_${giverId}_${targetId}`,
+      )
       .setLabel("Positiva")
       .setEmoji("👍")
       .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
-      .setCustomId(`reputacion_negativa_${giverId}_${targetId}`)
+      .setCustomId(
+        `reputacion_negativa_${giverId}_${targetId}`,
+      )
       .setLabel("Negativa")
       .setEmoji("👎")
       .setStyle(ButtonStyle.Danger),
@@ -67,9 +70,10 @@ async function sendReputationMenu(
 
   if (reply) {
     await reply(payload);
-  } else {
-    await channel.send(payload);
+    return;
   }
+
+  await channel.send(payload);
 }
 
 async function sendReputationLog(
@@ -133,8 +137,11 @@ async function sendReputationLog(
     await (channel as TextChannel).send({
       embeds: [embed],
     });
-  } catch (err) {
-    console.error("❌ Error enviando log de reputación:", err);
+  } catch (error) {
+    console.error(
+      "❌ Error enviando log de reputación:",
+      error,
+    );
   }
 }
 
@@ -143,7 +150,10 @@ export async function execute(
 ): Promise<void> {
   if (!interaction.guildId) return;
 
-  const target = interaction.options.getUser("usuario", true);
+  const target = interaction.options.getUser(
+    "usuario",
+    true,
+  );
 
   if (target.bot) {
     await interaction.reply({
@@ -188,12 +198,16 @@ export async function run(
   }
 
   if (target.bot) {
-    await message.reply("❌ No puedes darle reputación a un bot.");
+    await message.reply(
+      "❌ No puedes darle reputación a un bot.",
+    );
     return;
   }
 
   if (target.id === message.author.id) {
-    await message.reply("❌ No puedes darte reputación a ti mismo.");
+    await message.reply(
+      "❌ No puedes darte reputación a ti mismo.",
+    );
     return;
   }
 
@@ -216,11 +230,16 @@ export async function handleButton(
   const giverId = parts[2];
   const receiverId = parts[3];
 
-  if (tipo !== "positiva" && tipo !== "negativa") return;
+  if (
+    tipo !== "positiva" &&
+    tipo !== "negativa"
+  ) {
+    return;
+  }
 
   if (!interaction.guildId) return;
 
-  // 🔒 Solo quien ejecutó -rep / /rep puede usar este botón.
+  // Solo quien creó el menú puede utilizar el botón.
   if (interaction.user.id !== giverId) {
     await interaction.reply({
       content: "❌ Este botón no es para vos.",
@@ -229,25 +248,29 @@ export async function handleButton(
     return;
   }
 
+  // El usuario debe seguir perteneciendo al servidor.
   const member = await interaction.guild?.members
     .fetch(interaction.user.id)
     .catch(() => null);
 
   if (!member) {
     await interaction.reply({
-      content: "❌ No pude encontrar tu membresía en este servidor.",
+      content:
+        "❌ No pude encontrar tu membresía en este servidor.",
       ephemeral: true,
     });
     return;
   }
 
-  const result = await ReputationService.giveReputation(
-    interaction.guildId,
-    interaction.user.id,
-    receiverId,
-    tipo,
-    member.joinedAt,
-  );
+  // Registrar la reputación.
+  const result =
+    await ReputationService.giveReputation(
+      interaction.guildId,
+      interaction.user.id,
+      receiverId,
+      tipo,
+      member.joinedAt,
+    );
 
   if (!result.success) {
     await interaction.reply({
@@ -257,22 +280,29 @@ export async function handleButton(
     return;
   }
 
-  const reputation = await ReputationService.getReputation(
-    interaction.guildId,
-    receiverId,
-  );
+  // Obtener la reputación actualizada.
+  const reputation =
+    await ReputationService.getReputation(
+      interaction.guildId,
+      receiverId,
+    );
 
-  // 📝 Registrar la reputación en el canal de logs.
+  // Registrar el evento en el servidor de logs.
   await sendReputationLog(
     interaction,
     receiverId,
     tipo,
   );
 
+  // Actualizar el mensaje original.
   await interaction.update({
     embeds: [
       new EmbedBuilder()
-        .setColor(tipo === "positiva" ? "Green" : "Red")
+        .setColor(
+          tipo === "positiva"
+            ? "Green"
+            : "Red",
+        )
         .setTitle("⭐ Reputación registrada")
         .setDescription(
           `${tipo === "positiva" ? "👍" : "👎"} ${result.message}\n\n` +
@@ -285,4 +315,3 @@ export async function handleButton(
     components: [],
   });
 }
-```
