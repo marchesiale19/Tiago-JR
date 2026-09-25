@@ -1,3 +1,4 @@
+```ts
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -7,8 +8,14 @@ import {
   type ChatInputCommandInteraction,
   type ButtonInteraction,
   type Message,
+  type TextChannel,
 } from "discord.js";
-import { ReputationService, type TipoReputacion } from "../services/ReputationService";
+import {
+  ReputationService,
+  type TipoReputacion,
+} from "../services/ReputationService";
+
+const REPUTATION_LOG_CHANNEL_ID = "1553011896507039905";
 
 export const data = new SlashCommandBuilder()
   .setName("rep")
@@ -21,6 +28,7 @@ export const data = new SlashCommandBuilder()
   );
 
 async function sendReputationMenu(
+  giverId: string,
   targetId: string,
   targetName: string,
   channel: any,
@@ -31,8 +39,8 @@ async function sendReputationMenu(
     .setTitle("⭐ Reputación")
     .setDescription(
       `¿Qué reputación quieres darle a **${targetName}**?\n\n` +
-      `👍 **Positiva**\n` +
-      `👎 **Negativa**`,
+        `👍 **Positiva**\n` +
+        `👎 **Negativa**`,
     )
     .setFooter({
       text: "Solo puedes dar reputación al mismo usuario una vez cada 24 horas.",
@@ -40,13 +48,13 @@ async function sendReputationMenu(
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`reputacion_positiva_${targetId}`)
+      .setCustomId(`reputacion_positiva_${giverId}_${targetId}`)
       .setLabel("Positiva")
       .setEmoji("👍")
       .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
-      .setCustomId(`reputacion_negativa_${targetId}`)
+      .setCustomId(`reputacion_negativa_${giverId}_${targetId}`)
       .setLabel("Negativa")
       .setEmoji("👎")
       .setStyle(ButtonStyle.Danger),
@@ -61,6 +69,72 @@ async function sendReputationMenu(
     await reply(payload);
   } else {
     await channel.send(payload);
+  }
+}
+
+async function sendReputationLog(
+  interaction: ButtonInteraction,
+  receiverId: string,
+  tipo: TipoReputacion,
+): Promise<void> {
+  try {
+    const channel = await interaction.client.channels
+      .fetch(REPUTATION_LOG_CHANNEL_ID)
+      .catch(() => null);
+
+    if (!channel || !channel.isTextBased()) {
+      console.error(
+        `❌ No pude encontrar el canal de logs de reputación (${REPUTATION_LOG_CHANNEL_ID}).`,
+      );
+      return;
+    }
+
+    if (!("send" in channel)) {
+      console.error(
+        "❌ El canal de logs de reputación no permite enviar mensajes.",
+      );
+      return;
+    }
+
+    const isPositive = tipo === "positiva";
+
+    const embed = new EmbedBuilder()
+      .setColor(isPositive ? "Green" : "Red")
+      .setTitle("⭐ Nueva reputación registrada")
+      .addFields(
+        {
+          name: "👤 Quien dio la reputación",
+          value: `<@${interaction.user.id}>\n\`${interaction.user.id}\``,
+          inline: true,
+        },
+        {
+          name: "🎯 Usuario recibido",
+          value: `<@${receiverId}>\n\`${receiverId}\``,
+          inline: true,
+        },
+        {
+          name: "📊 Tipo",
+          value: isPositive ? "👍 Positiva" : "👎 Negativa",
+          inline: true,
+        },
+        {
+          name: "🏠 Servidor de origen",
+          value: interaction.guild
+            ? `${interaction.guild.name}\n\`${interaction.guild.id}\``
+            : "Desconocido",
+          inline: false,
+        },
+      )
+      .setTimestamp()
+      .setFooter({
+        text: "Sistema de reputación • TiagoJR",
+      });
+
+    await (channel as TextChannel).send({
+      embeds: [embed],
+    });
+  } catch (err) {
+    console.error("❌ Error enviando log de reputación:", err);
   }
 }
 
@@ -88,6 +162,7 @@ export async function execute(
   }
 
   await sendReputationMenu(
+    interaction.user.id,
     target.id,
     target.username,
     interaction.channel,
@@ -123,6 +198,7 @@ export async function run(
   }
 
   await sendReputationMenu(
+    message.author.id,
     target.id,
     target.username,
     message.channel,
@@ -134,14 +210,24 @@ export async function handleButton(
 ): Promise<void> {
   const parts = interaction.customId.split("_");
 
-  if (parts.length !== 3) return;
+  if (parts.length !== 4) return;
 
   const tipo = parts[1] as TipoReputacion;
-  const receiverId = parts[2];
+  const giverId = parts[2];
+  const receiverId = parts[3];
 
   if (tipo !== "positiva" && tipo !== "negativa") return;
 
   if (!interaction.guildId) return;
+
+  // 🔒 Solo quien ejecutó -rep / /rep puede usar este botón.
+  if (interaction.user.id !== giverId) {
+    await interaction.reply({
+      content: "❌ Este botón no es para vos.",
+      ephemeral: true,
+    });
+    return;
+  }
 
   const member = await interaction.guild?.members
     .fetch(interaction.user.id)
@@ -176,6 +262,13 @@ export async function handleButton(
     receiverId,
   );
 
+  // 📝 Registrar la reputación en el canal de logs.
+  await sendReputationLog(
+    interaction,
+    receiverId,
+    tipo,
+  );
+
   await interaction.update({
     embeds: [
       new EmbedBuilder()
@@ -183,12 +276,13 @@ export async function handleButton(
         .setTitle("⭐ Reputación registrada")
         .setDescription(
           `${tipo === "positiva" ? "👍" : "👎"} ${result.message}\n\n` +
-          `**Reputación actual de <@${receiverId}>:**\n` +
-          `👍 Positivas: **${reputation.positivas}**\n` +
-          `👎 Negativas: **${reputation.negativas}**\n` +
-          `📊 Total: **${reputation.total}**`,
+            `**Reputación actual de <@${receiverId}>:**\n` +
+            `👍 Positivas: **${reputation.positivas}**\n` +
+            `👎 Negativas: **${reputation.negativas}**\n` +
+            `📊 Total: **${reputation.total}**`,
         ),
     ],
     components: [],
   });
 }
+```
