@@ -28,6 +28,7 @@ import * as emparejamiento from "./emparejamiento";
 // gestión de temporadas (separado aunrinha)
 import * as abrir from "./abrir";
 import * as cerrar from "./cerrar";
+import * as reputacion from "./reputacion";
 
 export interface BotCommand {
   data: { name: string; toJSON: () => unknown };
@@ -63,6 +64,7 @@ commands.set(supervisorInactivo.data.name, supervisorInactivo);
 // gestión de temporadas
 commands.set(abrir.data.name, abrir);
 commands.set(cerrar.data.name, cerrar);
+commands.set(reputacion.data.name, reputacion);
 
 // gestión de cola
 commands.set(cancelar.data.name, cancelar);
