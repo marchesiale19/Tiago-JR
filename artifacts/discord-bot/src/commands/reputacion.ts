@@ -27,7 +27,7 @@ async function sendReputationMenu(
   reply?: (payload: any) => Promise<any>,
 ) {
   const embed = new EmbedBuilder()
-    .setColor("Blue")
+    .setColor("Orange")
     .setTitle("⭐ Reputación")
     .setDescription(
       `¿Qué reputación quieres darle a **${targetName}**?\n\n` +
