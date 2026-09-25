@@ -24,6 +24,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { setupNameFilter } from "./services/NameFilterService";
+import * as reputacionCommand from "./commands/reputacion";
 
 const server = http.createServer((_req, res) => {
   res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -428,7 +429,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
+if (interaction.customId.startsWith("reputacion_")) {
+  try {
+    await reputacionCommand.handleButton(interaction);
+  } catch (err) {
+    logger.error({ err }, "Error handling reputation button");
 
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Hubo un error al procesar la reputación.",
+        ephemeral: true,
+      }).catch(() => {});
+    }
+  }
+  return;
+}
     if (interaction.customId.startsWith("tateti_")) {
       try {
         const tatetiModule = commands.get("tateti") as any;
