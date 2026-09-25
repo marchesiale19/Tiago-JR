@@ -7,14 +7,46 @@ const MIN_MEMBERSHIP_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type TipoReputacion = "positiva" | "negativa";
 
+interface ReputationResult {
+  success: boolean;
+  message: string;
+}
+
 export class ReputationService {
+  /**
+   * Registra una reputación.
+   *
+   * Reglas:
+   * - No se permite auto-reputación.
+   * - El usuario debe llevar al menos 7 días en el servidor.
+   * - Solo puede calificar al mismo usuario una vez cada 24 horas.
+   * - La reputación queda asociada al servidor.
+   */
   static async giveReputation(
     guildId: string,
     giverId: string,
     receiverId: string,
     tipo: TipoReputacion,
-    joinedAt: Date | null
-  ) {
+    joinedAt: Date | null,
+  ): Promise<ReputationResult> {
+    // ─────────────────────────────────────────────
+    // VALIDACIONES BÁSICAS
+    // ─────────────────────────────────────────────
+
+    if (!guildId) {
+      return {
+        success: false,
+        message: "❌ No se pudo identificar el servidor.",
+      };
+    }
+
+    if (!giverId || !receiverId) {
+      return {
+        success: false,
+        message: "❌ No se pudieron identificar los usuarios.",
+      };
+    }
+
     if (giverId === receiverId) {
       return {
         success: false,
@@ -22,54 +54,103 @@ export class ReputationService {
       };
     }
 
+    if (tipo !== "positiva" && tipo !== "negativa") {
+      return {
+        success: false,
+        message: "❌ El tipo de reputación no es válido.",
+      };
+    }
+
+    // ─────────────────────────────────────────────
+    // ANTIGÜEDAD EN EL SERVIDOR
+    // ─────────────────────────────────────────────
+
     if (!joinedAt) {
       return {
         success: false,
-        message: "❌ No pude comprobar cuándo entraste al servidor.",
+        message:
+          "❌ No pude comprobar cuándo entraste al servidor.",
       };
     }
 
-    const membershipTime = Date.now() - joinedAt.getTime();
+    const now = Date.now();
+    const membershipTime = now - joinedAt.getTime();
 
     if (membershipTime < MIN_MEMBERSHIP_MS) {
-      const remaining = MIN_MEMBERSHIP_MS - membershipTime;
-      const days = Math.ceil(remaining / (24 * 60 * 60 * 1000));
+      const remainingMs =
+        MIN_MEMBERSHIP_MS - membershipTime;
+
+      const remainingDays = Math.ceil(
+        remainingMs / (24 * 60 * 60 * 1000),
+      );
 
       return {
         success: false,
-        message: `❌ Tenés que llevar al menos 7 días en el servidor para dar reputación. Te faltan aproximadamente ${days} día(s).`,
+        message:
+          `❌ Tenés que llevar al menos 7 días en el servidor para dar reputación. ` +
+          `Te faltan aproximadamente ${remainingDays} día(s).`,
       };
     }
 
+    // ─────────────────────────────────────────────
+    // COOLDOWN DE 24 HORAS
+    // ─────────────────────────────────────────────
+
     const [lastReputation] = await db
-      .select()
+      .select({
+        createdAt: reputacionesTable.createdAt,
+      })
       .from(reputacionesTable)
       .where(
         and(
           eq(reputacionesTable.guildId, guildId),
           eq(reputacionesTable.giverId, giverId),
-          eq(reputacionesTable.receiverId, receiverId)
-        )
+          eq(reputacionesTable.receiverId, receiverId),
+        ),
       )
       .orderBy(desc(reputacionesTable.createdAt))
       .limit(1);
 
-    if (lastReputation) {
-      const elapsed = Date.now() - lastReputation.createdAt.getTime();
+    if (lastReputation?.createdAt) {
+      const elapsed =
+        now - lastReputation.createdAt.getTime();
 
       if (elapsed < COOLDOWN_MS) {
-        const remaining = COOLDOWN_MS - elapsed;
-        const hours = Math.floor(remaining / (60 * 60 * 1000));
-        const minutes = Math.ceil(
-          (remaining % (60 * 60 * 1000)) / (60 * 1000)
+        const remainingMs =
+          COOLDOWN_MS - elapsed;
+
+        const remainingHours = Math.floor(
+          remainingMs / (60 * 60 * 1000),
         );
+
+        const remainingMinutes = Math.ceil(
+          (remainingMs % (60 * 60 * 1000)) /
+            (60 * 1000),
+        );
+
+        let timeText = "";
+
+        if (remainingHours > 0) {
+          timeText += `${remainingHours}h`;
+        }
+
+        if (remainingMinutes > 0) {
+          timeText +=
+            `${timeText ? " " : ""}${remainingMinutes}min`;
+        }
 
         return {
           success: false,
-          message: `⏳ Ya le diste reputación a este usuario. Podés volver a hacerlo en ${hours}h ${minutes}min.`,
+          message:
+            `⏳ Ya le diste reputación a este usuario. ` +
+            `Podés volver a hacerlo en ${timeText}.`,
         };
       }
     }
+
+    // ─────────────────────────────────────────────
+    // GUARDAR REPUTACIÓN
+    // ─────────────────────────────────────────────
 
     await db.insert(reputacionesTable).values({
       guildId,
@@ -82,12 +163,22 @@ export class ReputationService {
       success: true,
       message:
         tipo === "positiva"
-          ? "👍 Reputación positiva registrada."
-          : "👎 Reputación negativa registrada.",
+          ? "👍 Reputación positiva registrada correctamente."
+          : "👎 Reputación negativa registrada correctamente.",
     };
   }
 
-  static async getReputation(guildId: string, receiverId: string) {
+  /**
+   * Obtiene la reputación de un usuario dentro de un servidor.
+   *
+   * La reputación está separada por guild:
+   * una reputación obtenida en Server A no aparece
+   * automáticamente en Server B.
+   */
+  static async getReputation(
+    guildId: string,
+    receiverId: string,
+  ) {
     const [result] = await db
       .select({
         positivas: sql<number>`
@@ -105,12 +196,17 @@ export class ReputationService {
       .where(
         and(
           eq(reputacionesTable.guildId, guildId),
-          eq(reputacionesTable.receiverId, receiverId)
-        )
+          eq(reputacionesTable.receiverId, receiverId),
+        ),
       );
 
-    const positivas = Number(result?.positivas ?? 0);
-    const negativas = Number(result?.negativas ?? 0);
+    const positivas = Number(
+      result?.positivas ?? 0,
+    );
+
+    const negativas = Number(
+      result?.negativas ?? 0,
+    );
 
     return {
       positivas,
