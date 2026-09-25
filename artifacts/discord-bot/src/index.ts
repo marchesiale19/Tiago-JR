@@ -1050,6 +1050,10 @@ async function iniciarBot() {
 
   const rest = new REST().setToken(token);
   const body = Array.from(commands.values()).map(c => c.data.toJSON());
+  console.log(
+  "📋 Comandos registrados:",
+  body.map((command: any) => command.name)
+);
 
   try {
     console.log("🔄 Registrando comandos globalmente...");
