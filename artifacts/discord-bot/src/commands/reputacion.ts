@@ -107,12 +107,12 @@ async function sendReputationLog(
       .setTitle("⭐ Nueva reputación registrada")
       .addFields(
         {
-          name: "👤 Quien dio la reputación",
+          name: "👤 Usuario Emisor",
           value: `<@${interaction.user.id}>\n\`${interaction.user.id}\``,
           inline: true,
         },
         {
-          name: "🎯 Usuario recibido",
+          name: "🎯 Usuario Objetivo",
           value: `<@${receiverId}>\n\`${receiverId}\``,
           inline: true,
         },
