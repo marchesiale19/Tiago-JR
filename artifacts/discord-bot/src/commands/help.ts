@@ -148,11 +148,9 @@ function getCategories(
       emoji: "⭐",
       title: "Reputación",
       content: [
-        "-rep @usuario — Dale reputación positiva o negativa a otro usuario.",
-        "-ver rep @usuario — Consulta el perfil y las estadísticas de reputación de un usuario.",
+        "-rep — Dale reputación positiva o negativa a otro usuario.",
+        "-ver rep — Consulta el perfil y las estadísticas de reputación de un usuario.",
         "",
-        "⏳ Para otorgar reputación debes llevar al menos 7 días en el servidor.",
-        "🔒 Solo puedes calificar al mismo usuario una vez cada 24 horas.",
       ].join("\n"),
     },
   ];
