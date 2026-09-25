@@ -6,3 +6,4 @@ export * from "./reportes";
 export * from "./auditoria";
 export * from "./competitivo";
 export * from "./logros";
+export * from "./reputaciones";
