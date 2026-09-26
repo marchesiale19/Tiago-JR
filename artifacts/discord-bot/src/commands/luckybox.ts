@@ -48,7 +48,8 @@ export const COMMON_LUCKYBOX_REWARDS = [
 export const RARE_LUCKYBOX_REWARDS = [
   { texto: "350,000 Frijoles", valor: 350000, tipo: "positivo", probabilidad: "25.0%" },
   { texto: "550,000 Frijoles", valor: 550000, tipo: "positivo", probabilidad: "12.0%" },
-  { texto: `Rol <@&\({ROL_SEGURO_ID}>`, valor: 0, tipo: "rol_seguro", probabilidad: "8.0\%" },   { texto: `Rol <@&\){ROL_QUEBRADO_ID}>`, valor: 0, tipo: "rol_quebrado", probabilidad: "1.0%" },
+  { texto: `Rol <@&{ROL_SEGURO_ID}>`, valor: 0, tipo: "rol_seguro", probabilidad: "8.0%" },
+  { texto: `Rol <@&{ROL_QUEBRADO_ID}>`, valor: 0, tipo: "rol_quebrado", probabilidad: "1.0%" },
   { texto: "-150,000 Frijoles", valor: -150000, tipo: "negativo", probabilidad: "34.0%" },
   { texto: "-250,000 Frijoles", valor: -250000, tipo: "negativo", probabilidad: "20.0%" },
 ] as const;
@@ -57,7 +58,8 @@ export const EPIC_LUCKYBOX_REWARDS = [
   { texto: "1,200,000 Frijoles", valor: 1200000, tipo: "positivo", probabilidad: "22.0%" },
   { texto: "1,800,000 Frijoles", valor: 1800000, tipo: "positivo", probabilidad: "12.0%" },
   { texto: "2,500,000 Frijoles", valor: 2500000, tipo: "positivo", probabilidad: "5.0%" },
-  { texto: `Rol <@&\({ROL_ESCLAVO_SADY_ID}>`, valor: 0, tipo: "rol_esclavo_sady", probabilidad: "0.8\%" },   { texto: `Rol <@&\){ROL_ESCLAVO_RAYII_ID}>`, valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "0.2%" },
+  { texto: `Rol <@&{ROL_ESCLAVO_SADY_ID}>`, valor: 0, tipo: "rol_esclavo_sady", probabilidad: "0.8%" },
+  { texto: `Rol <@&{ROL_ESCLAVO_RAYII_ID}>`, valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "0.2%" },
   { texto: "-600,000 Frijoles", valor: -600000, tipo: "negativo", probabilidad: "35.0%" },
   { texto: "-1,000,000 Frijoles", valor: -1000000, tipo: "negativo", probabilidad: "25.0%" },
 ] as const;
@@ -71,8 +73,10 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   { texto: "750,000 Frijoles", valor: 750000, tipo: "positivo", probabilidad: "3.0%" },
   { texto: "1,000,000 Frijoles", valor: 1000000, tipo: "positivo", probabilidad: "1.8%" },
   { texto: "2,000,000 Frijoles (Muy poco probable)", valor: 2000000, tipo: "positivo", probabilidad: "0.2%" },
-  { texto: `Rol <@&\({ROL_ESCLAVO_BAX_ID}>`, valor: 0, tipo: "rol_esclavo_bax", probabilidad: "6.0\%" },   { texto: `Rol <@&\){ROL_ESCLAVO_SANTIAGO_ID}>`, valor: 0, tipo: "rol_esclavo_santiago", probabilidad: "5.0%" },
-  { texto: `Rol <@&\({ROL_ESCLAVO_RAYI_ID}>`, valor: 0, tipo: "rol_esclavo_rayi", probabilidad: "3.0\%" },   { texto: `Rol <@&\){ROL_OMG_BRO_ID}> (Muy poco probable)`, valor: 0, tipo: "rol_omg_bro", probabilidad: "1.0%" },
+  { texto: `Rol <@&{ROL_ESCLAVO_BAX_ID}>`, valor: 0, tipo: "rol_esclavo_bax", probabilidad: "6.0%" },
+  { texto: `Rol <@&{ROL_ESCLAVO_SANTIAGO_ID}>`, valor: 0, tipo: "rol_esclavo_santiago", probabilidad: "5.0%" },
+  { texto: `Rol <@&{ROL_ESCLAVO_RAYI_ID}>`, valor: 0, tipo: "rol_esclavo_rayi", probabilidad: "3.0%" },
+  { texto: `Rol <@&{ROL_OMG_BRO_ID}> (Muy poco probable)`, valor: 0, tipo: "rol_omg_bro", probabilidad: "1.0%" },
   { texto: "-100,000 Frijoles (Tienes que ser la sal en persona)", valor: -100000, tipo: "negativo", probabilidad: "5.0%" },
 ] as const;
 
@@ -353,7 +357,26 @@ async function handleAbrir(
       return;
     }
 
-    await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory/\({userBox.item_id \vert{}\vert{} userBox.id}`, {       method: "DELETE",       headers: {         Authorization: process.env.UNBELIEVABOAT_API_KEY as string,         "Content-Type": "application/json",       },       body: JSON.stringify({ quantity: 1 }),     }).catch(() => {});      const rewardObj = pickReward(cajaNombre);     let rewardDescription: string = rewardObj.texto;      const member = await guild.members.fetch(targetUser.id).catch(() => null);      // Asignación limpia de roles usando el mapa     if (ROLE_MAP[rewardObj.tipo] && member) {       const roleId = ROLE_MAP[rewardObj.tipo];       const role = await guild.roles.fetch(roleId).catch(() => null);       if (role) {         await member.roles.add(role, "Premio de caja").catch(() => {});         rewardDescription = `Rol <@&\){roleId}>`;
+    const itemIdToDelete = userBox.item_id || userBox.id;
+    await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ quantity: 1 }),
+    }).catch(() => {});
+
+    const rewardObj = pickReward(cajaNombre);
+    let rewardDescription: string = rewardObj.texto;
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+
+    if (ROLE_MAP[rewardObj.tipo] && member) {
+      const roleId = ROLE_MAP[rewardObj.tipo];
+      const role = await guild.roles.fetch(roleId).catch(() => null);
+      if (role) {
+        await member.roles.add(role, "Premio de caja").catch(() => {});
+        rewardDescription = `Rol <@&${roleId}>`;
       }
     } else if (rewardObj.valor !== 0) {
       await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
@@ -361,7 +384,8 @@ async function handleAbrir(
 
     const embed = new EmbedBuilder()
       .setColor("Orange")
-      .setTitle(`🎁 \({cajaNombre} Abierto`)       .setDescription(`¡<@\){targetUser.id}> abrió su **${cajaNombre}**!`)
+      .setTitle(`🎁 ${cajaNombre} Abierto`)
+      .setDescription(`¡<@\({targetUser.id}> abrió su **\){cajaNombre}**!`)
       .addFields(
         { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
         { name: "🎉 Premio/castigo obtenido", value: ` ${rewardDescription}`, inline: false },
