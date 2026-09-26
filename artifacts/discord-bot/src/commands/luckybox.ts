@@ -23,6 +23,20 @@ export const ROL_ESCLAVO_SANTIAGO_ID = "1461961845513519187";
 export const ROL_ESCLAVO_RAYI_ID = "1478210926883639456";
 export const ROL_OMG_BRO_ID = "1478217120465555630";
 
+// Roles autorizados para usar /luckybox dar
+export const AUTHORIZED_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+  "1539368076326473868", // Developer Tiago Jr
+];
+
 // Mapeo centralizado de roles para evitar condicionales redundantes
 const ROLE_MAP: Record = {
   rol_seguro: ROL_SEGURO_ID,
@@ -48,8 +62,8 @@ export const COMMON_LUCKYBOX_REWARDS = [
 export const RARE_LUCKYBOX_REWARDS = [
   { texto: "350,000 Frijoles", valor: 350000, tipo: "positivo", probabilidad: "25.0%" },
   { texto: "550,000 Frijoles", valor: 550000, tipo: "positivo", probabilidad: "12.0%" },
-  { texto: `Rol <@&{ROL_SEGURO_ID}>`, valor: 0, tipo: "rol_seguro", probabilidad: "8.0%" },
-  { texto: `Rol <@&{ROL_QUEBRADO_ID}>`, valor: 0, tipo: "rol_quebrado", probabilidad: "1.0%" },
+  { texto: `Rol <@&${ROL_SEGURO_ID}>`, valor: 0, tipo: "rol_seguro", probabilidad: "8.0%" },
+  { texto: `Rol <@&${ROL_QUEBRADO_ID}>`, valor: 0, tipo: "rol_quebrado", probabilidad: "1.0%" },
   { texto: "-150,000 Frijoles", valor: -150000, tipo: "negativo", probabilidad: "34.0%" },
   { texto: "-250,000 Frijoles", valor: -250000, tipo: "negativo", probabilidad: "20.0%" },
 ] as const;
@@ -58,8 +72,8 @@ export const EPIC_LUCKYBOX_REWARDS = [
   { texto: "1,200,000 Frijoles", valor: 1200000, tipo: "positivo", probabilidad: "22.0%" },
   { texto: "1,800,000 Frijoles", valor: 1800000, tipo: "positivo", probabilidad: "12.0%" },
   { texto: "2,500,000 Frijoles", valor: 2500000, tipo: "positivo", probabilidad: "5.0%" },
-  { texto: `Rol <@&{ROL_ESCLAVO_SADY_ID}>`, valor: 0, tipo: "rol_esclavo_sady", probabilidad: "0.8%" },
-  { texto: `Rol <@&{ROL_ESCLAVO_RAYII_ID}>`, valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "0.2%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_SADY_ID}>`, valor: 0, tipo: "rol_esclavo_sady", probabilidad: "0.8%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_RAYII_ID}>`, valor: 0, tipo: "rol_esclavo_rayii", probabilidad: "0.2%" },
   { texto: "-600,000 Frijoles", valor: -600000, tipo: "negativo", probabilidad: "35.0%" },
   { texto: "-1,000,000 Frijoles", valor: -1000000, tipo: "negativo", probabilidad: "25.0%" },
 ] as const;
@@ -73,10 +87,10 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   { texto: "750,000 Frijoles", valor: 750000, tipo: "positivo", probabilidad: "3.0%" },
   { texto: "1,000,000 Frijoles", valor: 1000000, tipo: "positivo", probabilidad: "1.8%" },
   { texto: "2,000,000 Frijoles (Muy poco probable)", valor: 2000000, tipo: "positivo", probabilidad: "0.2%" },
-  { texto: `Rol <@&{ROL_ESCLAVO_BAX_ID}>`, valor: 0, tipo: "rol_esclavo_bax", probabilidad: "6.0%" },
-  { texto: `Rol <@&{ROL_ESCLAVO_SANTIAGO_ID}>`, valor: 0, tipo: "rol_esclavo_santiago", probabilidad: "5.0%" },
-  { texto: `Rol <@&{ROL_ESCLAVO_RAYI_ID}>`, valor: 0, tipo: "rol_esclavo_rayi", probabilidad: "3.0%" },
-  { texto: `Rol <@&{ROL_OMG_BRO_ID}> (Muy poco probable)`, valor: 0, tipo: "rol_omg_bro", probabilidad: "1.0%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_BAX_ID}>`, valor: 0, tipo: "rol_esclavo_bax", probabilidad: "6.0%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_SANTIAGO_ID}>`, valor: 0, tipo: "rol_esclavo_santiago", probabilidad: "5.0%" },
+  { texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`, valor: 0, tipo: "rol_esclavo_rayi", probabilidad: "3.0%" },
+  { texto: `Rol <@&${ROL_OMG_BRO_ID}> (Muy poco probable)`, valor: 0, tipo: "rol_omg_bro", probabilidad: "1.0%" },
   { texto: "-100,000 Frijoles (Tienes que ser la sal en persona)", valor: -100000, tipo: "negativo", probabilidad: "5.0%" },
 ] as const;
 
@@ -213,7 +227,7 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName("dar")
-      .setDescription("Entrega una caja Mr lucky a un usuario (Solo administradores).")
+      .setDescription("Entrega una caja Mr lucky a un usuario autorizado.")
       .addUserOption((option) =>
         option
           .setName("usuario")
@@ -278,8 +292,12 @@ async function handleDar(
 ): Promise {
   try {
     const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
-    if (member && !member.permissions.has("Administrator")) {
-      await sendReply({ content: "❌ No tienes permisos de Administrador para usar este subcomando.", ephemeral: true });
+    
+    // Validar si el miembro tiene al menos uno de los roles autorizados
+    const hasAuthorizedRole = member && member.roles.cache.some((role) => AUTHORIZED_ROLES.includes(role.id));
+
+    if (!hasAuthorizedRole) {
+      await sendReply({ content: "❌ No tienes los roles autorizados para usar este subcomando.", ephemeral: true });
       return;
     }
 
@@ -308,7 +326,7 @@ async function handleDar(
     const embed = new EmbedBuilder()
       .setColor("Green")
       .setTitle(`🎁 ¡Caja Entregada!`)
-      .setDescription(`El administrador <@\({moderatorUser.id}> le ha entregado un **\){cajaNombre}** a <@${targetUser.id}>.`)
+      .setDescription(`El usuario <@\({moderatorUser.id}> le ha entregado un **\){cajaNombre}** a <@${targetUser.id}>.`)
       .setTimestamp();
 
     await sendReply({ embeds: [embed] });
