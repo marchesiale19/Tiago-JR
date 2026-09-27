@@ -91,7 +91,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   { texto: `Rol <@&${ROL_ESCLAVO_SANTIAGO_ID}>`, valor: 0, tipo: "rol_esclavo_santiago", probabilidad: "5.0%" },
   { texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`, valor: 0, tipo: "rol_esclavo_rayi", probabilidad: "3.0%" },
   { texto: `Rol <@&${ROL_OMG_BRO_ID}> (Muy poco probable)`, valor: 0, tipo: "rol_omg_bro", probabilidad: "1.0%" },
-  { texto: "-100,000 Frijoles (Tienes que ser la sal en persona)", valor: -100000, tipo: "negativo", probabilidad: "5.0%" },
+  { texto: "-100,000 Frijoles (Tenés que ser la sal en persona)", valor: -100000, tipo: "negativo", probabilidad: "5.0%" },
 ] as const;
 
 export function pickReward(cajaNombre: string) {
@@ -129,7 +129,7 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
     const topUsers = Array.isArray(leaderboardData) ? leaderboardData : (leaderboardData as any)?.users || [];
 
     if (!topUsers || topUsers.length === 0) {
-      return { success: false, added: 0, removed: 0, error: "Leaderboard vacía o no disponible." };
+      return { success: false, added: 0, removed: 0, error: "El leaderboard está vacío o no está disponible." };
     }
 
     const topUserIds = new Set(topUsers.map((u: any) => u.user_id || u.id));
@@ -189,15 +189,15 @@ function startAutoSync(clientInstance: any) {
 
 export const data = new SlashCommandBuilder()
   .setName("luckybox")
-  .setDescription("Gestiona y abre tus cajas Mr lucky.")
+  .setDescription("Gestioná y abrí tus cajas Mr lucky.")
   .addSubcommand((subcommand) =>
     subcommand
       .setName("abrir")
-      .setDescription("Abre un Mr lucky si lo tienes en tu inventario.")
+      .setDescription("Abrí un Mr lucky si lo tenés en tu inventario.")
       .addStringOption((option) =>
         option
           .setName("caja")
-          .setDescription("Tipo de Mr lucky a abrir")
+          .setDescription("Tipo de Mr lucky que querés abrir")
           .setRequired(true)
           .addChoices(
             { name: "Mr lucky Común", value: "Mr lucky Común" },
@@ -214,7 +214,7 @@ export const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName("caja")
-          .setDescription("Tipo de caja para ver información")
+          .setDescription("Tipo de caja para ver la información")
           .setRequired(true)
           .addChoices(
             { name: "Mr lucky Común", value: "Mr lucky Común" },
@@ -227,17 +227,17 @@ export const data = new SlashCommandBuilder()
   .addSubcommand((subcommand) =>
     subcommand
       .setName("dar")
-      .setDescription("Entrega una caja Mr lucky a un usuario autorizado.")
+      .setDescription("Dale una caja Mr lucky a un usuario autorizado.")
       .addUserOption((option) =>
         option
           .setName("usuario")
-          .setDescription("Usuario al que le darás la caja")
+          .setDescription("Usuario al que le vas a dar la caja")
           .setRequired(true),
       )
       .addStringOption((option) =>
         option
           .setName("caja")
-          .setDescription("Tipo de Mr lucky a regalar")
+          .setDescription("Tipo de Mr lucky que querés regalar")
           .setRequired(true)
           .addChoices(
             { name: "Mr lucky Común", value: "Mr lucky Común" },
@@ -277,7 +277,7 @@ async function handleInfo(sendReply: (options: any) => Promise, cajaNombre: stri
       { name: "✨ Recompensas", value: positivos || "Ninguno", inline: false },
       { name: "⚠️ Castigos", value: negativos || "Ninguno", inline: false },
     )
-    .setFooter({ text: "Sistema de Luckybox • Informaciones Oficiales" })
+    .setFooter({ text: "Sistema de Luckybox • Información Oficial" })
     .setTimestamp();
 
   await sendReply({ embeds: [infoEmbed] });
@@ -297,12 +297,12 @@ async function handleDar(
     const hasAuthorizedRole = member && member.roles.cache.some((role) => AUTHORIZED_ROLES.includes(role.id));
 
     if (!hasAuthorizedRole) {
-      await sendReply({ content: "❌ No tienes los roles autorizados para usar este subcomando.", ephemeral: true });
+      await sendReply({ content: "❌ No tenés los roles autorizados para usar este subcomando.", ephemeral: true });
       return;
     }
 
     if (moderatorUser.id === targetUser.id) {
-      await sendReply({ content: "❌ No puedes darte una Luckybox a ti mismo.", ephemeral: true });
+      await sendReply({ content: "❌ No podés darte una Luckybox a vos mismo.", ephemeral: true });
       return;
     }
 
@@ -326,14 +326,14 @@ async function handleDar(
     const embed = new EmbedBuilder()
       .setColor("Green")
       .setTitle(`🎁 ¡Caja Entregada!`)
-      .setDescription(`El usuario <@\({moderatorUser.id}> le ha entregado un **\){cajaNombre}** a <@${targetUser.id}>.`)
+      .setDescription(`El usuario <@\({moderatorUser.id}> le entregó un **\){cajaNombre}** a <@${targetUser.id}>.`)
       .setTimestamp();
 
     await sendReply({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️ Se procesó la acción, pero verifica si la API de UnbelievaBoat requiere el ID exacto del item. (\`${err?.message}\`)`, 
+      content: `⚠️ Se procesó la acción, pero verificá si la API de UnbelievaBoat requiere el ID exacto del item. (\`${err?.message}\`)`, 
       ephemeral: true 
     });
   }
@@ -371,7 +371,7 @@ async function handleAbrir(
     });
 
     if (!userBox) {
-      await sendReply({ content: `❌ No tienes ningún **${cajaNombre}** en tu inventario.` });
+      await sendReply({ content: `❌ No tenés ningún **${cajaNombre}** en tu inventario.` });
       return;
     }
 
@@ -407,12 +407,12 @@ async function handleAbrir(
       .addFields(
         { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
         { name: "🎉 Premio/castigo obtenido", value: ` ${rewardDescription}`, inline: false },
-        { name: "💸 Estado", value: `El item fue validado del inventario y el resultado fue aplicado a tu cuenta.`, inline: false },
+        { name: "💸 Estado", value: `El item fue validado del inventario y el resultado se aplicó a tu cuenta.`, inline: false },
       )
       .setFooter({ text: "Sistema de Luckybox • Inventario Verificado" })
       .setTimestamp();
 
-    await sendReply({ content: `✅ ¡Luckybox abierto con éxito!` });
+    await sendReply({ content: `✅ ¡Luckybox abierta con éxito!` });
     await sendChannelMessage({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr lucky");
@@ -471,7 +471,7 @@ export async function run(message: Message, args: string[]): Promise {
   if (sub === "dar") {
     const mentionedUser = message.mentions.users.first();
     if (!mentionedUser) {
-      await message.reply("❌ Debes mencionar al usuario a quien le darás la caja.");
+      await message.reply("❌ Tenés que mencionar al usuario al que le vas a dar la caja.");
       return;
     }
     const cajaNombreRestante = args.slice(offset + 1).join(" ").trim();
