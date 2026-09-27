@@ -28,8 +28,8 @@ export class ForensicService {
   /**
    * Verifica si una URL de avatar corresponde a los avatares predeterminados/clásicos de Discord.
    */
-  private static isDiscordDefaultAvatar(avatarUrl: string | null): boolean {
-    if (!avatarUrl) return true;
+  private static isDiscordDefaultAvatar(avatarUrl: string | null | undefined): boolean {
+    if (!avatarUrl || typeof avatarUrl !== "string") return true;
     // Discord suele incluir patrones como "embed/avatars" o los hashes predeterminados en sus URLs por defecto
     return avatarUrl.includes("embed/avatars") || avatarUrl.includes("/assets/");
   }
@@ -83,7 +83,7 @@ export class ForensicService {
     // 3. Detección de avatares repetidos (excluyendo los predeterminados de Discord)
     const isDefault = this.isDiscordDefaultAvatar(avatarUrl);
     
-    if (!isDefault && avatarUrl) {
+    if (!isDefault && avatarUrl && typeof avatarUrl === "string") {
       // Buscar si otra cuenta reciente entró con exactamente el mismo avatar personalizado
       const matchingAvatarCount = this.recentJoins.filter(
         (entry) => entry.userId !== userId && entry.avatarUrl === avatarUrl
