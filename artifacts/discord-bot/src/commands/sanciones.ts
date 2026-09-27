@@ -16,107 +16,673 @@ interface Infraction {
 }
 
 const INFRACTIONS: Infraction[] = [
-// Nivel 1 (1 minuto)
-    { name: "MAL USO DE CANALES", nivel: 1, tiempo: "1 MINUTO", descripcion: "Ocurre cuando un usuario está utilizando un canal erróneamente con la función de otro. Se advierte por si no ha sido consciente y se sanciona si hay reincidencia." },
-  { name: "MICRÓFONO SATURADO", nivel: 1, tiempo: "1 MINUTO", descripcion: "Ocurre cuando el usuario tiene un micrófono mal configurado y se escucha a un volumen molesto. Se advierte primero y se aplica sanción si persiste." },
-  { name: "RUIDOS MOLESTOS", nivel: 1, tiempo: "1 MINUTO", descripcion: "Ruido de fondo en llamada (música, mascotas, calle) que molesta en la sala. Se advierte para que se silencie y desmutee solo al hablar; si no hace caso, se sanciona." },
-  { name: "ENTRAR Y SALIR DE UN CANAL DE VOZ PARA MOLESTAR", nivel: 1, tiempo: "1 MINUTO", descripcion: "Unirse a un voice chat diciendo cosas aleatorias o haciendo ruidos para molestar. Se da una sola advertencia y se sanciona si hay reincidencia." },
-  { name: "SPAM DE REACCIONES SIN CONFIANZA", nivel: 1, tiempo: "1 MINUTO", descripcion: "Poner muchos emojis de reacción a un mensaje ajeno reventando el dispositivo a notificaciones sin haber confianza. Se advierte primero y se sanciona si continúa." },
-  { name: "PERDER EL CONTADOR APROPÓSITO", nivel: 1, tiempo: "1 MINUTO", descripcion: "Perder el contador a propósito en dinámicas o canales de conteo." },
+  // Nivel 1 (1 - 5 minutos)
+  {
+    name: "MAL USO DE CANALES",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Usar un canal para una función que no corresponde. Se advierte primero y se sanciona si continúa.",
+  },
+  {
+    name: "MICRÓFONO SATURADO",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Tener el micrófono saturado o configurado de forma que genere un sonido molesto para los demás. Se advierte primero y se sanciona si continúa.",
+  },
+  {
+    name: "RUIDOS MOLESTOS",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Generar ruidos molestos en los canales de voz. Se advierte primero y se sanciona si continúa.",
+  },
+  {
+    name: "ENTRAR Y SALIR DE UN CANAL DE VOZ PARA MOLESTAR",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Entrar y salir repetidamente de un canal de voz con la intención de molestar a los demás.",
+  },
+  {
+    name: "SPAM DE REACCIONES SIN CONFIANZA",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Enviar muchas reacciones a mensajes ajenos sin tener confianza con la persona, generándole notificaciones innecesarias.",
+  },
+  {
+    name: "PERDER EL CONTADOR APROPÓSITO",
+    nivel: 1,
+    tiempo: "1-5 MINUTOS",
+    descripcion:
+      "Perder el contador a propósito en dinámicas o canales de conteo.",
+  },
 
-  // Nivel 2 (10 minutos)
-  { name: "FLOOD Y SPAM", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Enviar mensajes demasiado largos o repetir mensajes muchas veces. Se advierte primero y se aplica la sanción si sigue haciéndolo." },
-  { name: "HABLAR DURANTE PARTIDA", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Hablar durante las rondas sobre temas ajenos a la partida (excepto dar información importante de muertes o avistamientos). Se advierte y se sanciona si no hace caso." },
-  { name: "NO TENER EL MISMO NOMBRE DE AMONG US", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Tener un nombre diferente en Among Us y Discord al pasar lista. Se le pide al dueño que no inicie y saque al usuario; si se repite, se sanciona." },
-  { name: "MAL USO DE SUGERENCIA", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Utilizar las sugerencias para llamar la atención, molestar o enviar cosas sin sentido." },
-  { name: "MAL USO DE TICKET", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Abrir y cerrar tickets repetidamente sin decir nada, o insistir en un caso ya resuelto." },
-  { name: "FALTA DE RESPETO ENTRE MIEMBROS", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Insultarse, provocarse o molestarse entre miembros. Se advierte que paren y se sanciona si alguno continúa." },
-  { name: "QUEDARSE AFK EN PARTIDA Y PERJUDICAR A TU EQUIPO", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Quedarse sin hacer nada durante una partida completa repetidamente sin previo aviso, perjudicando al equipo." },
-  { name: "MAL INFORMAR SOBRE UNA REGLA", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Dar información falsa sobre una regla. Se corrige al receptor y se sanciona al emisor incorrecto si el otro rompe la regla por su culpa." },
-  { name: "PRENDER CÁMARA EN AMONG US", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Prender cámara a propósito dentro del canal de Among Us. Se pide apagarla inmediatamente y se sanciona si vuelve a hacerlo." },
-  { name: "ENTRAR A UNA SALA Y NO ESTAR EN EL CANAL DE VOZ", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Entrar a una sala de Among Us sin unirse al canal de voz correspondiente. Se advierte y se sanciona si se repite." },
-  { name: "RUIDOS MUY MOLESTOS", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Hacer ruidos molestos intencionalmente para molestar en las salas. Se sanciona si continúa tras la advertencia." },
-  { name: "ENTRAR A UN CANAL DE VOZ PARA MOLESTAR", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Entrar a un canal solo para provocar o criticar acciones ajenas. Se advierte y se sanciona si continúa." },
-  { name: "NO RESPETAR TURNOS PARA HABLAR", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Interrumpir o hablar encima durante el turno del reportador y el acusado sin información importante. Se sanciona tras advertencia." },
-  { name: "PING INNECESARIO DE STAFF", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Mencionar innecesariamente a miembros del Staff sin un motivo real o de urgencia." },
-  { name: "ABANDONAR LA PARTIDA APROPÓSITO", nivel: 2, tiempo: "10 MINUTOS", descripcion: "Salirse de la partida a propósito para perjudicar o evitar el desarrollo normal de la misma." },
+  // Nivel 2 (10 - 30 minutos)
+  {
+    name: "FLOOD Y SPAM",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Enviar una gran cantidad de mensajes o repetir contenido de forma excesiva, dificultando la conversación normal.",
+  },
+  {
+    name: "HABLAR DURANTE PARTIDA",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Hablar durante una partida cuando no corresponde, afectando el desarrollo normal de la misma.",
+  },
+  {
+    name: "NO TENER EL MISMO NOMBRE DE AMONG US",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Tener un nombre diferente en Among Us y Discord durante una partida.",
+  },
+  {
+    name: "MAL USO DE SUGERENCIA",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Usar el canal de sugerencias para molestar, llamar la atención o enviar contenido que no corresponde.",
+  },
+  {
+    name: "MAL USO DE TICKET",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Abrir tickets sin un motivo válido, cerrarlos repetidamente sin resolver nada o utilizarlos de forma indebida.",
+  },
+  {
+    name: "FALTA DE RESPETO ENTRE MIEMBROS",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Faltarle el respeto a otro miembro mediante insultos, provocaciones o actitudes similares.",
+  },
+  {
+    name: "QUEDARSE AFK EN PARTIDA Y PERJUDICAR A TU EQUIPO",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Quedarse AFK durante una partida perjudicando intencionalmente al propio equipo.",
+  },
+  {
+    name: "MAL INFORMAR SOBRE UNA REGLA",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Dar información incorrecta sobre una regla, provocando que otro miembro pueda romperla por esa información.",
+  },
+  {
+    name: "PRENDER CÁMARA EN AMONG US",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Prender la cámara dentro de una sala de Among Us cuando no está permitido.",
+  },
+  {
+    name: "ENTRAR A UNA SALA Y NO ESTAR EN EL CANAL DE VOZ",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Entrar a una sala de Among Us sin estar presente en el canal de voz correspondiente.",
+  },
+  {
+    name: "RUIDOS MUY MOLESTOS",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Generar ruidos excesivamente molestos o hacerlo intencionalmente para perjudicar la convivencia.",
+  },
+  {
+    name: "ENTRAR A UN CANAL DE VOZ PARA MOLESTAR",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Entrar a un canal de voz con la intención de molestar, provocar o interrumpir a los demás.",
+  },
+  {
+    name: "NO RESPETAR TURNOS PARA HABLAR",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Interrumpir constantemente o no respetar los turnos establecidos para hablar.",
+  },
+  {
+    name: "PING INNECESARIO DE STAFF",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Mencionar a miembros del Staff innecesariamente, sin un motivo válido que justifique el ping.",
+  },
+  {
+    name: "ABANDONAR LA PARTIDA APROPÓSITO",
+    nivel: 2,
+    tiempo: "10-30 MINUTOS",
+    descripcion:
+      "Abandonar una partida intencionalmente para perjudicar a los demás o alterar su desarrollo.",
+  },
 
-  // Nivel 3 (1-2 horas / 1 hora - 1 día)
-  { name: "EVASIÓN DE SANCIÓN", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Intentar evitar ser reconocido o sancionado cambiando nombre/foto, o salirse del canal de voz al ser movido por el Staff." },
-  { name: "FALTA DE RESPETO AL STAFF", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Insultar o faltar el respeto a un miembro del Staff sin confianza. Se advierte y se sanciona si continúa." },
-  { name: "MENTIR AL STAFF", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Mentir intencionalmente ante un reporte o situación para evitar una sanción propia o de un amigo." },
-  { name: "PROVOCAR DISCUSIONES", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Intentar provocar o iniciar discusiones intencionalmente con otra persona." },
-  { name: "SUPLANTACIÓN DE IDENTIDAD DEL STAFF", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Utilizar un rango del Staff al que no se pertenece en el nombre. Se pide cambiarlo y se sanciona si se lo vuelve a colocar." },
-  { name: "NOMBRE INAPROPIADO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Usar nombres con contenido +18 o inadecuado. Se pide cambiarlo y se sanciona si reincide." },
-  { name: "CASO OMISO A ÓRDENES DEL STAFF", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Ignorar, negarse a responder o no hacer caso a las indicaciones de un miembro del Staff en un reporte." },
-  { name: "INTERFERENCIA A LA MODERACIÓN", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Interferir mientras el Staff atiende un caso (decirle a los involucrados que no hagan caso o entorpecer)." },
-  { name: "ACUMULACIÓN DE SANCIONES DE NIVEL 2", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Acumular sanciones de Nivel 2 (4 en adelante)." },
-  { name: "COMANDOS PROHIBIDOS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Usar comandos prohibidos como (?wa, banana, spank)." },
-  { name: "HABLAR DE SANCIONES EN PÚBLICO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Intentar hacer pública una sanción recibida o hablar de ella abiertamente." },
-  { name: "INSULTOS HACIA FAMILIARES DE UN MIEMBRO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Insultar a un familiar de otra persona sin confianza. Se advierte primero y se sanciona si se repite." },
-  { name: "DESEARLE EL MAL A ALGUIEN", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Desear algo malo a alguien de forma intencional. Se advierte y se sanciona si repite." },
-  { name: "INCOMODAR", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Realizar preguntas o acciones que hacen sentir incómoda a otra persona." },
-  { name: "PLAGIAR ARTE O USAR IA RECLAMÁNDOLO COMO TUYO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Tomar arte de terceros o usar IA afirmando que lo hiciste tú mismo." },
-  { name: "REPORTES FALSOS O ACUSACIONES FALSAS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Reportar a alguien sin pruebas por problemas personales o para perjudicar." },
-  { name: "COMENTARIOS +18", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Hablar de temas inapropiados para menores de 18 años. Se advierte y se sanciona si repite." },
-  { name: "ENCUBRIMIENTO DE SANCIÓN", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Ocultar, justificar o encubrir a alguien que rompió una regla (Nivel 3 para abajo)." },
-  { name: "INCITAR A MIEMBROS A ROMPER LAS REGLAS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Animar o decir a otra persona que ignore o rompa las reglas del servidor." },
-  { name: "GEMIDOS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Realizar gemidos intencionalmente en canales de voz." },
-  { name: "REVISAR UNA GRABACIÓN A MITAD DE PARTIDA", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Revisar un clip o grabación durante una partida para comprobar hechos." },
-  { name: "REVELAR INFORMACIÓN ESTANDO MUERTO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Hablar o filtrar datos de la partida estando en estado de fantasma/muerto." },
-  { name: "FINGIR ROL SIENDO TRIPULANTE", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Inventar o fingir roles que no te corresponden siendo tripulante." },
-  { name: "SACAR SIN PRUEBAS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Expulsar o votar sin contar con las pruebas necesarias." },
-  { name: "SALIRSE CONSCIENTEMENTE PARA RESETEAR VOTOS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Desconectarse a propósito de la sala para anular o resetear el conteo de votos." },
-  { name: "PROTEGER QUEDANDO 1 IMPOSRTOR", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Cubrir en exceso o proteger de forma indebida cuando queda un solo impostor vivo." },
-  { name: "SABOTEAR ESTANDO MUERTO", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Realizar acciones de sabotaje estando muerto arruinando el juego." },
-  { name: "DELATAR A TU COMPAÑERO IMPOSTOR", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Vender o delatar directamente a tu compañero impostor rompiendo las dinámicas de equipo." },
-  { name: "TROLEAR PARTIDAS", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Arruinar o trolear el transcurso normal de las partidas." },
-  { name: "COMPARTIR PANTALLA EN AMONG US", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Transmitir o ver pantallas ajenas durante las partidas de Among Us." },
-  { name: "EXPULSAR DE LA SALA SIN JUSTIFICACIÓN", nivel: 3, tiempo: "1-2 HORAS", descripcion: "Echar a usuarios de la sala de juego sin un motivo justificado." },
+  // Nivel 3 (1 - 12 horas)
+  {
+    name: "EVASIÓN DE SANCIÓN (NIVEL 3)",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Intentar evitar una sanción de Nivel 3 cambiando de nombre, cuenta, identidad u ocultando deliberadamente la sanción.",
+  },
+  {
+    name: "FALTA DE RESPETO AL STAFF",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Faltarle el respeto a un miembro del Staff mediante insultos, provocaciones o actitudes similares.",
+  },
+  {
+    name: "MENTIR AL STAFF",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Mentir deliberadamente al Staff con la intención de ocultar información o evitar una sanción.",
+  },
+  {
+    name: "PROVOCAR DISCUSIONES",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Provocar intencionalmente una discusión o conflicto entre miembros.",
+  },
+  {
+    name: "SUPLANTACIÓN DE IDENTIDAD DEL STAFF",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Hacerse pasar por un miembro del Staff o utilizar una identidad que pueda hacer creer a otros que se pertenece al Staff.",
+  },
+  {
+    name: "NOMBRE INAPROPIADO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Utilizar un nombre inapropiado, ofensivo o que incumpla las normas del servidor.",
+  },
+  {
+    name: "CASO OMISO A ÓRDENES DEL STAFF",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Ignorar deliberadamente una orden o indicación dada por un miembro del Staff.",
+  },
+  {
+    name: "INTERFERENCIA A LA MODERACIÓN",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Interferir deliberadamente con la labor de moderación o dificultar que el Staff pueda atender un caso.",
+  },
+  {
+    name: "ACUMULACIÓN DE SANCIONES DE NIVEL 2",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Acumular 4 o más sanciones de Nivel 2.",
+  },
+  {
+    name: "COMANDOS PROHIBIDOS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Utilizar comandos prohibidos, como ?wa, banana, spank o neko.",
+  },
+  {
+    name: "HABLAR DE SANCIONES EN PÚBLICO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Hablar públicamente sobre sanciones o exponer información relacionada con ellas.",
+  },
+  {
+    name: "INSULTOS HACIA FAMILIARES DE UN MIEMBRO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Insultar o faltarle el respeto a los familiares de otro miembro.",
+  },
+  {
+    name: "DESEARLE EL MAL A ALGUIEN",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Desearle intencionalmente algún daño o mal a otra persona.",
+  },
+  {
+    name: "INCOMODAR",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Realizar acciones, comentarios o preguntas con la intención de incomodar a otra persona.",
+  },
+  {
+    name: "PLAGIAR ARTE O USAR IA RECLAMÁNDOLO COMO TUYO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Plagiar una obra artística o utilizar IA y presentarlo como si fuera creación propia.",
+  },
+  {
+    name: "REPORTES FALSOS O ACUSACIONES FALSAS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Realizar reportes o acusaciones falsas con la intención de perjudicar a otra persona.",
+  },
+  {
+    name: "COMENTARIOS +18",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Realizar comentarios o conversaciones de carácter +18 dentro del servidor.",
+  },
+  {
+    name: "ENCUBRIMIENTO DE SANCIÓN (NIVEL 3 PARA ABAJO)",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Ocultar o encubrir a una persona que recibió una sanción de Nivel 3 o inferior.",
+  },
+  {
+    name: "INCITAR A MIEMBROS A ROMPER LAS REGLAS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Incitar o animar a otros miembros a romper las reglas del servidor.",
+  },
+  {
+    name: "GEMIDOS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Realizar gemidos intencionalmente en canales de voz.",
+  },
+  {
+    name: "REVISAR UNA GRABACIÓN A MITAD DE PARTIDA",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Revisar una grabación, transmisión o clip durante una partida para obtener información o comprobar hechos.",
+  },
+  {
+    name: "REVELAR INFORMACIÓN ESTANDO MUERTO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Revelar información de la partida mientras se está muerto o en estado de fantasma.",
+  },
+  {
+    name: "FINGIR ROL SIENDO TRIPULANTE",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Fingir deliberadamente tener un rol que no corresponde mientras se es tripulante.",
+  },
+  {
+    name: "SACAR SIN PRUEBAS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Expulsar o votar a un jugador sin contar con pruebas o fundamentos suficientes.",
+  },
+  {
+    name: "SALIRSE CONSCIENTEMENTE PARA RESETEAR VOTOS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Salir deliberadamente de la partida con la intención de resetear o alterar los votos.",
+  },
+  {
+    name: "PROTEGER QUEDANDO 1 IMPOSTOR",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Proteger deliberadamente a un impostor cuando queda solamente un impostor vivo.",
+  },
+  {
+    name: "SABOTEAR ESTANDO MUERTO",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Realizar sabotajes estando muerto para afectar el desarrollo de la partida.",
+  },
+  {
+    name: "DELATAR A TU COMPAÑERO IMPOSTOR",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Delatar intencionalmente a tu compañero impostor durante una partida.",
+  },
+  {
+    name: "TROLEAR PARTIDAS",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Trolear o arruinar intencionalmente el desarrollo normal de una partida.",
+  },
+  {
+    name: "COMPARTIR PANTALLA EN AMONG US",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Compartir pantalla o utilizar la pantalla de otra persona para obtener información durante una partida.",
+  },
+  {
+    name: "EXPULSAR DE LA SALA SIN JUSTIFICACIÓN",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Expulsar a un usuario de una sala sin contar con una justificación válida.",
+  },
+  {
+    name: "HABLAR DE GORE",
+    nivel: 3,
+    tiempo: "1-12 HORAS",
+    descripcion:
+      "Hablar o realizar comentarios sobre contenido gore dentro del servidor.",
+  },
 
-// Nivel 4 (1 - 2 días)
-  { name: "COMENTARIOS PASIVO AGRESIVOS", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Comentarios con indirectas o doble sentido para provocar o hacer sentir mal a otros." },
-  { name: "EXCLUSIÓN", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Sacar a una persona de una partida o actividades del grupo sin motivo aparente." },
-  { name: "DISCRIMINACIÓN", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Tratar de manera diferente o perjudicial a alguien por características personales." },
-  { name: "RACISMO", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Comentarios o insultos que atacan por raza, color de piel u origen étnico." },
-  { name: "CLASISMO", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Menospreciar, insultar o discriminar por situación económica o clase social." },
-  { name: "DIFAMACIÓN", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Compartir información falsa para perjudicar la reputación de alguien." },
-  { name: "XENOFOBÍA", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Atacar o menospreciar a alguien por ser de otro país o nacionalidad." },
-  { name: "HOMOFOBÍA", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Atacar o discriminar a alguien por su orientación sexual." },
-  { name: "HOSTIGAMIENTO", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Molestar, provocar o incomodar constantemente a alguien tras pedirle que pare." },
-  { name: "ACUMULACIÓN DE SANCIONES DE NIVEL 3", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Acumular 4 o más sanciones de Nivel 3 en adelante." },
-  { name: "MACHISMO SIN CONFIANZA", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Comentarios machistas o tratos inferiores por género sin confianza previa." },
-  { name: "INSULTOS A MD", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Insultar u ofender a otra persona mediante mensajes directos sin existir confianza." },
-  { name: "FOCUS", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Concentrarse intencionalmente en una persona durante la partida para perjudicarla reiteradamente." },
-  { name: "FILTRAR CONVERSACIONES SIN PERMISO", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Compartir chats privados, capturas o información de conversaciones sin permiso." },
-  { name: "AMENAZAR A UN USUARIO CON COSAS LEVES", nivel: 4, tiempo: "1-2 DÍAS", descripcion: "Realizar amenazas de carácter leve evaluando intención y contexto." },
+  // Nivel 4 (1 - 6 días)
+  {
+    name: "COMENTARIOS PASIVO AGRESIVOS",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Realizar comentarios pasivo-agresivos con la intención de provocar o incomodar a otra persona.",
+  },
+  {
+    name: "EXCLUSIÓN",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Excluir deliberadamente a una persona de actividades o partidas con la intención de perjudicarla.",
+  },
+  {
+    name: "DISCRIMINACIÓN",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Discriminar o tratar de manera perjudicial a una persona por alguna de sus características personales.",
+  },
+  {
+    name: "RACISMO",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Realizar comentarios, insultos o acciones discriminatorias por raza, color de piel u origen étnico.",
+  },
+  {
+    name: "CLASISMO",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Menospreciar o discriminar a una persona por su situación económica o clase social.",
+  },
+  {
+    name: "DIFAMACIÓN",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Difundir información falsa con la intención de perjudicar la reputación de otra persona.",
+  },
+  {
+    name: "XENOFOBÍA",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Atacar, insultar o menospreciar a una persona por su nacionalidad o país de origen.",
+  },
+  {
+    name: "HOMOFOBÍA",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Atacar, insultar o discriminar a una persona por su orientación sexual.",
+  },
+  {
+    name: "HOSTIGAMIENTO",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Molestar, provocar o incomodar repetidamente a una persona, especialmente después de que haya pedido que se detenga.",
+  },
+  {
+    name: "ACUMULACIÓN DE SANCIONES DE NIVEL 3",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Acumular 4 o más sanciones de Nivel 3.",
+  },
+  {
+    name: "MACHISMO SIN CONFIANZA",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Realizar comentarios o actitudes machistas hacia otra persona sin existir confianza.",
+  },
+  {
+    name: "INSULTOS A MD",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Insultar u ofender a una persona mediante mensajes directos sin existir confianza.",
+  },
+  {
+    name: "FOCUS",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Centrarse intencionalmente en una persona durante una partida con la intención de perjudicarla.",
+  },
+  {
+    name: "FILTRAR CONVERSACIONES SIN PERMISO",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Compartir conversaciones, capturas o información privada sin autorización de las personas involucradas.",
+  },
+  {
+    name: "AMENAZAR A UN USUARIO CON COSAS LEVES",
+    nivel: 4,
+    tiempo: "1-6 DÍAS",
+    descripcion:
+      "Realizar amenazas de carácter leve hacia otro usuario, teniendo en cuenta el contexto.",
+  },
 
-// Nivel 5 (1 semana o ban)
-  { name: "ENCUBRIMIENTO DE SANCIÓN", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Ayudar a otra persona a evadir, ocultar o reducir una sanción aplicada por el staff (Nivel 5)." },
-  { name: "SALIR DEL SERVIDOR PARA EVADIR SANCIÓN", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Abandonar el servidor con la intención de evitar un castigo." },
-  { name: "DOXXEO", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Compartir información personal o privada de otra persona sin su consentimiento." },
-  { name: "MULTICUENTA", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Utilizar una o más cuentas adicionales dentro del servidor." },
-  { name: "ACOSO", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Molestar o incomodar a una persona repetidamente tras pedirle que pare." },
-  { name: "METAGAMING", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Usar información externa para obtener ventaja en la partida." },
-  { name: "NEGARSE A REVISIÓN", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Negarse a colaborar con una revisión solicitada por el staff." },
-  { name: "CONTENIDO INAPROPIADO O NSFW", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Enviar contenido sexual, explícito o inapropiado para la comunidad." },
-  { name: "FOTO INAPROPIADA", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Ponerse una foto de perfil sexual o explícita." },
-  { name: "PEDOFILIA", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Conductas inapropiadas con menores de edad (Tolerancia Cero)." },
-  { name: "CONTENIDO GORE", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Compartir contenido explícito de muerte, violencia o lesiones." },
-  { name: "GRUPO EXTERNO PARA HABLAR MAL DEL STAFF", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Crear un grupo externo para hablar mal o difamar al staff." },
-  { name: "CATFISHING", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Hacerse pasar por otra persona o usar identidad falsa para engañar." },
-  { name: "GROOMING", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Intentar ganarse la confianza de un menor con fines de interacción sexual (Tolerancia Cero)." },
-  { name: "NAZISMO", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Promover o apoyar el nazismo dentro del servidor." },
-  { name: "HACKS", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Usar hacks para obtener ventaja en Among Us." },
-  { name: "MOD MENU", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Utilizar un menú de mods no permitido para alterar partidas." },
-  { name: "COMPARTIR LINKS EXTERNOS", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Compartir enlaces externos no permitidos dentro del servidor." },
-  { name: "PROMOCIONAR LINKS DE SERVIDORES", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Invitar a servidores externos sin autorización del staff." },
-  { name: "ACUMULACIÓN DE SANCIONES", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Alcanzar 20 o más sanciones registradas en total." },
-  { name: "AMENAZAS REALES O DE MUERTE", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Amenazar de muerte o realizar amenazas reales a una persona." },
-  { name: "INTENTO DE RAID", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Organizar o participar en un ataque masivo contra el servidor." },
-  { name: "DISTRIBUCIÓN DE MALWARE, VIRUS U OTROS", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Distribuir archivos o programas para dañar dispositivos o cuentas." },
-  { name: "ESTAFAS REALES", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Engañar a otra persona para obtener dinero, cuentas u objetos mediante estafa real." },
-  { name: "TEAM", nivel: 5, tiempo: "1 SEMANA O BAN", descripcion: "Colaborar con otro usuario para obtener ventaja injusta en partidas de Among Us." },
+  // Nivel 5 (1 semana o ban)
+  {
+    name: "ENCUBRIMIENTO DE SANCIÓN (NIVEL 5)",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Ayudar a otra persona a ocultar o evadir una sanción de Nivel 5.",
+  },
+  {
+    name: "SALIR DEL SERVIDOR PARA EVADIR SANCIÓN",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Abandonar el servidor intencionalmente para evadir una sanción.",
+  },
+  {
+    name: "DOXXEO",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Compartir o difundir información personal o privada de otra persona sin su consentimiento.",
+  },
+  {
+    name: "MULTICUENTA",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Utilizar múltiples cuentas dentro del servidor para evadir restricciones, sanciones u obtener ventajas.",
+  },
+  {
+    name: "ACOSO",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Acosar o molestar repetidamente a una persona, especialmente después de que haya pedido que se detenga.",
+  },
+  {
+    name: "METAGAMING",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Utilizar información obtenida fuera de la partida para conseguir una ventaja dentro de ella.",
+  },
+  {
+    name: "NEGARSE A REVISIÓN",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Negarse deliberadamente a colaborar con una revisión solicitada por el Staff.",
+  },
+  {
+    name: "CONTENIDO INAPROPIADO O NSFW",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Compartir contenido sexual, explícito o inapropiado dentro del servidor.",
+  },
+  {
+    name: "FOTO INAPROPIADA",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Utilizar una foto de perfil inapropiada, sexual o explícita.",
+  },
+  {
+    name: "PEDOFILIA",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Cualquier conducta relacionada con la explotación o sexualización de menores. Tolerancia cero.",
+  },
+  {
+    name: "CONTENIDO GORE",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Compartir contenido gore o material explícito relacionado con muerte, violencia o lesiones.",
+  },
+  {
+    name: "GRUPO EXTERNO PARA HABLAR MAL DEL STAFF",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Crear o utilizar un grupo externo con la finalidad de atacar o difamar al Staff.",
+  },
+  {
+    name: "CATFISHING",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Hacerse pasar por otra persona o utilizar una identidad falsa para engañar a otros usuarios.",
+  },
+  {
+    name: "GROOMING",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Intentar ganarse la confianza de un menor con fines de explotación o interacción sexual. Tolerancia cero.",
+  },
+  {
+    name: "NAZISMO",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Promover, apoyar o difundir ideología o propaganda nazi dentro del servidor.",
+  },
+  {
+    name: "HACKS",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Utilizar hacks o herramientas externas para obtener ventajas ilegítimas en Among Us.",
+  },
+  {
+    name: "MOD MENU",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Utilizar un menú de mods no permitido para alterar el funcionamiento normal de las partidas.",
+  },
+  {
+    name: "COMPARTIR LINKS EXTERNOS",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Compartir enlaces externos que no estén permitidos por las normas del servidor.",
+  },
+  {
+    name: "PROMOCIONAR LINKS DE SERVIDORES",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Promocionar o invitar a otros usuarios a servidores externos sin autorización del Staff.",
+  },
+  {
+    name: "ACUMULACIÓN DE SANCIONES",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Acumular 20 o más sanciones registradas.",
+  },
+  {
+    name: "AMENAZAS REALES O DE MUERTE",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Realizar amenazas reales o amenazas de muerte contra otra persona.",
+  },
+  {
+    name: "INTENTO DE RAID",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Intentar organizar o participar en un ataque coordinado contra el servidor.",
+  },
+  {
+    name: "DISTRIBUCIÓN DE MALWARE, VIRUS U OTROS",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Distribuir malware, virus u otros archivos o programas destinados a perjudicar dispositivos, cuentas o usuarios.",
+  },
+  {
+    name: "ESTAFAS REALES",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Realizar estafas reales con la intención de obtener dinero, cuentas, objetos o beneficios de otra persona.",
+  },
+  {
+    name: "TEAM",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Colaborar con otro usuario de manera indebida para obtener una ventaja injusta durante una partida.",
+  },
+  {
+    name: "CROOSTRADE",
+    nivel: 5,
+    tiempo: "1 SEMANA O BAN",
+    descripcion:
+      "Realizar o intentar realizar intercambios entre elementos, beneficios o bienes que no estén permitidos por las normas del servidor.",
+  },
 ];
 
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -151,25 +717,42 @@ export const data = new SlashCommandBuilder()
       .setAutocomplete(true),
   );
 
-export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+export async function autocomplete(
+  interaction: AutocompleteInteraction,
+): Promise<void> {
   const focused = interaction.options.getFocused().toUpperCase().trim();
-  const filtered = focused ? INFRACTIONS.filter((inf) => inf.name.includes(focused)) : INFRACTIONS;
+  const filtered = focused
+    ? INFRACTIONS.filter((inf) => inf.name.includes(focused))
+    : INFRACTIONS;
+
   const choices = filtered.slice(0, MAX_AUTOCOMPLETE_CHOICES).map((inf) => ({
     name: inf.name,
     value: inf.name,
   }));
+
   await interaction.respond(choices);
 }
 
-async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
+async function hasPermission(
+  interaction: ChatInputCommandInteraction,
+): Promise<boolean> {
   if (!interaction.guild || !interaction.user) return false;
+
   try {
     let member = interaction.member as GuildMember | null;
-    if (!member || !member.roles || typeof (member.roles as any).cache?.has !== 'function') {
+
+    if (
+      !member ||
+      !member.roles ||
+      typeof (member.roles as any).cache?.has !== "function"
+    ) {
       member = await interaction.guild.members.fetch(interaction.user.id);
     }
+
     if (!member || !member.roles) return false;
+
     const memberRoles = (member.roles as any).cache;
+
     return ALLOWED_ROLES.some((roleId) => memberRoles.has(roleId));
   } catch (err) {
     logger.error({ err }, "Error checking permissions for /sanciones command");
@@ -177,36 +760,71 @@ async function hasPermission(interaction: ChatInputCommandInteraction): Promise<
   }
 }
 
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function execute(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
   const authorized = await hasPermission(interaction);
+
   if (!authorized) {
     await interaction.reply({
       content: "❌ No tienes el rango suficiente para usar ese comando.",
       flags: MessageFlags.Ephemeral,
     });
+
     return;
   }
-  const selectedInput = interaction.options.getString("infraccion", true).trim().toUpperCase();
+
+  const selectedInput = interaction.options
+    .getString("infraccion", true)
+    .trim()
+    .toUpperCase();
+
   const infraction = INFRACTIONS.find(
-    (inf) => inf.name.toUpperCase() === selectedInput || inf.name.toUpperCase().includes(selectedInput)
+    (inf) =>
+      inf.name.toUpperCase() === selectedInput ||
+      inf.name.toUpperCase().includes(selectedInput),
   );
+
   if (!infraction) {
     await interaction.reply({
-      content: "⚠️ Infracción no reconocida. Por favor selecciona una opción del menú de autocompletado.",
+      content:
+        "⚠️ Infracción no reconocida. Por favor selecciona una opción del menú de autocompletado.",
       flags: MessageFlags.Ephemeral,
     });
+
     return;
   }
+
   const embed = new EmbedBuilder()
     .setColor("Red")
     .setTitle("⚖️ Información de la sanción")
     .addFields(
-      { name: "📌 **Infracción:**", value: infraction.name, inline: false },
-      { name: "📊 **Nivel:**", value: `Nivel ${infraction.nivel}`, inline: true },
-      { name: "⏳ **Duración:**", value: infraction.tiempo, inline: true },
-      { name: "📖 **Descripción:**", value: infraction.descripcion, inline: false },
+      {
+        name: "📌 **Infracción:**",
+        value: infraction.name,
+        inline: false,
+      },
+      {
+        name: "📊 **Nivel:**",
+        value: `Nivel ${infraction.nivel}`,
+        inline: true,
+      },
+      {
+        name: "⏳ **Duración:**",
+        value: infraction.tiempo,
+        inline: true,
+      },
+      {
+        name: "📖 **Descripción:**",
+        value: infraction.descripcion,
+        inline: false,
+      },
     )
     .setFooter({ text: "Sistema de Sanciones • TIAGO JR" })
     .setTimestamp();
-  await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+
+  await interaction.reply({
+    embeds: [embed],
+    flags: MessageFlags.Ephemeral,
+  });
 }
