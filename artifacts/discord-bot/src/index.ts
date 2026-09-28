@@ -55,23 +55,6 @@ const client = new Client({
   ],
 });
 
-// 🔌 Eventos de diagnóstico de red y WebSocket de Discord
-client.on(Events.ShardDisconnect, (event, shardId) => {
-  logger.warn({ shardId, event }, `⚠️ [DISCORD] El bot se desconectó de la Shard ${shardId}`);
-});
-
-client.on(Events.ShardReconnecting, (shardId) => {
-  logger.info({ shardId }, `🔄 [DISCORD] Intentando reconectar la Shard ${shardId}...`);
-});
-
-client.on(Events.ShardResume, (shardId, replayedEvents) => {
-  logger.info({ shardId, replayedEvents }, `✅ [DISCORD] Conexión reanudada en la Shard \({shardId}. Eventos rejugados:\){replayedEvents}`);
-});
-
-client.on(Events.Error, (error) => {
-  logger.error({ err: error }, "❌ [DISCORD ERROR] Error general en el cliente de Discord");
-});
-
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
   
@@ -371,55 +354,69 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
-    const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
-    const rejectionTime = rejectionRegistry.get(cooldownKey);
+  // 🟢 MANEJADOR GENERAL DE COMANDOS DE BARRA (Movido al inicio con prioridad óptima)
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "postular") {
+      const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
+      const rejectionTime = rejectionRegistry.get(cooldownKey);
 
-    if (rejectionTime) {
-      const elapsed = Date.now() - rejectionTime;
-      if (elapsed < REJECTION_COOLDOWN) {
-        const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
+      if (rejectionTime) {
+        const elapsed = Date.now() - rejectionTime;
+        if (elapsed < REJECTION_COOLDOWN) {
+          const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
+          await interaction.reply({
+            content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+            ephemeral: true
+          });
+          return;
+        } else {
+          rejectionRegistry.delete(cooldownKey);
+          saveCooldowns(rejectionRegistry);
+        }
+      }
+
+      const member = interaction.member;
+      if (member && typeof member !== 'string' && 'roles' in member) {
+        const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
+        if (tieneRolActivo) {
+          await interaction.reply({
+            content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
+            ephemeral: true
+          });
+          return;
+        }
+      }
+
+      const createdAt = interaction.user.createdAt;
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      if (createdAt > sevenDaysAgo) {
         await interaction.reply({
-          content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+          content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
           ephemeral: true
         });
         return;
-      } else {
-        rejectionRegistry.delete(cooldownKey);
-        saveCooldowns(rejectionRegistry);
       }
     }
 
-    const member = interaction.member;
-    if (member && typeof member !== 'string' && 'roles' in member) {
-      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
-      if (tieneRolActivo) {
-        await interaction.reply({
-          content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
-          ephemeral: true
-        });
-        return;
+    const command = commands.get(interaction.commandName);
+    if (!command) {
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: "❌ Este comando no está disponible.", ephemeral: true }).catch(() => {});
       }
-    }
-
-    const createdAt = interaction.user.createdAt;
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    if (createdAt > sevenDaysAgo) {
-      await interaction.reply({
-        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
-        ephemeral: true
-      });
       return;
     }
 
-    const command = commands.get("postular");
-    if (command) {
-      try {
-        await command.execute(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error executing postular command");
+    try {
+      await command.execute(interaction);
+    } catch (err) {
+      logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+      const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
+      if (interaction.replied || interaction.deferred) {
+        await interaction.followUp(errorMessage).catch(() => {});
+      } else {
+        await interaction.reply(errorMessage).catch(() => {});
       }
     }
     return;
@@ -785,23 +782,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
     return;
-  }
-
-  if (!interaction.isChatInputCommand()) return;
-
-  const command = commands.get(interaction.commandName);
-  if (!command) return;
-
-  try {
-    await command.execute(interaction);
-  } catch (err) {
-    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
-    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errorMessage);
-    } else {
-      await interaction.reply(errorMessage);
-    }
   }
 });
 
