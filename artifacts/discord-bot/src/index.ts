@@ -58,6 +58,7 @@ const client = new Client({
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
   
+  // 🟢 Inicialización del filtro de nombres para nuevos miembros
   setupNameFilter(client);
 
   import("./database/init")
@@ -70,6 +71,7 @@ const REJECT_REASON_INPUT_ID = "postular_reject_reason";
 const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
 const rejectionRegistry = loadCooldowns();
 
+// registro de baneos 
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
 
@@ -122,6 +124,7 @@ function formatActionTimestamp(date: Date): string {
   return `\({day}/\){month}/${year}`;
 }
 
+// lista de roles auras autorizados
 const ROLES_AUTORIZADOS = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
@@ -785,7 +788,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Puente optimizado para manejar comandos por prefijo (-) sin dejar interacciones colgadas
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot || !message.content.startsWith("-")) return;
 
@@ -796,7 +798,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (commandName === "abrir") {
     const sub = args[0]?.toLowerCase();
     if (sub !== "temporada" && sub !== "postulaciones") {
-      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada` o `-abrir postulaciones`.");
+      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada ` o `-abrir postulaciones`.");
       return;
     }
   }
@@ -811,15 +813,14 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    let responseMessage: any = null;
-
+    const member = message.member;
     const fakeInteraction = {
       commandName: commandName,
       user: message.author,
       client: message.client,
       guild: message.guild,
       guildId: message.guild?.id,
-      member: message.member,
+      member: member,
       channel: message.channel,
       options: {
         getSubcommand: () => {
@@ -857,34 +858,22 @@ client.on(Events.MessageCreate, async (message) => {
       async reply(options: any) {
         this.replied = true;
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        responseMessage = await message.reply({ content, embeds, components });
-        return responseMessage;
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       },
       async followUp(options: any) {
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        return message.channel.send({ content, embeds, components });
+        return message.channel.send({ content, embeds: options.embeds || [], components: options.components || [] });
       },
-      async deferReply() {
+      async deferReply(options: any) {
         this.deferred = true;
-        responseMessage = await message.reply("⏳ Procesando...");
-        return responseMessage;
+        return message.channel.send({ content: "⏳ Procesando...", flags: options?.flags });
       },
       async editReply(options: any) {
         this.replied = true;
         const content = typeof options === "string" ? options : options.content;
-        const embeds = options.embeds || [];
-        const components = options.components || [];
-        if (responseMessage && typeof responseMessage.edit === "function") {
-          return await responseMessage.edit({ content, embeds, components });
-        }
-        return await message.reply({ content, embeds, components });
+        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
       }
     };
-
     await command.execute(fakeInteraction as any);
   } catch (err) {
     console.error("❌ ERROR CRÍTICO EN COMANDO POR PREFIJO:", err);
@@ -1062,9 +1051,9 @@ async function iniciarBot() {
   const rest = new REST().setToken(token);
   const body = Array.from(commands.values()).map(c => c.data.toJSON());
   console.log(
-    "📋 Comandos registrados:",
-    body.map((command: any) => command.name)
-  );
+  "📋 Comandos registrados:",
+  body.map((command: any) => command.name)
+);
 
   try {
     console.log("🔄 Registrando comandos globalmente...");
