@@ -1047,30 +1047,24 @@ async function iniciarBot() {
     return;
   }
 
-  console.log("[DEBUG] Intentando conectar el cliente de Discord de forma prioritaria...");
+  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
   
   try {
-    // Añadimos un timeout de 15 segundos para que si Discord ignora la conexión, nos avise en vez de colgarse para siempre
-    const loginPromise = client.login(token);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("TIMEOUT: Discord tardó demasiado en responder. ¿Están bien los Intents o la red?")), 15000)
-    );
-
-    await Promise.race([loginPromise, timeoutPromise]);
-    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`);
+    // Ya no usamos process.exit si da timeout; dejamos que intente conectar libremente
+    await client.login(token);
+    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido y listo.`);
   } catch (err) {
-    console.error("[DEBUG] ❌ ERROR CRÍTICO AL CONECTAR CON DISCORD:", err);
-    process.exit(1);
+    console.error("[DEBUG] ❌ Error al conectar con Discord:", err);
   }
 
-  // Registro de comandos en segundo plano
+  // Registro de comandos global
   const clientId = process.env["DISCORD_CLIENT_ID"];
   if (clientId) {
     const rest = new REST().setToken(token);
     const body = Array.from(commands.values()).map(c => c.data.toJSON());
     
     rest.put(Routes.applicationCommands(clientId), { body })
-      .then(() => console.log("✅ Comandos registrados correctamente."))
+      .then(() => console.log("✅ Comandos registrados correctamente en Discord."))
       .catch((e) => console.error("❌ Error registrando comandos:", e));
   }
 }
