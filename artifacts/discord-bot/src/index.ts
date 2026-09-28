@@ -354,69 +354,55 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  // 🟢 MANEJADOR GENERAL DE COMANDOS DE BARRA (Movido al inicio con prioridad óptima)
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === "postular") {
-      const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
-      const rejectionTime = rejectionRegistry.get(cooldownKey);
+  if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
+    const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
+    const rejectionTime = rejectionRegistry.get(cooldownKey);
 
-      if (rejectionTime) {
-        const elapsed = Date.now() - rejectionTime;
-        if (elapsed < REJECTION_COOLDOWN) {
-          const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
-          await interaction.reply({
-            content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
-            ephemeral: true
-          });
-          return;
-        } else {
-          rejectionRegistry.delete(cooldownKey);
-          saveCooldowns(rejectionRegistry);
-        }
-      }
-
-      const member = interaction.member;
-      if (member && typeof member !== 'string' && 'roles' in member) {
-        const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
-        if (tieneRolActivo) {
-          await interaction.reply({
-            content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
-            ephemeral: true
-          });
-          return;
-        }
-      }
-
-      const createdAt = interaction.user.createdAt;
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      if (createdAt > sevenDaysAgo) {
+    if (rejectionTime) {
+      const elapsed = Date.now() - rejectionTime;
+      if (elapsed < REJECTION_COOLDOWN) {
+        const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
         await interaction.reply({
-          content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
+          content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+          ephemeral: true
+        });
+        return;
+      } else {
+        rejectionRegistry.delete(cooldownKey);
+        saveCooldowns(rejectionRegistry);
+      }
+    }
+
+    const member = interaction.member;
+    if (member && typeof member !== 'string' && 'roles' in member) {
+      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
+      if (tieneRolActivo) {
+        await interaction.reply({
+          content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
           ephemeral: true
         });
         return;
       }
     }
 
-    const command = commands.get(interaction.commandName);
-    if (!command) {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "❌ Este comando no está disponible.", ephemeral: true }).catch(() => {});
-      }
+    const createdAt = interaction.user.createdAt;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    if (createdAt > sevenDaysAgo) {
+      await interaction.reply({
+        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
+        ephemeral: true
+      });
       return;
     }
 
-    try {
-      await command.execute(interaction);
-    } catch (err) {
-      logger.error({ err, commandName: interaction.commandName }, "Error executing command");
-      const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorMessage).catch(() => {});
-      } else {
-        await interaction.reply(errorMessage).catch(() => {});
+    const command = commands.get("postular");
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error executing postular command");
       }
     }
     return;
@@ -443,21 +429,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-    if (interaction.customId.startsWith("reputacion_")) {
-      try {
-        await reputacionCommand.handleButton(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error handling reputation button");
+if (interaction.customId.startsWith("reputacion_")) {
+  try {
+    await reputacionCommand.handleButton(interaction);
+  } catch (err) {
+    logger.error({ err }, "Error handling reputation button");
 
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "❌ Hubo un error al procesar la reputación.",
-            ephemeral: true,
-          }).catch(() => {});
-        }
-      }
-      return;
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Hubo un error al procesar la reputación.",
+        ephemeral: true,
+      }).catch(() => {});
     }
+  }
+  return;
+}
     if (interaction.customId.startsWith("tateti_")) {
       try {
         const tatetiModule = commands.get("tateti") as any;
@@ -606,11 +592,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
           if (!interaction.replied && !interaction.deferred) {
             await interaction.update({
-              content: `🔨 <@\({targetUserId}> fue baneado del servidor por **\){moderatorName}**.`,
+              content: `🔨 <@${targetUserId}> fue baneado del servidor por **{moderatorName}**.`,
               components: []
             });
           }
-        }
+                }
       } catch (err) {
         logger.error({ err }, "Error procesando acción forense sobre el usuario");
         if (!interaction.replied && !interaction.deferred) {
@@ -782,6 +768,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
     return;
+  }
+
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
+  } catch (err) {
+    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(errorMessage);
+    } else {
+      await interaction.reply(errorMessage);
+    }
   }
 });
 
