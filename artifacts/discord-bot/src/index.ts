@@ -1041,7 +1041,6 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 async function iniciarBot() {
-  // 1. PRIMERO: Conectamos a Discord inmediatamente para que el bot encienda sí o sí
   const token = process.env["DISCORD_BOT_TOKEN"];
   if (!token) {
     console.error("❌ Falta el DISCORD_BOT_TOKEN.");
@@ -1049,15 +1048,22 @@ async function iniciarBot() {
   }
 
   console.log("[DEBUG] Intentando conectar el cliente de Discord de forma prioritaria...");
+  
   try {
-    await client.login(token);
+    // Añadimos un timeout de 15 segundos para que si Discord ignora la conexión, nos avise en vez de colgarse para siempre
+    const loginPromise = client.login(token);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("TIMEOUT: Discord tardó demasiado en responder. ¿Están bien los Intents o la red?")), 15000)
+    );
+
+    await Promise.race([loginPromise, timeoutPromise]);
     console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`);
   } catch (err) {
-    console.error("[DEBUG] Error crítico al conectar con Discord:", err);
+    console.error("[DEBUG] ❌ ERROR CRÍTICO AL CONECTAR CON DISCORD:", err);
     process.exit(1);
   }
 
-  // 2. SEGUNDO: Registramos comandos en segundo plano para que no bloqueen el encendido
+  // Registro de comandos en segundo plano
   const clientId = process.env["DISCORD_CLIENT_ID"];
   if (clientId) {
     const rest = new REST().setToken(token);
@@ -1068,6 +1074,7 @@ async function iniciarBot() {
       .catch((e) => console.error("❌ Error registrando comandos:", e));
   }
 }
+  
 
 iniciarBot().catch((err) => {
   console.error("[DEBUG] Error crítico en la inicialización:", err);
