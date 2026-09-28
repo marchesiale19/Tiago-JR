@@ -75,7 +75,7 @@ const rejectionRegistry = loadCooldowns();
 const BANS_FILE = path.join(__dirname, 'bans_registry.json');
 const banRegistry = loadBansRegistry();
 
-function loadBansRegistry(): Map {
+function loadBansRegistry(): Map<string, { reason: string; timestamp: number; moderator: string }> {
   try {
     if (fs.existsSync(BANS_FILE)) {
       const data = fs.readFileSync(BANS_FILE, 'utf-8');
@@ -87,7 +87,7 @@ function loadBansRegistry(): Map {
   return new Map();
 }
 
-function saveBansRegistry(map: Map) {
+function saveBansRegistry(map: Map<string, any>) {
   try {
     const obj = Object.fromEntries(map);
     fs.writeFileSync(BANS_FILE, JSON.stringify(obj, null, 2));
@@ -96,7 +96,7 @@ function saveBansRegistry(map: Map) {
   }
 }
 
-function loadCooldowns(): Map {
+function loadCooldowns(): Map<string, number> {
   try {
     if (fs.existsSync(COOLDOWNS_FILE)) {
       const data = fs.readFileSync(COOLDOWNS_FILE, 'utf-8');
@@ -108,7 +108,7 @@ function loadCooldowns(): Map {
   return new Map();
 }
 
-function saveCooldowns(map: Map) {
+function saveCooldowns(map: Map<string, number>) {
   try {
     const obj = Object.fromEntries(map);
     fs.writeFileSync(COOLDOWNS_FILE, JSON.stringify(obj, null, 2));
@@ -121,7 +121,7 @@ function formatActionTimestamp(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
-  return `\({day}/\){month}/${year}`;
+  return `${day}/${month}/${year}`;
 }
 
 // lista de roles auras autorizados
@@ -180,7 +180,7 @@ function hasForensicPermission(member: any): boolean {
   return ROLES_FORENSIC_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
 }
 
-const disabledRow = new ActionRowBuilder().addComponents(
+const disabledRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
   new ButtonBuilder()
     .setCustomId("postular_approve_disabled")
     .setLabel("Aceptar")
@@ -195,21 +195,21 @@ const disabledRow = new ActionRowBuilder().addComponents(
 
 const POSTULADOS_ROLE_ID = "1509745451224797274";
 
-async function assignPostuladosRole(interaction: ButtonInteraction, applicantId: string): Promise {
+async function assignPostuladosRole(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   const guild = interaction.guild;
   if (!guild) return;
 
   try {
     const member = await guild.members.fetch(applicantId);
     await member.roles.add(POSTULADOS_ROLE_ID);
-    console.log(`[DEBUG] ¡Rol con ID "\({POSTULADOS_ROLE_ID}" asignado correctamente a\){member.user.username}!`);
+    console.log(`[DEBUG] ¡Rol con ID "${POSTULADOS_ROLE_ID}" asignado correctamente a ${member.user.username}!`);
   } catch (err) {
     console.log(`[DEBUG] Error crítico: No pude asignar el rol.`);
     console.error(err);
   }
 }
 
-async function handleApprove(interaction: ButtonInteraction, applicantId: string): Promise {
+async function handleApprove(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   if (interaction.message.embeds[0]?.title?.includes("APROBADA")) {
     return; 
   }
@@ -222,7 +222,7 @@ async function handleApprove(interaction: ButtonInteraction, applicantId: string
         .setColor("Green")
         .setTitle("✅ Postulación APROBADA")
         .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
-        .setFooter({ text: `✅ Aprobado por \({interaction.user.username} el\){now}` })
+        .setFooter({ text: `✅ Aprobado por ${interaction.user.username} el${now}` })
     : null;
 
   try {
@@ -246,7 +246,7 @@ async function handleApprove(interaction: ButtonInteraction, applicantId: string
   await assignPostuladosRole(interaction, applicantId);
 }
 
-async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): Promise {
+async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const match = interaction.customId.match(/^postular_reject_modal_(\d+)$/);
 
   if (!match) {
@@ -276,7 +276,7 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
         .setTitle("❌ Postulación RECHAZADA")
         .addFields({ name: "Razón del rechazo", value: reason })
         .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
-        .setFooter({ text: `❌ Rechazado por \({interaction.user.username} el\){now}` })
+        .setFooter({ text: `❌ Rechazado por ${interaction.user.username} el${now}` })
     : null;
 
   try {
@@ -292,7 +292,7 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
     logger.warn({ err }, "Failed to update application message");
   }
 
-  const cooldownKey = `\({interaction.guildId}-\){applicantId}`;
+  const cooldownKey = `${interaction.guildId}-${applicantId}`;
   rejectionRegistry.set(cooldownKey, Date.now());
   saveCooldowns(rejectionRegistry);
 
@@ -312,7 +312,7 @@ async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): 
   }
 }
 
-async function handleRejectButton(interaction: ButtonInteraction, applicantId: string): Promise {
+async function handleRejectButton(interaction: ButtonInteraction, applicantId: string): Promise<void> {
   const modal = new ModalBuilder()
     .setCustomId(`postular_reject_modal_${applicantId}`)
     .setTitle("Razón del rechazo");
@@ -324,7 +324,7 @@ async function handleRejectButton(interaction: ButtonInteraction, applicantId: s
     .setRequired(true)
     .setMaxLength(1000);
 
-  const row = new ActionRowBuilder().addComponents(reasonInput);
+  const row = new ActionRowBuilder<TextInputBuilder>().addComponents(reasonInput);
   modal.addComponents(row);
 
   try {
@@ -334,7 +334,7 @@ async function handleRejectButton(interaction: ButtonInteraction, applicantId: s
   }
 }
 
-async function handlePostulationDecision(interaction: ButtonInteraction): Promise {
+async function handlePostulationDecision(interaction: ButtonInteraction): Promise<void> {
   const match = interaction.customId.match(/^postular_(approve|reject)_(\d+)$/);
   if (!match) return;
 
@@ -354,69 +354,55 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {
-  // 🟢 MANEJADOR GENERAL DE COMANDOS DE BARRA (Movido al inicio con prioridad óptima)
-  if (interaction.isChatInputCommand()) {
-    if (interaction.commandName === "postular") {
-      const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
-      const rejectionTime = rejectionRegistry.get(cooldownKey);
+  if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
+    const cooldownKey = `${interaction.guildId}-${interaction.user.id}`;
+    const rejectionTime = rejectionRegistry.get(cooldownKey);
 
-      if (rejectionTime) {
-        const elapsed = Date.now() - rejectionTime;
-        if (elapsed < REJECTION_COOLDOWN) {
-          const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
-          await interaction.reply({
-            content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
-            ephemeral: true
-          });
-          return;
-        } else {
-          rejectionRegistry.delete(cooldownKey);
-          saveCooldowns(rejectionRegistry);
-        }
-      }
-
-      const member = interaction.member;
-      if (member && typeof member !== 'string' && 'roles' in member) {
-        const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
-        if (tieneRolActivo) {
-          await interaction.reply({
-            content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
-            ephemeral: true
-          });
-          return;
-        }
-      }
-
-      const createdAt = interaction.user.createdAt;
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      if (createdAt > sevenDaysAgo) {
+    if (rejectionTime) {
+      const elapsed = Date.now() - rejectionTime;
+      if (elapsed < REJECTION_COOLDOWN) {
+        const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
         await interaction.reply({
-          content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
+          content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+          ephemeral: true
+        });
+        return;
+      } else {
+        rejectionRegistry.delete(cooldownKey);
+        saveCooldowns(rejectionRegistry);
+      }
+    }
+
+    const member = interaction.member;
+    if (member && typeof member !== 'string' && 'roles' in member) {
+      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
+      if (tieneRolActivo) {
+        await interaction.reply({
+          content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
           ephemeral: true
         });
         return;
       }
     }
 
-    const command = commands.get(interaction.commandName);
-    if (!command) {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "❌ Este comando no está disponible.", ephemeral: true }).catch(() => {});
-      }
+    const createdAt = interaction.user.createdAt;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    if (createdAt > sevenDaysAgo) {
+      await interaction.reply({
+        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
+        ephemeral: true
+      });
       return;
     }
 
-    try {
-      await command.execute(interaction);
-    } catch (err) {
-      logger.error({ err, commandName: interaction.commandName }, "Error executing command");
-      const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorMessage).catch(() => {});
-      } else {
-        await interaction.reply(errorMessage).catch(() => {});
+    const command = commands.get("postular");
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error executing postular command");
       }
     }
     return;
@@ -443,21 +429,21 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
       return;
     }
-    if (interaction.customId.startsWith("reputacion_")) {
-      try {
-        await reputacionCommand.handleButton(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error handling reputation button");
+if (interaction.customId.startsWith("reputacion_")) {
+  try {
+    await reputacionCommand.handleButton(interaction);
+  } catch (err) {
+    logger.error({ err }, "Error handling reputation button");
 
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "❌ Hubo un error al procesar la reputación.",
-            ephemeral: true,
-          }).catch(() => {});
-        }
-      }
-      return;
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Hubo un error al procesar la reputación.",
+        ephemeral: true,
+      }).catch(() => {});
     }
+  }
+  return;
+}
     if (interaction.customId.startsWith("tateti_")) {
       try {
         const tatetiModule = commands.get("tateti") as any;
@@ -596,7 +582,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
           if (!interaction.replied && !interaction.deferred) {
             await interaction.update({
-              content: `✅ Timeout retirado. <@\({targetUserId}> fue marcado como seguro por **\){moderatorName}**.`,
+              content: `✅ Timeout retirado. <@${targetUserId}> fue marcado como seguro por **${moderatorName}**.`,
               components: []
             });
           }
@@ -606,11 +592,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
           }
           if (!interaction.replied && !interaction.deferred) {
             await interaction.update({
-              content: `🔨 <@\({targetUserId}> fue baneado del servidor por **\){moderatorName}**.`,
+              content: `🔨 <@${targetUserId}> fue baneado del servidor por **{moderatorName}**.`,
               components: []
             });
           }
-        }
+                }
       } catch (err) {
         logger.error({ err }, "Error procesando acción forense sobre el usuario");
         if (!interaction.replied && !interaction.deferred) {
@@ -677,7 +663,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             }
         }
 
-        const confirmRow = new ActionRowBuilder().addComponents(
+        const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`harassment_confirm_${targetUserId}`)
             .setLabel("✅ Sí, aplicar timeout (10m)")
@@ -707,7 +693,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             if (interaction.message && interaction.message.editable) {
                 await interaction.message.edit({
-                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@\({targetUserId}> ha recibido un timeout de 10 minutos por **\){moderatorName}**.`,
+                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@${targetUserId}> ha recibido un timeout de 10 minutos por **${moderatorName}**.`,
                     components: []
                 }).catch(() => logger.warn("No se pudo editar el mensaje original de alerta"));
             }
@@ -783,6 +769,23 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
     return;
   }
+
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
+  } catch (err) {
+    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(errorMessage);
+    } else {
+      await interaction.reply(errorMessage);
+    }
+  }
 });
 
 client.on(Events.MessageCreate, async (message) => {
@@ -795,7 +798,7 @@ client.on(Events.MessageCreate, async (message) => {
   if (commandName === "abrir") {
     const sub = args[0]?.toLowerCase();
     if (sub !== "temporada" && sub !== "postulaciones") {
-      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada ` o `-abrir postulaciones`.");
+      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada <nombre>` o `-abrir postulaciones`.");
       return;
     }
   }
@@ -887,10 +890,10 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   if (!role) return;
 
   if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
-    const cooldownKey = `\({newMember.guild.id}-\){newMember.id}`;
+    const cooldownKey = `${newMember.guild.id}-${newMember.id}`;
     rejectionRegistry.set(cooldownKey, Date.now());
     saveCooldowns(rejectionRegistry);
-    console.log(`[EVENTO] Rol con ID \({POSTULADOS_ROLE_ID} quitado a\){newMember.user.username}. Cooldown aplicado.`);
+    console.log(`[EVENTO] Rol con ID ${POSTULADOS_ROLE_ID} quitado a ${newMember.user.username}. Cooldown aplicado.`);
   }
 });
 
@@ -954,13 +957,13 @@ client.on(Events.GuildMemberAdd, async (member) => {
           .setTitle("🚨 Alerta Forense: Usuario Sospechoso (Timeout Aplicado)")
           .setDescription(`Se detectó una cuenta sospechosa y se le aplicó un **timeout preventivo de 10 minutos** mientras el staff revisa su historial.`)
           .addFields(
-            { name: "Usuario", value: `<@\({evaluation.userId}> (\){evaluation.username})`, inline: true },
+            { name: "Usuario", value: `<@${evaluation.userId}> (${evaluation.username})`, inline: true },
             { name: "Riesgo Calculado", value: `${evaluation.riskScore}%`, inline: true },
             { name: "Razones", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
           )
           .setTimestamp();
 
-        const row = new ActionRowBuilder().addComponents(
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`forensic_untimeout_${evaluation.userId}`)
             .setLabel("Quitar Timeout (Seguro)")
@@ -1008,7 +1011,7 @@ client.on(Events.MessageCreate, async (message) => {
           )
           .setTimestamp();
 
-        const row = new ActionRowBuilder().addComponents(
+        const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
           new ButtonBuilder()
             .setCustomId(`harassment_timeout_${evaluation.authorId}`)
             .setLabel("Aplicar Timeout (10m)")
