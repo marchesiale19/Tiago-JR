@@ -1041,38 +1041,31 @@ client.on(Events.MessageCreate, async (message) => {
 });
 
 async function iniciarBot() {
+  // 1. PRIMERO: Conectamos a Discord inmediatamente para que el bot encienda sí o sí
   const token = process.env["DISCORD_BOT_TOKEN"];
-  const clientId = process.env["DISCORD_CLIENT_ID"];
-
-  if (!token || !clientId) {
-    console.error("❌ Faltan DISCORD_BOT_TOKEN o DISCORD_CLIENT_ID para registrar comandos.");
+  if (!token) {
+    console.error("❌ Falta el DISCORD_BOT_TOKEN.");
     return;
   }
 
-  const rest = new REST().setToken(token);
-  const body = Array.from(commands.values()).map(c => c.data.toJSON());
-  console.log(
-  "📋 Comandos registrados:",
-  body.map((command: any) => command.name)
-);
-
-  try {
-    console.log("🔄 Registrando comandos globalmente...");
-    await rest.put(Routes.applicationCommands(clientId), { body });
-    console.log("✅ Comandos registrados correctamente.");
-  } catch (e) {
-    console.error("❌ Error registrando comandos:", e);
-  }
-
-  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
-
+  console.log("[DEBUG] Intentando conectar el cliente de Discord de forma prioritaria...");
   try {
     await client.login(token);
-    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}!`);
+    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`);
   } catch (err) {
     console.error("[DEBUG] Error crítico al conectar con Discord:", err);
-    logger.error({ err }, "Failed to log in to Discord");
     process.exit(1);
+  }
+
+  // 2. SEGUNDO: Registramos comandos en segundo plano para que no bloqueen el encendido
+  const clientId = process.env["DISCORD_CLIENT_ID"];
+  if (clientId) {
+    const rest = new REST().setToken(token);
+    const body = Array.from(commands.values()).map(c => c.data.toJSON());
+    
+    rest.put(Routes.applicationCommands(clientId), { body })
+      .then(() => console.log("✅ Comandos registrados correctamente."))
+      .catch((e) => console.error("❌ Error registrando comandos:", e));
   }
 }
 
