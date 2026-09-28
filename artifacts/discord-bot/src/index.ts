@@ -31,8 +31,9 @@ const server = http.createServer((_req, res) => {
   res.end('Bot is running successfully!\n');
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+// Forzamos que tome el puerto de Render o caiga al 10000 por seguridad
+const PORT = Number(process.env.PORT) || 10000;
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server listening on port ${PORT}`);
 });
 
