@@ -55,6 +55,23 @@ const client = new Client({
   ],
 });
 
+// 🔌 Eventos de diagnóstico de red y WebSocket de Discord
+client.on(Events.ShardDisconnect, (event, shardId) => {
+  logger.warn({ shardId, event }, `⚠️ [DISCORD] El bot se desconectó de la Shard ${shardId}`);
+});
+
+client.on(Events.ShardReconnecting, (shardId) => {
+  logger.info({ shardId }, `🔄 [DISCORD] Intentando reconectar la Shard ${shardId}...`);
+});
+
+client.on(Events.ShardResume, (shardId, replayedEvents) => {
+  logger.info({ shardId, replayedEvents }, `✅ [DISCORD] Conexión reanudada en la Shard \({shardId}. Eventos rejugados:\){replayedEvents}`);
+});
+
+client.on(Events.Error, (error) => {
+  logger.error({ err: error }, "❌ [DISCORD ERROR] Error general en el cliente de Discord");
+});
+
 client.once(Events.ClientReady, (readyClient) => {
   logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
   
@@ -353,257 +370,437 @@ async function handlePostulationDecision(interaction: ButtonInteraction): Promis
   }
 }
 
-// 🟢 MANEJADOR DE INTERACCIONES UNIFICADO Y SEGURO
 client.on(Events.InteractionCreate, async (interaction) => {
-  try {
-    // 1. Autocompletados
-    if (interaction.isAutocomplete()) {
-      const command = commands.get(interaction.commandName);
-      if (command?.autocomplete) {
+  if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
+    const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
+    const rejectionTime = rejectionRegistry.get(cooldownKey);
+
+    if (rejectionTime) {
+      const elapsed = Date.now() - rejectionTime;
+      if (elapsed < REJECTION_COOLDOWN) {
+        const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
+        await interaction.reply({
+          content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+          ephemeral: true
+        });
+        return;
+      } else {
+        rejectionRegistry.delete(cooldownKey);
+        saveCooldowns(rejectionRegistry);
+      }
+    }
+
+    const member = interaction.member;
+    if (member && typeof member !== 'string' && 'roles' in member) {
+      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
+      if (tieneRolActivo) {
+        await interaction.reply({
+          content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
+          ephemeral: true
+        });
+        return;
+      }
+    }
+
+    const createdAt = interaction.user.createdAt;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    if (createdAt > sevenDaysAgo) {
+      await interaction.reply({
+        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
+        ephemeral: true
+      });
+      return;
+    }
+
+    const command = commands.get("postular");
+    if (command) {
+      try {
+        await command.execute(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error executing postular command");
+      }
+    }
+    return;
+  }
+
+  if (interaction.isAutocomplete()) {
+    const command = commands.get(interaction.commandName);
+    if (command?.autocomplete) {
+      try {
         await command.autocomplete(interaction);
+      } catch (err) {
+        logger.error({ err, commandName: interaction.commandName }, "Error handling autocomplete");
       }
-      return;
     }
+    return;
+  }
 
-    // 2. Comandos de Barra (Slash Commands /)
-    if (interaction.isChatInputCommand()) {
-      if (interaction.commandName === "postular") {
-        const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
-        const rejectionTime = rejectionRegistry.get(cooldownKey);
-
-        if (rejectionTime) {
-          const elapsed = Date.now() - rejectionTime;
-          if (elapsed < REJECTION_COOLDOWN) {
-            const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
-            await interaction.reply({
-              content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
-              ephemeral: true
-            });
-            return;
-          } else {
-            rejectionRegistry.delete(cooldownKey);
-            saveCooldowns(rejectionRegistry);
-          }
-        }
-
-        const member = interaction.member;
-        if (member && typeof member !== 'string' && 'roles' in member) {
-          const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
-          if (tieneRolActivo) {
-            await interaction.reply({
-              content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
-              ephemeral: true
-            });
-            return;
-          }
-        }
-
-        const createdAt = interaction.user.createdAt;
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-        if (createdAt > sevenDaysAgo) {
-          await interaction.reply({
-            content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
-            ephemeral: true
-          });
-          return;
-        }
-      }
-
-      const command = commands.get(interaction.commandName);
-      if (!command) {
-        logger.warn({ commandName: interaction.commandName }, "Comando ejecutado pero no encontrado en el mapa de comandos");
-        await interaction.reply({ content: "❌ Este comando no está disponible o no existe.", ephemeral: true }).catch(() => {});
-        return;
-      }
-
-      await command.execute(interaction);
-      return;
-    }
-
-    // 3. Botones
-    if (interaction.isButton()) {
-      if (interaction.customId.startsWith("postular_")) {
+  if (interaction.isButton()) {
+    if (interaction.customId.startsWith("postular_")) {
+      try {
         await handlePostulationDecision(interaction);
-        return;
+      } catch (err) {
+        logger.error({ err }, "Error handling postulation decision button");
       }
-      if (interaction.customId.startsWith("reputacion_")) {
+      return;
+    }
+    if (interaction.customId.startsWith("reputacion_")) {
+      try {
         await reputacionCommand.handleButton(interaction);
-        return;
+      } catch (err) {
+        logger.error({ err }, "Error handling reputation button");
+
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "❌ Hubo un error al procesar la reputación.",
+            ephemeral: true,
+          }).catch(() => {});
+        }
       }
-      if (interaction.customId.startsWith("tateti_")) {
+      return;
+    }
+    if (interaction.customId.startsWith("tateti_")) {
+      try {
         const tatetiModule = commands.get("tateti") as any;
         if (tatetiModule && typeof tatetiModule.handleButton === "function") {
           await tatetiModule.handleButton(interaction);
         }
-        return;
+      } catch (err) {
+        logger.error({ err }, "Error handling tateti button");
       }
-      if (interaction.customId.startsWith("ppt_")) {
+      return;
+    }
+    if (interaction.customId.startsWith("ppt_")) {
+      try {
         const pptModule = commands.get("piedrapapeltijera") as any;
         if (pptModule && typeof pptModule.handleButton === "function") {
           await pptModule.handleButton(interaction);
         }
+      } catch (err) {
+        logger.error({ err }, "Error handling ppt button");
+      }
+      return;
+    }
+    if (interaction.customId.startsWith("supervision_accept_")) {
+      const lobbyId = interaction.customId.slice("supervision_accept_".length);
+      const member = interaction.member as GuildMember | null;
+      if (!member) {
+        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
         return;
       }
-      if (interaction.customId.startsWith("supervision_accept_")) {
-        const lobbyId = interaction.customId.slice("supervision_accept_".length);
-        const member = interaction.member as GuildMember | null;
-        if (!member) {
-          await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
-          return;
-        }
+      try {
         const { handleSupervisionAccept } = await import("./services/SupervisorService");
         await interaction.deferReply({ ephemeral: true });
         await handleSupervisionAccept(interaction.user.id, lobbyId, member, interaction.client);
         await interaction.editReply("✅ Has aceptado la supervisión. La partida ha comenzado.");
+      } catch (err: any) {
+        logger.error({ err, lobbyId }, "Error handling supervision accept");
+        if (interaction.deferred) {
+          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar la supervisión."}`).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId.startsWith("supervision_replace_")) {
+      const lobbyId = interaction.customId.slice("supervision_replace_".length);
+      const member = interaction.member as GuildMember | null;
+      if (!member) {
+        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
         return;
       }
-      if (interaction.customId.startsWith("supervision_replace_")) {
-        const lobbyId = interaction.customId.slice("supervision_replace_".length);
-        const member = interaction.member as GuildMember | null;
-        if (!member) {
-          await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
-          return;
-        }
+      try {
         const { handleSupervisionReplace } = await import("./services/SupervisorService");
         await interaction.deferReply({ ephemeral: true });
         await handleSupervisionReplace(interaction.user.id, lobbyId, member, interaction.client);
         await interaction.editReply("✅ Has tomado el control de la partida como supervisor de reemplazo.");
-        return;
+      } catch (err: any) {
+        logger.error({ err, lobbyId }, "Error handling supervision replace");
+        if (interaction.deferred) {
+          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar el reemplazo."}`).catch(() => {});
+        }
       }
-      if (interaction.customId.startsWith("q_open_")) {
-        const [matchId, discordId] = interaction.customId.slice("q_open_".length).split("_");
-        if (matchId && discordId) {
+      return;
+    }
+
+    if (interaction.customId.startsWith("q_open_")) {
+      const [matchId, discordId] = interaction.customId.slice("q_open_".length).split("_");
+      if (matchId && discordId) {
+        try {
           const { openQuestionnaireModal } = await import("./services/QuestionnaireService");
           await openQuestionnaireModal(interaction, matchId, discordId);
+        } catch (err) {
+          logger.error({ err }, "Error opening questionnaire modal");
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Error al abrir el cuestionario.", ephemeral: true }).catch(() => {});
+          }
         }
-        return;
       }
-      if (interaction.customId.startsWith("play_again_")) {
-        const matchId = interaction.customId.slice("play_again_".length);
+      return;
+    }
+
+    if (interaction.customId.startsWith("play_again_")) {
+      const matchId = interaction.customId.slice("play_again_".length);
+      try {
         const { handlePlayAgain } = await import("./services/QuestionnaireService");
         await interaction.deferReply({ ephemeral: true });
         await handlePlayAgain(matchId, interaction.user.id, interaction.client);
         await interaction.editReply("🎮 ¡Quedas en el canal para la próxima partida!");
-        return;
+      } catch (err) {
+        logger.error({ err }, "Error handling play again");
+        if (interaction.deferred) {
+          await interaction.editReply("❌ Error al procesar la acción.").catch(() => {});
+        }
       }
-      if (interaction.customId.startsWith("leave_match_")) {
-        const matchId = interaction.customId.slice("leave_match_".length);
+      return;
+    }
+
+    if (interaction.customId.startsWith("leave_match_")) {
+      const matchId = interaction.customId.slice("leave_match_".length);
+      try {
         const { handleLeaveMatch } = await import("./services/QuestionnaireService");
         await interaction.deferReply({ ephemeral: true });
         await handleLeaveMatch(matchId, interaction.user.id, interaction.client);
         await interaction.editReply("🚪 Has salido del canal de voz.");
+      } catch (err) {
+        logger.error({ err }, "Error handling leave match");
+        if (interaction.deferred) {
+          await interaction.editReply("❌ Error al procesar la salida.").catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId.startsWith("forensic_untimeout_") || interaction.customId.startsWith("forensic_ban_")) {
+      const member = interaction.member as GuildMember | null;
+
+      if (!hasForensicPermission(member)) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+            ephemeral: true
+          });
+        }
         return;
       }
-      if (interaction.customId.startsWith("forensic_untimeout_") || interaction.customId.startsWith("forensic_ban_")) {
-        const member = interaction.member as GuildMember | null;
-        if (!hasForensicPermission(member)) {
-          await interaction.reply({ content: "❌ No tienes los permisos necesarios.", ephemeral: true });
-          return;
-        }
 
-        const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
-        const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
+      const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
+      const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
+
+      try {
         const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
         const moderatorName = interaction.user.username;
 
         if (action === "untimeout") {
-          if (guildMember) await guildMember.timeout(null, `Revisado y seguro por ${moderatorName}`);
-          await interaction.update({ content: `✅ Timeout retirado. <@\({targetUserId}> marcado como seguro por **\){moderatorName}**.`, components: [] });
-        } else {
-          if (guildMember) await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${moderatorName}` });
-          await interaction.update({ content: `🔨 <@\({targetUserId}> fue baneado por **\){moderatorName}**.`, components: [] });
-        }
-        return;
-      }
-
-      if (interaction.customId.startsWith("harassment_timeout_") || 
-          interaction.customId.startsWith("harassment_ignore_") ||
-          interaction.customId.startsWith("harassment_confirm_") ||
-          interaction.customId.startsWith("harassment_cancel_")) {
-
-        const member = interaction.member as GuildMember | null;
-        if (!hasForensicPermission(member)) {
-          await interaction.reply({ content: "❌ No tienes permisos.", ephemeral: true });
-          return;
-        }
-
-        const targetUserId = interaction.customId.split('_').pop();
-        if (!targetUserId) return;
-
-        if (interaction.customId.startsWith("harassment_cancel_")) {
-          await interaction.update({ content: `⚠️ Acción cancelada por **${interaction.user.username}**.`, components: [] });
-          return;
-        }
-
-        if (interaction.customId.startsWith("harassment_timeout_")) {
-          const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
-          if (!targetMember) {
-            await interaction.reply({ content: "❌ El usuario ya no está en el servidor.", ephemeral: true });
-            return;
-          }
-
-          const confirmRow = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`harassment_confirm_${targetUserId}`).setLabel("✅ Sí, aplicar timeout (10m)").setStyle(ButtonStyle.Danger),
-            new ButtonBuilder().setCustomId(`harassment_cancel_${targetUserId}`).setLabel("❌ Cancelar").setStyle(ButtonStyle.Secondary)
-          );
-
-          await interaction.reply({ content: `⚠️ ¿Deseas aplicar timeout de 10 min a <@${targetUserId}>?`, components: [confirmRow], ephemeral: true });
-          return;
-        }
-
-        if (interaction.customId.startsWith("harassment_confirm_")) {
-          const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
           if (guildMember) {
-            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento por ${interaction.user.username}`);
-            if (interaction.message && interaction.message.editable) {
-              await interaction.message.edit({ content: `✅ Timeout de 10m aplicado a <@${targetUserId}>.`, components: [] }).catch(() => {});
-            }
-            await interaction.update({ content: `✅ Sanción aplicada con éxito.`, components: [] });
-          } else {
-            await interaction.update({ content: "❌ El usuario ya no está en el servidor.", components: [] });
+            await guildMember.timeout(null, `Revisado y marcado como seguro por ${moderatorName}`);
           }
-          return;
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `✅ Timeout retirado. <@\({targetUserId}> fue marcado como seguro por **\){moderatorName}**.`,
+              components: []
+            });
+          }
+        } else {
+          if (guildMember) {
+            await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${moderatorName}` });
+          }
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `🔨 <@\({targetUserId}> fue baneado del servidor por **\){moderatorName}**.`,
+              components: []
+            });
+          }
         }
-
-        if (interaction.customId.startsWith("harassment_ignore_")) {
-          await interaction.update({ content: `✅ Alerta ignorada por **${interaction.user.username}**.`, components: [] });
-          return;
+      } catch (err) {
+        logger.error({ err }, "Error procesando acción forense sobre el usuario");
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "❌ Hubo un error al ejecutar la acción sobre el usuario.", ephemeral: true }).catch(() => {});
+        } else {
+          await interaction.followUp({ content: "❌ Hubo un error al ejecutar la acción sobre el usuario.", ephemeral: true }).catch(() => {});
         }
       }
+      return;
     }
 
-    // 4. Modales
-    if (interaction.isModalSubmit()) {
-      if (interaction.customId.startsWith("postular_reject_modal_")) {
-        await handleRejectionModalSubmit(interaction);
+    if (interaction.customId.startsWith("harassment_timeout_") || 
+        interaction.customId.startsWith("harassment_ignore_") ||
+        interaction.customId.startsWith("harassment_confirm_") ||
+        interaction.customId.startsWith("harassment_cancel_")) {
+
+      const member = interaction.member as GuildMember | null;
+
+      if (!hasForensicPermission(member)) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+            ephemeral: true
+          });
+        }
         return;
       }
-      if (interaction.customId.startsWith("q_form_")) {
-        const rest = interaction.customId.slice("q_form_".length);
-        const underscoreIdx = rest.indexOf("_");
-        if (underscoreIdx !== -1) {
-          const matchId = rest.slice(0, underscoreIdx);
-          const discordId = rest.slice(underscoreIdx + 1);
+
+      const targetUserId = interaction.customId.split('_').pop();
+      if (!targetUserId) return;
+
+      if (interaction.customId.startsWith("harassment_cancel_")) {
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.update({
+            content: `⚠️ Acción de timeout cancelada por **${interaction.user.username}**.`,
+            components: []
+          });
+        }
+        return;
+      }
+
+      if (interaction.customId.startsWith("harassment_timeout_")) {
+        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+
+        if (!targetMember) {
+          await interaction.reply({
+            content: "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté aquí.",
+            ephemeral: true
+          });
+          return;
+        }
+
+        const moderatorHighestRole = member?.roles.highest;
+        const targetHighestRole = targetMember.roles.highest;
+
+        if (interaction.guild?.ownerId !== member?.id) {
+            if (moderatorHighestRole && targetHighestRole && 
+                moderatorHighestRole.position <= targetHighestRole.position) {
+                await interaction.reply({
+                    content: "❌ **Error de Jerarquía:** No puedes sancionar a un usuario con un rol igual o superior al tuyo.",
+                    ephemeral: true
+                });
+                return;
+            }
+        }
+
+        const confirmRow = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId(`harassment_confirm_${targetUserId}`)
+            .setLabel("✅ Sí, aplicar timeout (10m)")
+            .setStyle(ButtonStyle.Danger),
+          new ButtonBuilder()
+            .setCustomId(`harassment_cancel_${targetUserId}`)
+            .setLabel("❌ Cancelar")
+            .setStyle(ButtonStyle.Secondary)
+        );
+
+        await interaction.reply({
+          content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que deseas aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción es inmediata al confirmar.`,
+          components: [confirmRow],
+          ephemeral: true
+        });
+        return;
+      }
+
+      if (interaction.customId.startsWith("harassment_confirm_")) {
+        const moderatorName = interaction.user.username;
+
+        try {
+          const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+
+          if (guildMember) {
+            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento aplicado por ${moderatorName} (Confirmado)`);
+
+            if (interaction.message && interaction.message.editable) {
+                await interaction.message.edit({
+                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@\({targetUserId}> ha recibido un timeout de 10 minutos por **\){moderatorName}**.`,
+                    components: []
+                }).catch(() => logger.warn("No se pudo editar el mensaje original de alerta"));
+            }
+
+            await interaction.update({
+              content: `✅ Sanción aplicada correctamente a <@${targetUserId}>.`,
+              components: []
+            });
+
+          } else {
+             await interaction.update({
+                content: "❌ El usuario ya no está en el servidor, no se pudo aplicar la sanción.",
+                components: []
+             });
+          }
+
+        } catch (err) {
+          logger.error({ err, userId: targetUserId }, "Error crítico al aplicar timeout confirmado");
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Hubo un error grave al intentar aplicar el timeout.", ephemeral: true });
+          }
+        }
+        return;
+      }
+
+      if (interaction.customId.startsWith("harassment_ignore_")) {
+        const moderatorName = interaction.user.username;
+        try {
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.update({
+              content: `✅ Alerta de hostigamiento marcada como **resuelta/ignorada** por **${moderatorName}**.`,
+              components: []
+            });
+          }
+        } catch (err) {
+          logger.error({ err }, "Error procesando ignorar alerta de hostigamiento");
+        }
+        return;
+      }
+    }
+  }
+
+  if (interaction.isModalSubmit()) {
+    if (interaction.customId.startsWith("postular_reject_modal_")) {
+      try {
+        await handleRejectionModalSubmit(interaction);
+      } catch (err) {
+        logger.error({ err }, "Error handling rejection modal submission");
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({ content: "Hubo un error al procesar el rechazo.", ephemeral: true }).catch(() => {});
+        }
+      }
+      return;
+    }
+
+    if (interaction.customId.startsWith("q_form_")) {
+      const rest = interaction.customId.slice("q_form_".length);
+      const underscoreIdx = rest.indexOf("_");
+      if (underscoreIdx !== -1) {
+        const matchId = rest.slice(0, underscoreIdx);
+        const discordId = rest.slice(underscoreIdx + 1);
+        try {
           const { recordAnswer } = await import("./services/QuestionnaireService");
           await recordAnswer(interaction, matchId, discordId, interaction.client);
+        } catch (err) {
+          logger.error({ err }, "Error recording questionnaire answer");
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Error al registrar tu respuesta.", ephemeral: true }).catch(() => {});
+          }
         }
-        return;
       }
+      return;
     }
+    return;
+  }
 
+  if (!interaction.isChatInputCommand()) return;
+
+  const command = commands.get(interaction.commandName);
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
   } catch (err) {
-    logger.error({ err, interactionId: interaction.id }, "Error crítico procesando interacción");
-    const errorMessage = { content: "❌ Hubo un error al procesar esta interacción.", ephemeral: true };
-    try {
-      if (interaction.deferred || interaction.replied) {
-        await interaction.followUp(errorMessage);
-      } else if (!interaction.replied) {
-        await interaction.reply(errorMessage);
-      }
-    } catch (replyErr) {
-      logger.error({ replyErr }, "No se pudo enviar el mensaje de error al usuario");
+    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
+    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp(errorMessage);
+    } else {
+      await interaction.reply(errorMessage);
     }
   }
 });
