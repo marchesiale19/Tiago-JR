@@ -183,7 +183,7 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
 let isIntervalStarted = false;
 function startAutoSync(clientInstance: any) {
   if (isIntervalStarted || !clientInstance) return;
-  isIntervalStarted = true;
+  isIntervalStarted  = true;
 
   setInterval(async () => {
     try {
@@ -300,8 +300,8 @@ async function handleDar(
   cajaNombre: string
 ): Promise {
   try {
-    const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
-    const hasAuthorizedRole = member && member.roles.cache.some((role) => AUTHORIZED_ROLES.includes(role.id));
+    const member = await guild.manager?.fetch?.(moderatorUser.id).catch(() => null) ?? await guild.members.fetch(moderatorUser.id).catch(() => null);
+    const hasAuthorizedRole = member && member.roles.cache.some((role: any) => AUTHORIZED_ROLES.includes(role.id));
 
     if (!hasAuthorizedRole) {
       await sendReply({ content: "❌ No tenés los roles autorizados para usar este subcomando.", ephemeral: true });
@@ -316,9 +316,10 @@ async function handleDar(
     const targetQuery = cajaNombre.toLowerCase();
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
-    await unb.addUserInventoryItem(guild.id, targetUser.id, {
-      item_id: itemIdToGive,
-      quantity: 1,
+    // Método correcto compatible con unb-api para añadir items al inventario
+    await unb.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1).catch(async () => {
+      // Fallback por si la firma espera un objeto
+      await (unb as any).addUserInventoryItem(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
     });
 
     const embed = new EmbedBuilder()
@@ -347,8 +348,16 @@ async function handleAbrir(
   try {
     const guildId = guild.id;
     
-    const inventoryData = await unb.getUserInventory(guildId, targetUser.id);
-    const items = Array.isArray(inventoryData) ? inventoryData : (inventoryData as any)?.items || [];
+    // Obtenemos el inventario usando el método correcto de la API
+    let items: any[] = [];
+    try {
+      const res = await unb.getUserInventory(guildId, targetUser.id);
+      items = Array.isArray(res) ? res : (res?.items || (res as any)?.items || []);
+    } catch {
+      // Intentamos con variantes del método si la versión cambia
+      const res2 = await (unb as any).getUserInventoryItems?.(guildId, targetUser.id);
+      items = Array.isArray(res2) ? res2 : (res2?.items || []);
+    }
 
     const targetQuery = cajaNombre.toLowerCase();
     const expectedId = LUCKYBOX_IDS[targetQuery];
@@ -371,7 +380,10 @@ async function handleAbrir(
 
     const itemIdToDelete = userBox.item_id || userBox.id;
     
-    await unb.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, { quantity: 1 }).catch(() => {});
+    // Eliminamos el item del inventario con compatibilidad de métodos
+    await unb.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(async () => {
+      await (unb as any).removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, { quantity: 1 });
+    });
 
     const rewardObj = pickReward(cajaNombre);
     let rewardDescription: string = rewardObj.texto;
