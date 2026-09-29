@@ -317,23 +317,12 @@ async function handleDar(
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
     const apiAny = unb as any;
-    
-    // Intenta añadir el ítem con el formato exacto requerido por el wrapper o la API REST
-    try {
-      if (typeof apiAny.addUserInventoryItem === "function") {
-        await apiAny.addUserInventoryItem(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
-      } else if (typeof apiAny.addItemToUserInventory === "function") {
-        await apiAny.addItemToUserInventory(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
-      } else {
-        await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
-      }
-    } catch {
-      // Fallback enviando el ID como parámetro posicional directo si el objeto falla
-      if (typeof apiAny.addUserInventoryItem === "function") {
-        await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
-      } else {
-        await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
-      }
+    if (typeof apiAny.addUserInventoryItem === "function") {
+      await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
+    } else if (typeof apiAny.addItemToUserInventory === "function") {
+      await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
+    } else {
+      await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
     }
 
     const embed = new EmbedBuilder()
@@ -346,7 +335,7 @@ async function handleDar(
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
+      content: `⚠️️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
       ephemeral: true 
     });
   }
@@ -395,16 +384,12 @@ async function handleAbrir(
 
     const itemIdToDelete = userBox.item_id || userBox.id;
     
-    try {
-      if (typeof apiAny.removeUserInventoryItem === "function") {
-        await apiAny.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
-      } else if (typeof apiAny.deleteUserInventoryItem === "function") {
-        await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
-      } else {
-        await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } });
-      }
-    } catch {
-      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`).catch(() => {});
+    if (typeof apiAny.removeUserInventoryItem === "function") {
+      await apiAny.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
+    } else if (typeof apiAny.deleteUserInventoryItem === "function") {
+      await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
+    } else {
+      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } });
     }
 
     const rewardObj = pickReward(cajaNombre);
@@ -425,7 +410,7 @@ async function handleAbrir(
     const embed = new EmbedBuilder()
       .setColor("Orange")
       .setTitle(`🎁 ${cajaNombre} Abierto`)
-      .setDescription(`¡<@\({targetUser.id}> abrió su **\){cajaNombre}**!`)
+      .setDescription(`¡<@${targetUser.id}> abrió su **${cajaNombre}**!`)
       .addFields(
         { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
         { name: "🎉 Premio/castigo obtenido", value: ` ${rewardDescription}`, inline: false },
