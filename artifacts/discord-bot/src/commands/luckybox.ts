@@ -335,7 +335,7 @@ async function handleDar(
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
+      content: `⚠️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
       ephemeral: true 
     });
   }
@@ -410,7 +410,7 @@ async function handleAbrir(
     const embed = new EmbedBuilder()
       .setColor("Orange")
       .setTitle(`🎁 ${cajaNombre} Abierto`)
-      .setDescription(`¡<@${targetUser.id}> abrió su **${cajaNombre}**!`)
+      .setDescription(`¡<@\({targetUser.id}> abrió su **\){cajaNombre}**!`)
       .addFields(
         { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
         { name: "🎉 Premio/castigo obtenido", value: ` ${rewardDescription}`, inline: false },
