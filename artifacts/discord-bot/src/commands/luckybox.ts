@@ -30,7 +30,6 @@ const LUCKYBOX_IDS: Record = {
   "mr lucky épico": "1461518959055602890",
   "mr lucky epico": "1461518959055602890",
   "mr lucky admin": "1461563297299040148",
-  "mr lucky común": "1545211721772305804",
 };
 
 // Roles autorizados para usar /luckybox dar
@@ -302,7 +301,6 @@ async function handleDar(
 ): Promise {
   try {
     const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
-    
     const hasAuthorizedRole = member && member.roles.cache.some((role) => AUTHORIZED_ROLES.includes(role.id));
 
     if (!hasAuthorizedRole) {
@@ -315,26 +313,13 @@ async function handleDar(
       return;
     }
 
-    const guildId = guild.id;
-    // Si la API requiere el ID oficial del item para añadirlo, podemos usar el mapeo o dejar el nombre si la API lo acepta
     const targetQuery = cajaNombre.toLowerCase();
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
-    const response = await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory`, {
-      method: "POST",
-      headers: {
-        Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        item_id: itemIdToGive,
-        quantity: 1,
-      }),
+    await unb.addUserInventoryItem(guild.id, targetUser.id, {
+      item_id: itemIdToGive,
+      quantity: 1,
     });
-
-    if (!response.ok && response.status !== 201) {
-      throw new Error("No se pudo añadir el item al inventario mediante la API.");
-    }
 
     const embed = new EmbedBuilder()
       .setColor("Green")
@@ -346,7 +331,7 @@ async function handleDar(
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️ Se procesó la acción, pero verificá si la API de UnbelievaBoat requiere el ID exacto del item. (\`${err?.message}\`)`, 
+      content: `⚠️ No se pudo añadir el item mediante la API. Verificá que el ID de la tienda en UnbelievaBoat sea correcto. (\`${err?.message || "Error desconocido"}\`)`, 
       ephemeral: true 
     });
   }
@@ -361,20 +346,9 @@ async function handleAbrir(
 ): Promise {
   try {
     const guildId = guild.id;
-    const response = await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory`, {
-      headers: {
-        Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
-        Accept: "application/json",
-      },
-    });
-
-    let items: any[] = [];
-    if (response.ok) {
-      const inventoryData: any = await response.json();
-      items = inventoryData.items || inventoryData || [];
-    } else if (response.status !== 404) {
-      items = [];
-    }
+    
+    const inventoryData = await unb.getUserInventory(guildId, targetUser.id);
+    const items = Array.isArray(inventoryData) ? inventoryData : (inventoryData as any)?.items || [];
 
     const targetQuery = cajaNombre.toLowerCase();
     const expectedId = LUCKYBOX_IDS[targetQuery];
@@ -396,14 +370,8 @@ async function handleAbrir(
     }
 
     const itemIdToDelete = userBox.item_id || userBox.id;
-    await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, {
-      method: "DELETE",
-      headers: {
-        Authorization: process.env.UNBELIEVABOAT_API_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ quantity: 1 }),
-    }).catch(() => {});
+    
+    await unb.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, { quantity: 1 }).catch(() => {});
 
     const rewardObj = pickReward(cajaNombre);
     let rewardDescription: string = rewardObj.texto;
