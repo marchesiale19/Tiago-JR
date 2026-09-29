@@ -23,7 +23,7 @@ export const ROL_ESCLAVO_SANTIAGO_ID = "1461961845513519187";
 export const ROL_ESCLAVO_RAYI_ID = "1478210926883639456";
 export const ROL_OMG_BRO_ID = "1478217120465555630";
 
-// Mapeo oficial de nombres de caja a sus IDs de UnbelievaBoat
+// Mapeo oficial exacto de nombres de caja a sus IDs de UnbelievaBoat
 const LUCKYBOX_IDS: Record = {
   "mr lucky común": "1545211721772305804",
   "mr lucky raro": "1548866970819101248",
@@ -183,7 +183,7 @@ export async function syncTopCasinoRole(guild: Guild): Promise<{ success: boolea
 let isIntervalStarted = false;
 function startAutoSync(clientInstance: any) {
   if (isIntervalStarted || !clientInstance) return;
-  isIntervalStarted  = true;
+  isIntervalStarted = true;
 
   setInterval(async () => {
     try {
@@ -300,7 +300,7 @@ async function handleDar(
   cajaNombre: string
 ): Promise {
   try {
-    const member = await guild.manager?.fetch?.(moderatorUser.id).catch(() => null) ?? await guild.members.fetch(moderatorUser.id).catch(() => null);
+    const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
     const hasAuthorizedRole = member && member.roles.cache.some((role: any) => AUTHORIZED_ROLES.includes(role.id));
 
     if (!hasAuthorizedRole) {
@@ -316,11 +316,14 @@ async function handleDar(
     const targetQuery = cajaNombre.toLowerCase();
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
-    // Método correcto compatible con unb-api para añadir items al inventario
-    await unb.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1).catch(async () => {
-      // Fallback por si la firma espera un objeto
-      await (unb as any).addUserInventoryItem(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
-    });
+    const apiAny = unb as any;
+    if (typeof apiAny.addUserInventoryItem === "function") {
+      await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
+    } else if (typeof apiAny.addItemToUserInventory === "function") {
+      await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
+    } else {
+      await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
+    }
 
     const embed = new EmbedBuilder()
       .setColor("Green")
@@ -332,7 +335,7 @@ async function handleDar(
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️ No se pudo añadir el item mediante la API. Verificá que el ID de la tienda en UnbelievaBoat sea correcto. (\`${err?.message || "Error desconocido"}\`)`, 
+      content: `⚠️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
       ephemeral: true 
     });
   }
@@ -347,16 +350,17 @@ async function handleAbrir(
 ): Promise {
   try {
     const guildId = guild.id;
+    const apiAny = unb as any;
     
-    // Obtenemos el inventario usando el método correcto de la API
     let items: any[] = [];
     try {
-      const res = await unb.getUserInventory(guildId, targetUser.id);
-      items = Array.isArray(res) ? res : (res?.items || (res as any)?.items || []);
-    } catch {
-      // Intentamos con variantes del método si la versión cambia
-      const res2 = await (unb as any).getUserInventoryItems?.(guildId, targetUser.id);
-      items = Array.isArray(res2) ? res2 : (res2?.items || []);
+      const res = await apiAny.getUserInventory?.(guildId, targetUser.id) 
+                || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
+                || await apiAny.client?.get?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory`);
+      
+      items = Array.isArray(res) ? res : (res?.items || res?.data?.items || []);
+    } catch (e) {
+      logger.error({ e }, "Error consultando inventario UnbelievaBoat");
     }
 
     const targetQuery = cajaNombre.toLowerCase();
@@ -380,10 +384,13 @@ async function handleAbrir(
 
     const itemIdToDelete = userBox.item_id || userBox.id;
     
-    // Eliminamos el item del inventario con compatibilidad de métodos
-    await unb.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(async () => {
-      await (unb as any).removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, { quantity: 1 });
-    });
+    if (typeof apiAny.removeUserInventoryItem === "function") {
+      await apiAny.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(() => {});
+    } else if (typeof apiAny.deleteUserInventoryItem === "function") {
+      await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(() => {});
+    } else {
+      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } }).catch(() => {});
+    }
 
     const rewardObj = pickReward(cajaNombre);
     let rewardDescription: string = rewardObj.texto;
