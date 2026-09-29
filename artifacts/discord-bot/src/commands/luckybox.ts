@@ -309,7 +309,7 @@ async function handleDar(
     }
 
     if (moderatorUser.id === targetUser.id) {
-      await sendReply({ content: "❌ No podés darte una Luckybox a vos mismo.", ephemeral: true });
+      await sendReply({ content: "Dejá de querer imprimir billetes tramposo de mierda.", ephemeral: true });
       return;
     }
 
@@ -358,7 +358,8 @@ async function handleAbrir(
                 || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
                 || await apiAny.client?.get?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory`);
       
-      items = Array.isArray(res) ? res : (res?.items || res?.data?.items || []);
+      // Manejar distintas formas en que la API devuelve los ítems (array directo, objeto con .items, etc.)
+      items = Array.isArray(res) ? res : (res?.items || res?.data?.items || res?.data || []);
     } catch (e) {
       logger.error({ e }, "Error consultando inventario UnbelievaBoat");
     }
@@ -372,6 +373,7 @@ async function handleAbrir(
       const quantity = Number(item.quantity ?? item.quantiy ?? item.count ?? 1);
 
       const matchesId = expectedId && itemId === expectedId;
+      // Comprobación más flexible por nombre o por ID parcial
       const matchesName = itemName.includes(targetQuery) || targetQuery.includes(itemName);
 
       return (matchesId || matchesName) && quantity > 0;
@@ -382,6 +384,7 @@ async function handleAbrir(
       return;
     }
 
+    // Asegurarse de extraer el ID correcto que la API requiere para borrar/consumir el ítem
     const itemIdToDelete = userBox.item_id || userBox.id;
     
     if (typeof apiAny.removeUserInventoryItem === "function") {
