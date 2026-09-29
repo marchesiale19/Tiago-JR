@@ -309,7 +309,7 @@ async function handleDar(
     }
 
     if (moderatorUser.id === targetUser.id) {
-      await sendReply({ content: "Dejá de querer imprimir billetes tramposo de mierda.", ephemeral: true });
+      await sendReply({ content: "❌ Dejá de querer imprimir billetes tramposo de mierda.", ephemeral: true });
       return;
     }
 
@@ -317,12 +317,23 @@ async function handleDar(
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
     const apiAny = unb as any;
-    if (typeof apiAny.addUserInventoryItem === "function") {
-      await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
-    } else if (typeof apiAny.addItemToUserInventory === "function") {
-      await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
-    } else {
-      await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
+    
+    // Intenta añadir el ítem con el formato exacto requerido por el wrapper o la API REST
+    try {
+      if (typeof apiAny.addUserInventoryItem === "function") {
+        await apiAny.addUserInventoryItem(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
+      } else if (typeof apiAny.addItemToUserInventory === "function") {
+        await apiAny.addItemToUserInventory(guild.id, targetUser.id, { item_id: itemIdToGive, quantity: 1 });
+      } else {
+        await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
+      }
+    } catch {
+      // Fallback enviando el ID como parámetro posicional directo si el objeto falla
+      if (typeof apiAny.addUserInventoryItem === "function") {
+        await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
+      } else {
+        await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
+      }
     }
 
     const embed = new EmbedBuilder()
@@ -358,7 +369,6 @@ async function handleAbrir(
                 || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
                 || await apiAny.client?.get?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory`);
       
-      // Manejar distintas formas en que la API devuelve los ítems (array directo, objeto con .items, etc.)
       items = Array.isArray(res) ? res : (res?.items || res?.data?.items || res?.data || []);
     } catch (e) {
       logger.error({ e }, "Error consultando inventario UnbelievaBoat");
@@ -373,8 +383,7 @@ async function handleAbrir(
       const quantity = Number(item.quantity ?? item.quantiy ?? item.count ?? 1);
 
       const matchesId = expectedId && itemId === expectedId;
-      // Comprobación más flexible por nombre o por ID parcial
-      const matchesName = itemName.includes(targetQuery) || targetQuery.includes(itemName);
+      const matchesName = itemName.includes(targetQuery) || targetQuery.includes(itemName) || itemName.includes("mr lucky");
 
       return (matchesId || matchesName) && quantity > 0;
     });
@@ -384,15 +393,18 @@ async function handleAbrir(
       return;
     }
 
-    // Asegurarse de extraer el ID correcto que la API requiere para borrar/consumir el ítem
     const itemIdToDelete = userBox.item_id || userBox.id;
     
-    if (typeof apiAny.removeUserInventoryItem === "function") {
-      await apiAny.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(() => {});
-    } else if (typeof apiAny.deleteUserInventoryItem === "function") {
-      await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1).catch(() => {});
-    } else {
-      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } }).catch(() => {});
+    try {
+      if (typeof apiAny.removeUserInventoryItem === "function") {
+        await apiAny.removeUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
+      } else if (typeof apiAny.deleteUserInventoryItem === "function") {
+        await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
+      } else {
+        await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } });
+      }
+    } catch {
+      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`).catch(() => {});
     }
 
     const rewardObj = pickReward(cajaNombre);
