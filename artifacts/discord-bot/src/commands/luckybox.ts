@@ -23,6 +23,16 @@ export const ROL_ESCLAVO_SANTIAGO_ID = "1461961845513519187";
 export const ROL_ESCLAVO_RAYI_ID = "1478210926883639456";
 export const ROL_OMG_BRO_ID = "1478217120465555630";
 
+// Mapeo oficial de nombres de caja a sus IDs de UnbelievaBoat
+const LUCKYBOX_IDS: Record = {
+  "mr lucky común": "1545211721772305804",
+  "mr lucky raro": "1548866970819101248",
+  "mr lucky épico": "1461518959055602890",
+  "mr lucky epico": "1461518959055602890",
+  "mr lucky admin": "1461563297299040148",
+  "mr lucky común": "1545211721772305804",
+};
+
 // Roles autorizados para usar /luckybox dar
 export const AUTHORIZED_ROLES = [
   "1451383215603585140", // Owner
@@ -293,7 +303,6 @@ async function handleDar(
   try {
     const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
     
-    // Validar si el miembro tiene al menos uno de los roles autorizados
     const hasAuthorizedRole = member && member.roles.cache.some((role) => AUTHORIZED_ROLES.includes(role.id));
 
     if (!hasAuthorizedRole) {
@@ -307,6 +316,10 @@ async function handleDar(
     }
 
     const guildId = guild.id;
+    // Si la API requiere el ID oficial del item para añadirlo, podemos usar el mapeo o dejar el nombre si la API lo acepta
+    const targetQuery = cajaNombre.toLowerCase();
+    const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
+
     const response = await fetch(`https://unbelievaboat.com/api/v1/guilds/\({guildId}/users/\){targetUser.id}/inventory`, {
       method: "POST",
       headers: {
@@ -314,7 +327,7 @@ async function handleDar(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        item_id: cajaNombre,
+        item_id: itemIdToGive,
         quantity: 1,
       }),
     });
@@ -363,11 +376,18 @@ async function handleAbrir(
       items = [];
     }
 
+    const targetQuery = cajaNombre.toLowerCase();
+    const expectedId = LUCKYBOX_IDS[targetQuery];
+
     const userBox = items.find((item: any) => {
-      const itemName = (item.name || item.item_name || item.item_id || "").toLowerCase();
-      const targetQuery = cajaNombre.toLowerCase();
-      const hasQuantity = (item.quantity ?? item.quantiy ?? item.count ?? 1) > 0;
-      return itemName.includes(targetQuery) && hasQuantity;
+      const itemId = String(item.item_id || item.id || "");
+      const itemName = (item.name || item.item_name || "").toLowerCase();
+      const quantity = Number(item.quantity ?? item.quantiy ?? item.count ?? 1);
+
+      const matchesId = expectedId && itemId === expectedId;
+      const matchesName = itemName.includes(targetQuery) || targetQuery.includes(itemName);
+
+      return (matchesId || matchesName) && quantity > 0;
     });
 
     if (!userBox) {
