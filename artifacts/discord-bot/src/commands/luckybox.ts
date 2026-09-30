@@ -26,6 +26,7 @@ export const ROL_OMG_BRO_ID = "1478217120465555630";
 // Mapeo oficial exacto de nombres de caja a sus IDs de UnbelievaBoat
 const LUCKYBOX_IDS: Record = {
   "mr lucky común": "1545211721772305804",
+  "mr lucky comun": "1545211721772305804",
   "mr lucky raro": "1548866970819101248",
   "mr lucky épico": "1461518959055602890",
   "mr lucky epico": "1461518959055602890",
@@ -126,8 +127,8 @@ export function pickReward(cajaNombre: string) {
   }
 
   for (let i = 0; i < rewards.length; i++) {
-    acumulado += probabilities[i];
-    if (rand <= acumulado) return rewards[i];
+     acumulado += probabilities[i];
+     if (rand <= acumulado) return rewards[i];
   }
   return rewards[0];
 }
@@ -314,7 +315,12 @@ async function handleDar(
     }
 
     const targetQuery = cajaNombre.toLowerCase();
-    const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
+    const itemIdToGive = LUCKYBOX_IDS[targetQuery];
+
+    if (!itemIdToGive) {
+      await sendReply({ content: "❌ El tipo de caja especificado no tiene un ID de UnbelievaBoat válido configurado.", ephemeral: true });
+      return;
+    }
 
     console.log("INTENTANDO DAR ITEM:", { guildId: guild.id, userId: targetUser.id, itemIdToGive, cajaNombre });
 
@@ -322,7 +328,7 @@ async function handleDar(
     let apiSuccess = false;
     let lastError: any = null;
 
-    // Intentar métodos oficiales de la librería
+    // 1. Intentar método oficial de la librería si existe
     try {
       if (typeof apiAny.addUserInventoryItem === "function") {
         await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
@@ -335,23 +341,32 @@ async function handleDar(
       lastError = e1;
     }
 
-    // Si falla, intentamos por REST probando variantes de endpoints/cuerpos
+    // 2. Si falla o no existe el método en el wrapper, usamos la API REST oficial de UnbelievaBoat directamente
     if (!apiSuccess) {
       const endpointsToTry = [
-        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { item_id: itemIdToGive, quantity: 1 } },
-        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { id: itemIdToGive, quantity: 1 } },
-        { url: "/guilds/" + guild.id + "/inventory", body: { user_id: targetUser.id, item_id: itemIdToGive, quantity: 1 } }
+        { method: "post", url: `/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, body: { item_id: itemIdToGive, quantity: 1 } },
+        { method: "put", url: `/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, body: { item_id: itemIdToGive, quantity: 1 } },
+        { method: "post", url: `/guilds/${guild.id}/inventory`, body: { user_id: targetUser.id, item_id: itemIdToGive, quantity: 1 } }
       ];
 
       for (const endpoint of endpointsToTry) {
         try {
-          const restResult = await apiAny.client?.post?.(endpoint.url, endpoint.body);
-          console.log("ÉXITO REST INVENTARIO con body:", endpoint.body, restResult);
-          apiSuccess = true;
-          break;
+          const httpClient = apiAny.client || apiAny.rest || apiAny.axios;
+          let restResult;
+          if (endpoint.method === "post" && typeof httpClient?.post === "function") {
+            restResult = await httpClient.post(endpoint.url, endpoint.body);
+          } else if (endpoint.method === "put" && typeof httpClient?.put === "function") {
+            restResult = await httpClient.put(endpoint.url, endpoint.body);
+          }
+          
+          if (restResult) {
+            console.log("ÉXITO REST INVENTARIO con endpoint:", endpoint.url, restResult);
+            apiSuccess = true;
+            break;
+          }
         } catch (e2: any) {
           lastError = e2;
-          console.error("Fallo con endpoint:", endpoint.url, "body:", endpoint.body, "RESPUESTA:", e2?.response?.data || e2?.message || e2);
+          console.error("Fallo con endpoint:", endpoint.url, "RESPUESTA:", e2?.response?.data || e2?.message || e2);
         }
       }
     }
@@ -391,7 +406,7 @@ async function handleAbrir(
     try {
       const res = await apiAny.getUserInventory?.(guildId, targetUser.id) 
                 || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
-                || await apiAny.client?.get?.("/guilds/" + guildId + "/users/" + targetUser.id + "/inventory");
+                || await apiAny.client?.get?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory`);
       
       console.log("INVENTARIO UNBELIEVABOAT:", JSON.stringify(res, null, 2));
       
@@ -426,7 +441,7 @@ async function handleAbrir(
     } else if (typeof apiAny.deleteUserInventoryItem === "function") {
       await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
     } else {
-      await apiAny.client?.delete?.("/guilds/" + guildId + "/users/" + targetUser.id + "/inventory/" + itemIdToDelete, { data: { quantity: 1 } });
+      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } });
     }
 
     const rewardObj = pickReward(cajaNombre);
