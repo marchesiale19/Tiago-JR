@@ -316,13 +316,43 @@ async function handleDar(
     const targetQuery = cajaNombre.toLowerCase();
     const itemIdToGive = LUCKYBOX_IDS[targetQuery] || cajaNombre;
 
+    console.log("INTENTANDO DAR ITEM:", { guildId: guild.id, userId: targetUser.id, itemIdToGive, cajaNombre });
+
     const apiAny = unb as any;
-    if (typeof apiAny.addUserInventoryItem === "function") {
-      await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
-    } else if (typeof apiAny.addItemToUserInventory === "function") {
-      await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
-    } else {
-      await apiAny.client?.post?.("/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", { item_id: itemIdToGive, quantity: 1 });
+    let apiSuccess = false;
+    let lastError: any = null;
+
+    // 1. Intentar con los métodos nativos conocidos de la librería si existen
+    try {
+      if (typeof apiAny.addUserInventoryItem === "function") {
+        await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
+        apiSuccess = true;
+      } else if (typeof apiAny.addItemToUserInventory === "function") {
+        await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
+        apiSuccess = true;
+      }
+    } catch (e1) {
+      lastError = e1;
+      console.log("Fallo método nativo, intentando por HTTP directo...", e1);
+    }
+
+    // 2. Si no funcionó o no existe el método, forzar por la ruta REST oficial de UnbelievaBoat
+    if (!apiSuccess) {
+      try {
+        const restResult = await apiAny.client?.post?.("/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", {
+          item_id: itemIdToGive,
+          quantity: 1
+        });
+        console.log("RESPUESTA REST INVENTARIO:", restResult);
+        apiSuccess = true;
+      } catch (e2: any) {
+        lastError = e2;
+        console.error("Error crítico en POST inventory:", e2?.response?.data || e2);
+      }
+    }
+
+    if (!apiSuccess) {
+      throw lastError || new Error("No se pudo conectar con la API de UnbelievaBoat para añadir el ítem.");
     }
 
     const embed = new EmbedBuilder()
