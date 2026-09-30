@@ -365,7 +365,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   },
   {
     texto:
-      "2,000,000 Frijoles (Muy poco probable)",
+      "2,000,000 Frijoles",
     valor: 2000000,
     tipo: "positivo",
     probabilidad: "0.2%",
@@ -996,7 +996,7 @@ export const data =
                     name:
                       "Mr Lucky Admin",
                     value:
-                      "MR LUCKY ADMIN",
+                      "Mr Lucky Admin",
                   },
                 ),
           ),
