@@ -270,18 +270,18 @@ async function handleInfo(sendReply: (options: any) => Promise, cajaNombre: stri
 
   const positivos = rewards
     .filter((r) => r.tipo === "positivo" || r.tipo.startsWith("rol"))
-    .map((r) => `• **\({r.texto}** — \`\){r.probabilidad}\``)
+    .map((r) => "• **" + r.texto + "** — `" + r.probabilidad + "`")
     .join("\n");
 
   const negativos = rewards
     .filter((r) => r.tipo === "negativo")
-    .map((r) => `• **\({r.texto}** — \`\){r.probabilidad}\``)
+    .map((r) => "• **" + r.texto + "** — `" + r.probabilidad + "`")
     .join("\n");
 
   const infoEmbed = new EmbedBuilder()
     .setColor("Orange")
-    .setTitle(`📊 Información de Recompensas: ${cajaNombre}`)
-    .setDescription(`Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`)
+    .setTitle("📊 Información de Recompensas: " + cajaNombre)
+    .setDescription("Listado de premios y castigos posibles al abrir un **" + cajaNombre + "**, con sus respectivas probabilidades de obtención:")
     .addFields(
       { name: "✨ Recompensas", value: positivos || "Ninguno", inline: false },
       { name: "⚠️ Castigos", value: negativos || "Ninguno", inline: false },
@@ -322,20 +322,20 @@ async function handleDar(
     } else if (typeof apiAny.addItemToUserInventory === "function") {
       await apiAny.addItemToUserInventory(guild.id, targetUser.id, itemIdToGive, 1);
     } else {
-      await apiAny.client?.post?.(`/guilds/\({guild.id}/users/\){targetUser.id}/inventory`, { item_id: itemIdToGive, quantity: 1 });
+      await apiAny.client?.post?.("/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", { item_id: itemIdToGive, quantity: 1 });
     }
 
     const embed = new EmbedBuilder()
       .setColor("Green")
-      .setTitle(`🎁 ¡Caja Entregada!`)
-      .setDescription(`El usuario <@\({moderatorUser.id}> le entregó un **\){cajaNombre}** a <@${targetUser.id}>.`)
+      .setTitle("🎁 ¡Caja Entregada!")
+      .setDescription("El usuario <@" + moderatorUser.id + "> le entregó un **" + cajaNombre + "** a <@" + targetUser.id + ">.")
       .setTimestamp();
 
     await sendReply({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
-      content: `⚠️ No se pudo añadir el item mediante la API. (\`${err?.message || "Error desconocido"}\`)`, 
+      content: "⚠️ No se pudo añadir el item mediante la API. (`" + (err?.message || "Error desconocido") + "`)", 
       ephemeral: true 
     });
   }
@@ -356,7 +356,9 @@ async function handleAbrir(
     try {
       const res = await apiAny.getUserInventory?.(guildId, targetUser.id) 
                 || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
-                || await apiAny.client?.get?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory`);
+                || await apiAny.client?.get?.("/guilds/" + guildId + "/users/" + targetUser.id + "/inventory");
+      
+      console.log("INVENTARIO UNBELIEVABOAT:", JSON.stringify(res, null, 2)); // <-- Mirá tu consola para ver qué llega exactamente
       
       items = Array.isArray(res) ? res : (res?.items || res?.data?.items || res?.data || []);
     } catch (e) {
@@ -378,7 +380,7 @@ async function handleAbrir(
     });
 
     if (!userBox) {
-      await sendReply({ content: `❌ No tenés ningún **${cajaNombre}** en tu inventario.` });
+      await sendReply({ content: "❌ No tenés ningún **" + cajaNombre + "** en tu inventario." });
       return;
     }
 
@@ -389,7 +391,7 @@ async function handleAbrir(
     } else if (typeof apiAny.deleteUserInventoryItem === "function") {
       await apiAny.deleteUserInventoryItem(guildId, targetUser.id, itemIdToDelete, 1);
     } else {
-      await apiAny.client?.delete?.(`/guilds/\({guildId}/users/\){targetUser.id}/inventory/${itemIdToDelete}`, { data: { quantity: 1 } });
+      await apiAny.client?.delete?.("/guilds/" + guildId + "/users/" + targetUser.id + "/inventory/" + itemIdToDelete, { data: { quantity: 1 } });
     }
 
     const rewardObj = pickReward(cajaNombre);
@@ -401,7 +403,7 @@ async function handleAbrir(
       const role = await guild.roles.fetch(roleId).catch(() => null);
       if (role) {
         await member.roles.add(role, "Premio de caja").catch(() => {});
-        rewardDescription = `Rol <@&${roleId}>`;
+        rewardDescription = "Rol <@&" + roleId + ">";
       }
     } else if (rewardObj.valor !== 0) {
       await unb.editUserBalance(guildId, targetUser.id, { cash: rewardObj.valor });
@@ -409,21 +411,21 @@ async function handleAbrir(
 
     const embed = new EmbedBuilder()
       .setColor("Orange")
-      .setTitle(`🎁 ${cajaNombre} Abierto`)
-      .setDescription(`¡<@\({targetUser.id}> abrió su **\){cajaNombre}**!`)
+      .setTitle("🎁 " + cajaNombre + " Abierto")
+      .setDescription("¡<@" + targetUser.id + "> abrió su **" + cajaNombre + "**!")
       .addFields(
-        { name: "📦 Tipo de Item", value: `\`${cajaNombre}\``, inline: true },
-        { name: "🎉 Premio/castigo obtenido", value: ` ${rewardDescription}`, inline: false },
-        { name: "💸 Estado", value: `El item fue validado del inventario y el resultado se aplicó a tu cuenta.`, inline: false },
+        { name: "📦 Tipo de Item", value: "`" + cajaNombre + "`", inline: true },
+        { name: "🎉 Premio/castigo obtenido", value: " " + rewardDescription, inline: false },
+        { name: "💸 Estado", value: "El item fue validado del inventario y el resultado se aplicó a tu cuenta.", inline: false },
       )
       .setFooter({ text: "Sistema de Luckybox • Inventario Verificado" })
       .setTimestamp();
 
-    await sendReply({ content: `✅ ¡Luckybox abierta con éxito!` });
+    await sendReply({ content: "✅ ¡Luckybox abierta con éxito!" });
     await sendChannelMessage({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error validating inventory for mr lucky");
-    await sendReply({ content: `❌ **Error al verificar el inventario:** \`${err?.message || "Error desconocido"}\`` });
+    await sendReply({ content: "❌ **Error al verificar el inventario:** `" + (err?.message || "Error desconocido") + "`" });
   }
 }
 
