@@ -994,7 +994,7 @@ export const data =
                   },
                   {
                     name:
-                      "MR LUCKY ADMIN",
+                      "Mr Lucky Admin",
                     value:
                       "MR LUCKY ADMIN",
                   },
@@ -1232,7 +1232,7 @@ async function handleDar(
     ) {
       await sendReply({
         content:
-          "❌ No tenés ninguno de los roles autorizados para usar este subcomando.",
+          "❌ No tenés ninguno de los roles autorizados para usar este comando.",
         flags:
           MessageFlags.Ephemeral,
       });
