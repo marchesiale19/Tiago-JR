@@ -337,7 +337,7 @@ async function handleDar(
       })
     });
 
-    if (!response.ok) {
+   if (!response.ok) {
       const errText = await response.text();
       console.error("Error en API de UnbelievaBoat:", response.status, errText);
       throw new Error(`Error HTTP \({response.status}:\){errText}`);
