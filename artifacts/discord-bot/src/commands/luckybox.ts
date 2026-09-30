@@ -322,7 +322,7 @@ async function handleDar(
     let apiSuccess = false;
     let lastError: any = null;
 
-    // 1. Intentar con los métodos nativos conocidos de la librería si existen
+    // Intentar métodos oficiales de la librería
     try {
       if (typeof apiAny.addUserInventoryItem === "function") {
         await apiAny.addUserInventoryItem(guild.id, targetUser.id, itemIdToGive, 1);
@@ -333,21 +333,25 @@ async function handleDar(
       }
     } catch (e1) {
       lastError = e1;
-      console.log("Fallo método nativo, intentando por HTTP directo...", e1);
     }
 
-    // 2. Si no funcionó o no existe el método, forzar por la ruta REST oficial de UnbelievaBoat
+    // Si falla, intentamos por REST enviando tanto 'item_id' como 'id' para asegurar compatibilidad
     if (!apiSuccess) {
-      try {
-        const restResult = await apiAny.client?.post?.("/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", {
-          item_id: itemIdToGive,
-          quantity: 1
-        });
-        console.log("RESPUESTA REST INVENTARIO:", restResult);
-        apiSuccess = true;
-      } catch (e2: any) {
-        lastError = e2;
-        console.error("Error crítico en POST inventory:", e2?.response?.data || e2);
+      const endpointsToTry = [
+        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { item_id: itemIdToGive, quantity: 1 } },
+        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { id: itemIdToGive, quantity: 1 } }
+      ];
+
+      for (const endpoint of endpointsToTry) {
+        try {
+          const restResult = await apiAny.client?.post?.(endpoint.url, endpoint.body);
+          console.log("ÉXITO REST INVENTARIO con body:", endpoint.body, restResult);
+          apiSuccess = true;
+          break;
+        } catch (e2: any) {
+          lastError = e2;
+          console.error("Fallo con body:", endpoint.body, e2?.response?.data || e2?.message);
+        }
       }
     }
 
