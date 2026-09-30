@@ -73,7 +73,7 @@ interface SyncTopCasinoResult {
 
 type ReplyFunction = (
   options: any,
-) => Promise<any>;
+) => Promise;
 
 /* ========================================================================== */
 /*                                  ROLES                                     */
@@ -615,7 +615,7 @@ function getRewardsArray(
 async function getUserInventory(
   guildId: string,
   userId: string,
-): Promise<InventoryItem[]> {
+): Promise {
   const result =
     await unb.getInventoryItems(
       guildId,
@@ -639,7 +639,7 @@ async function addInventoryItem(
   userId: string,
   itemId: string,
   quantity = 1,
-): Promise<void> {
+): Promise {
   logger.info(
     {
       guildId,
@@ -663,7 +663,7 @@ async function removeInventoryItem(
   userId: string,
   itemId: string,
   quantity = 1,
-): Promise<void> {
+): Promise {
   logger.info(
     {
       guildId,
@@ -758,7 +758,7 @@ function findLuckyboxInInventory(
 
 export async function syncTopCasinoRole(
   guild: Guild,
-): Promise<SyncTopCasinoResult> {
+): Promise {
   try {
     const leaderboardData =
       await unb.getGuildLeaderboard(
@@ -791,7 +791,7 @@ export async function syncTopCasinoRole(
     }
 
     const topUserIds =
-      new Set<string>();
+      new Set();
 
     for (
       const userData of topUsers
@@ -1132,11 +1132,13 @@ export const data =
 async function handleInfo(
   sendReply: ReplyFunction,
   cajaNombre: string,
-): Promise<void> {
+): Promise {
   const rewards =
     getRewardsArray(
       cajaNombre,
     );
+
+  const customEmoji = "<:MonedaServer:1524674026188967956>";
 
   const positivos =
     rewards
@@ -1149,8 +1151,10 @@ async function handleInfo(
           ),
       )
       .map(
-        (reward) =>
-          `• **${reward.texto}** — \`${reward.probabilidad}\``,
+        (reward) => {
+          const textoDecorado = reward.texto.replace(/Frijoles/g, customEmoji);
+          return `• **\({textoDecorado}** — \`\){reward.probabilidad}\``;
+        },
       )
       .join("\n");
 
@@ -1162,8 +1166,10 @@ async function handleInfo(
           "negativo",
       )
       .map(
-        (reward) =>
-          `• **${reward.texto}** — \`${reward.probabilidad}\``,
+        (reward) => {
+          const textoDecorado = reward.texto.replace(/Frijoles/g, customEmoji);
+          return `• **\({textoDecorado}** — \`\){reward.probabilidad}\``;
+        },
       )
       .join("\n");
 
@@ -1217,7 +1223,7 @@ async function handleDar(
   moderatorUser: User,
   targetUser: User,
   cajaNombre: string,
-): Promise<void> {
+): Promise {
   try {
     /* -------------------- VALIDAR PERMISOS --------------------------- */
 
@@ -1327,13 +1333,13 @@ async function handleDar(
           "🎁 ¡Caja Entregada!",
         )
         .setDescription(
-          `El usuario <@${moderatorUser.id}> le entregó un **${cajaNombre}** a <@${targetUser.id}>.`,
+          `El usuario <@\({moderatorUser.id}> le entregó un **\){cajaNombre}** a <@${targetUser.id}>.`,
         )
         .addFields({
           name:
             "📦 Item entregado",
           value:
-            `**${cajaNombre}**\nID: \`${itemId}\``,
+            `**\({cajaNombre}**\nID: \`\){itemId}\``,
           inline: false,
         })
         .setTimestamp();
@@ -1375,7 +1381,7 @@ async function handleAbrir(
   guild: Guild,
   targetUser: User,
   cajaNombre: string,
-): Promise<void> {
+): Promise {
   try {
     const guildId =
       guild.id;
@@ -1568,7 +1574,7 @@ async function handleAbrir(
           `🎁 ${cajaNombre} Abierto`,
         )
         .setDescription(
-          `¡<@${userId}> abrió su **${cajaNombre}**!`,
+          `¡<@\({userId}> abrió su **\){cajaNombre}**!`,
         )
         .addFields(
           {
@@ -1635,7 +1641,7 @@ async function handleAbrir(
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
-): Promise<void> {
+): Promise {
   if (
     interaction.client
   ) {
@@ -1768,7 +1774,7 @@ export async function execute(
 export async function run(
   message: Message,
   args: string[],
-): Promise<void> {
+): Promise {
   if (
     !message.guildId ||
     !message.guild
