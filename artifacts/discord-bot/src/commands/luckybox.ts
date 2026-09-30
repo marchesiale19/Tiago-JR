@@ -335,11 +335,12 @@ async function handleDar(
       lastError = e1;
     }
 
-    // Si falla, intentamos por REST enviando tanto 'item_id' como 'id' para asegurar compatibilidad
+    // Si falla, intentamos por REST probando variantes de endpoints/cuerpos
     if (!apiSuccess) {
       const endpointsToTry = [
         { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { item_id: itemIdToGive, quantity: 1 } },
-        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { id: itemIdToGive, quantity: 1 } }
+        { url: "/guilds/" + guild.id + "/users/" + targetUser.id + "/inventory", body: { id: itemIdToGive, quantity: 1 } },
+        { url: "/guilds/" + guild.id + "/inventory", body: { user_id: targetUser.id, item_id: itemIdToGive, quantity: 1 } }
       ];
 
       for (const endpoint of endpointsToTry) {
@@ -350,7 +351,7 @@ async function handleDar(
           break;
         } catch (e2: any) {
           lastError = e2;
-          console.error("Fallo con body:", endpoint.body, e2?.response?.data || e2?.message);
+          console.error("Fallo con endpoint:", endpoint.url, "body:", endpoint.body, "RESPUESTA:", e2?.response?.data || e2?.message || e2);
         }
       }
     }
@@ -392,7 +393,7 @@ async function handleAbrir(
                 || await apiAny.getUserInventoryItems?.(guildId, targetUser.id)
                 || await apiAny.client?.get?.("/guilds/" + guildId + "/users/" + targetUser.id + "/inventory");
       
-      console.log("INVENTARIO UNBELIEVABOAT:", JSON.stringify(res, null, 2)); // <-- Mirá tu consola para ver qué llega exactamente
+      console.log("INVENTARIO UNBELIEVABOAT:", JSON.stringify(res, null, 2));
       
       items = Array.isArray(res) ? res : (res?.items || res?.data?.items || res?.data || []);
     } catch (e) {
