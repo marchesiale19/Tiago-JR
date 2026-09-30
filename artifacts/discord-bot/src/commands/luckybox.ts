@@ -89,7 +89,7 @@ export const ROL_QUEBRADO_ID =
   "1478210697199353976";
 
 export const ROL_ESCLAVO_SADY_ID =
-  "1478210697199353976";
+  "1478210995066372337";
 
 export const ROL_ESCLAVO_RAYII_ID =
   "1478210926883639456";
@@ -107,6 +107,7 @@ export const ROL_ESCLAVO_RAYI_ID =
 
 export const ROL_OMG_BRO_ID =
   "1478217120465555630";
+
 
 /* ========================================================================== */
 /*                           IDS DE LUCKYBOX                                  */
@@ -1832,18 +1833,81 @@ export async function run(
         | "dar",
     );
 
-  const sub =
-    isSubcommand
-      ? (mainArg as
-          | "abrir"
-          | "info"
-          | "dar")
-      : "abrir";
+  /*
+   * El comando por prefijo debe indicar explícitamente
+   * uno de los subcomandos válidos.
+   */
+  if (
+    args.length === 0 ||
+    !isSubcommand
+  ) {
+    await message.reply(
+      "❌ Uso incorrecto. Debes usar: -luckybox [caja]",
+    );
 
-  const offset =
-    isSubcommand
-      ? 1
-      : 0;
+    return;
+  }
+
+  const sub =
+    mainArg as
+      | "abrir"
+      | "info"
+      | "dar";
+
+  const offset = 1;
+
+  /*
+   * Normalizamos únicamente para validar la rareza:
+   * - ignora mayúsculas/minúsculas
+   * - ignora tildes
+   */
+  const normalizeCaja =
+    (value: string): string => {
+      return value
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(
+          /[\u0300-\u036f]/g,
+          "",
+        );
+    };
+
+  const validCajas: Record<
+    string,
+    string
+  > = {
+    comun:
+      "Mr lucky Común",
+    raro:
+      "Mr lucky Raro",
+    epico:
+      "Mr lucky Épico",
+    admin:
+      "MR LUCKY ADMIN",
+  };
+
+  /*
+   * Obtiene y valida la caja indicada.
+   */
+  const getCajaNombre =
+    (
+      rawCaja: string,
+    ): string | null => {
+      const normalized =
+        normalizeCaja(
+          rawCaja,
+        );
+
+      return (
+        validCajas[
+          normalized
+        ] ?? null
+      );
+    };
+
+  const opcionesValidas =
+    "común, raro, épico y admin";
 
   /* ================================= DAR ================================= */
 
@@ -1853,9 +1917,13 @@ export async function run(
     const mentionedUser =
       message.mentions.users.first();
 
+    /*
+     * Para "dar" hacen falta tanto el usuario
+     * mencionado como la caja.
+     */
     if (!mentionedUser) {
       await message.reply(
-        "❌ Tenés que mencionar al usuario al que le vas a dar la caja.",
+        "❌ Uso correcto: -luckybox dar [caja] @usuario",
       );
 
       return;
@@ -1864,16 +1932,39 @@ export async function run(
     const cajaNombreRestante =
       args
         .slice(
-          offset + 1,
+          offset,
+        )
+        .filter(
+          (arg) =>
+            !/^<@!?\d+>$/.test(
+              arg,
+            ),
         )
         .join(" ")
         .trim();
 
+    if (
+      !cajaNombreRestante
+    ) {
+      await message.reply(
+        "❌ Uso correcto: -luckybox dar [caja] @usuario",
+      );
+
+      return;
+    }
+
     const cajaNombre =
-      cajaNombreRestante.length >
-      0
-        ? cajaNombreRestante
-        : "Mr lucky Común";
+      getCajaNombre(
+        cajaNombreRestante,
+      );
+
+    if (!cajaNombre) {
+      await message.reply(
+        `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+      );
+
+      return;
+    }
 
     await handleDar(
       (options) =>
@@ -1897,11 +1988,31 @@ export async function run(
       .join(" ")
       .trim();
 
+  /*
+   * INFO requiere obligatoriamente una caja.
+   */
+  if (
+    !cajaNombreRestante
+  ) {
+    await message.reply(
+      "❌ Uso correcto: -luckybox info [caja]",
+    );
+
+    return;
+  }
+
   const cajaNombre =
-    cajaNombreRestante.length >
-    0
-      ? cajaNombreRestante
-      : "Mr lucky Común";
+    getCajaNombre(
+      cajaNombreRestante,
+    );
+
+  if (!cajaNombre) {
+    await message.reply(
+      `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+    );
+
+    return;
+  }
 
   if (
     sub === "info"
@@ -1918,6 +2029,36 @@ export async function run(
   }
 
   /* ================================ ABRIR ================================ */
+
+  /*
+   * ABRIR también requiere obligatoriamente una caja.
+   */
+  if (
+    !cajaNombreRestante
+  ) {
+    await message.reply(
+      "❌ Uso correcto: -luckybox abrir [caja]",
+    );
+
+    return;
+  }
+
+  /*
+   * La caja ya fue validada arriba, por lo que no puede
+   * llegar una caja inventada a handleAbrir.
+   */
+  const cajaNombreAbrir =
+    getCajaNombre(
+      cajaNombreRestante,
+    );
+
+  if (!cajaNombreAbrir) {
+    await message.reply(
+      `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+    );
+
+    return;
+  }
 
   const channel =
     message.channel;
@@ -1944,6 +2085,6 @@ export async function run(
       ),
     message.guild,
     message.author,
-    cajaNombre,
+    cajaNombreAbrir,
   );
 }
