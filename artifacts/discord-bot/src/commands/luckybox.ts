@@ -367,7 +367,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   },
   {
     texto:
-      "2,000,000 Frijoles (Muy poco probable)",
+      "2,000,000 Frijoles",
     valor: 2000000,
     tipo: "positivo",
     probabilidad: "0.2%",
@@ -392,14 +392,14 @@ export const ADMIN_LUCKYBOX_REWARDS = [
   },
   {
     texto:
-      `Rol <@&${ROL_OMG_BRO_ID}> (Muy poco probable)`,
+      `Rol <@&${ROL_OMG_BRO_ID}>`,
     valor: 0,
     tipo: "rol_omg_bro",
     probabilidad: "1.0%",
   },
   {
     texto:
-      "-100,000 Frijoles (Tenés que ser la sal en persona)",
+      "-100,000 Frijoles",
     valor: -100000,
     tipo: "negativo",
     probabilidad: "5.0%",
