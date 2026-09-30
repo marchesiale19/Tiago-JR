@@ -374,13 +374,13 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     texto: `Rol <@&${ROL_ESCLAVO_BAX_ID}>`,
     valor: 0,
     tipo: "rol_esclavo_bax",
-    probabilidad: "6.0%",
+    probabilidad: "1.0%",
   },
   {
     texto: `Rol <@&${ROL_ESCLAVO_SANTIAGO_ID}>`,
     valor: 0,
     tipo: "rol_esclavo_santiago",
-    probabilidad: "5.0%",
+    probabilidad: "2.0%",
   },
   {
     texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
@@ -393,7 +393,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
       `Rol <@&${ROL_OMG_BRO_ID}>`,
     valor: 0,
     tipo: "rol_omg_bro",
-    probabilidad: "1.0%",
+    probabilidad: "4.0%",
   },
   {
     texto:
@@ -435,10 +435,10 @@ export function pickReward(
       3.0,
       1.8,
       0.2,
-      6.0,
-      5.0,
-      3.0,
-      1.0,
+      1.0, 
+      2.0, 
+      3.0, 
+      4.0, 
       5.0,
     ];
   } else if (
