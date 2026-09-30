@@ -94,8 +94,6 @@ export const ROL_ESCLAVO_SADY_ID =
 export const ROL_ESCLAVO_RAYII_ID =
   "1478210926883639456";
 
-/* Nuevos roles para MR LUCKY ADMIN */
-
 export const ROL_ESCLAVO_BAX_ID =
   "1461517408203313244";
 
@@ -107,7 +105,6 @@ export const ROL_ESCLAVO_RAYI_ID =
 
 export const ROL_OMG_BRO_ID =
   "1478217120465555630";
-
 
 /* ========================================================================== */
 /*                           IDS DE LUCKYBOX                                  */
@@ -142,16 +139,16 @@ const LUCKYBOX_IDS: Record<
 
 export const AUTHORIZED_ROLES: readonly string[] =
   [
-    "1451383215603585140", // Owner
-    "1508266687689003039", // Co-Owner
-    "1512634750152478851", // Jefe Staff
-    "1485101671875874997", // Administrador Elite
-    "1455419124732657801", // Equipo Administrativo
-    "1522434536796061816", // Desarrollador
-    "1453211902267228160", // Administrador
-    "1509760475653472287", // Administrador [PB]
-    "1522807097920720967", // Manager
-    "1539368076326473868", // Developer Tiago Jr
+    "1451383215603585140",
+    "1508266687689003039",
+    "1512634750152478851",
+    "1485101671875874997",
+    "1455419124732657801",
+    "1522434536796061816",
+    "1453211902267228160",
+    "1509760475653472287",
+    "1522807097920720967",
+    "1539368076326473868",
   ];
 
 /* ========================================================================== */
@@ -599,20 +596,6 @@ function getRewardsArray(
 /*                         INVENTARIO                                         */
 /* ========================================================================== */
 
-/*
- * El SDK oficial de unb-api expone:
- *
- * getInventoryItems()
- * getInventoryItem()
- * addInventoryItem()
- * removeInventoryItem()
- *
- * Por eso no necesitamos construir manualmente las URLs del inventario.
- *
- * Fuente:
- * https://github.com/UnbelievaBoat/unb-api
- */
-
 async function getUserInventory(
   guildId: string,
   userId: string,
@@ -828,8 +811,6 @@ export async function syncTopCasinoRole(
     let addedCount = 0;
     let removedCount = 0;
 
-    /* ------------------------- REMOVER -------------------------------- */
-
     for (
       const [, member]
       of role.members
@@ -857,8 +838,6 @@ export async function syncTopCasinoRole(
         }
       }
     }
-
-    /* -------------------------- AGREGAR -------------------------------- */
 
     for (
       const userData of topUsers
@@ -976,44 +955,42 @@ export const data =
   new SlashCommandBuilder()
     .setName("luckybox")
     .setDescription(
-      "Gestioná y abrí tus cajas Mr lucky.",
+      "Gestioná y abrí tus cajas Mr Lucky.",
     )
-
-    /* ================================ ABRIR ================================ */
 
     .addSubcommand(
       (subcommand) =>
         subcommand
           .setName("abrir")
           .setDescription(
-            "Abrí un Mr lucky si lo tenés en tu inventario.",
+            "Abrí un Mr Lucky si lo tenés en tu inventario.",
           )
           .addStringOption(
             (option) =>
               option
                 .setName("caja")
                 .setDescription(
-                  "Tipo de Mr lucky que querés abrir",
+                  "Elegí el tipo de Mr Lucky que querés abrir.",
                 )
                 .setRequired(true)
                 .addChoices(
                   {
                     name:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                     value:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                   },
                   {
                     name:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                     value:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                   },
                   {
                     name:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                     value:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                   },
                   {
                     name:
@@ -1024,42 +1001,40 @@ export const data =
                 ),
           ),
     )
-
-    /* ================================ INFO ================================= */
 
     .addSubcommand(
       (subcommand) =>
         subcommand
           .setName("info")
           .setDescription(
-            "Muestra la información y recompensas posibles de los Mr lucky.",
+            "Mirá la información y las recompensas posibles de los Mr Lucky.",
           )
           .addStringOption(
             (option) =>
               option
                 .setName("caja")
                 .setDescription(
-                  "Tipo de caja para ver la información",
+                  "Elegí el tipo de caja del que querés ver la información.",
                 )
                 .setRequired(true)
                 .addChoices(
                   {
                     name:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                     value:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                   },
                   {
                     name:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                     value:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                   },
                   {
                     name:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                     value:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                   },
                   {
                     name:
@@ -1071,21 +1046,19 @@ export const data =
           ),
     )
 
-    /* ================================= DAR ================================= */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
           .setName("dar")
           .setDescription(
-            "Dale una caja Mr lucky a un usuario autorizado.",
+            "Dale una caja Mr Lucky a un usuario autorizado.",
           )
           .addUserOption(
             (option) =>
               option
                 .setName("usuario")
                 .setDescription(
-                  "Usuario al que le vas a dar la caja",
+                  "Elegí al usuario al que le vas a dar la caja.",
                 )
                 .setRequired(true),
           )
@@ -1094,27 +1067,27 @@ export const data =
               option
                 .setName("caja")
                 .setDescription(
-                  "Tipo de Mr lucky que querés regalar",
+                  "Elegí el tipo de Mr Lucky que querés regalar.",
                 )
                 .setRequired(true)
                 .addChoices(
                   {
                     name:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                     value:
-                      "Mr lucky Común",
+                      "Mr Lucky Común",
                   },
                   {
                     name:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                     value:
-                      "Mr lucky Raro",
+                      "Mr Lucky Raro",
                   },
                   {
                     name:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                     value:
-                      "Mr lucky Épico",
+                      "Mr Lucky Épico",
                   },
                   {
                     name:
@@ -1139,17 +1112,9 @@ async function handleInfo(
       cajaNombre,
     );
 
-  // Emoji custom de la moneda del servidor
   const MONEDA_EMOJI =
     "<:MonedaServer:1524674026188967956>";
 
-  /*
-   * Reemplaza únicamente la palabra "Frijoles"
-   * en lo que se muestra en el embed.
-   *
-   * El valor numérico real de cada recompensa
-   * NO se modifica.
-   */
   const formatRewardText = (
     texto: string,
   ): string => {
@@ -1196,10 +1161,10 @@ async function handleInfo(
     new EmbedBuilder()
       .setColor("Orange")
       .setTitle(
-        `📊 Información de Recompensas: ${cajaNombre}`,
+        `📊 Información de recompensas: ${cajaNombre}`,
       )
       .setDescription(
-        `Listado de premios y castigos posibles al abrir un **${cajaNombre}**, con sus respectivas probabilidades de obtención:`,
+        `Acá tenés los premios y castigos que te pueden tocar al abrir un **${cajaNombre}**, junto con sus respectivas probabilidades.`,
       )
       .addFields(
         {
@@ -1207,7 +1172,7 @@ async function handleInfo(
             "✨ Recompensas",
           value:
             positivos ||
-            "Ninguno",
+            "No hay recompensas disponibles.",
           inline: false,
         },
         {
@@ -1215,13 +1180,13 @@ async function handleInfo(
             "⚠️ Castigos",
           value:
             negativos ||
-            "Ninguno",
+            "No hay castigos disponibles.",
           inline: false,
         },
       )
       .setFooter({
         text:
-          "Sistema de Luckybox • Información Oficial",
+          "Sistema de Luckybox • Información oficial",
       })
       .setTimestamp();
 
@@ -1244,8 +1209,6 @@ async function handleDar(
   cajaNombre: string,
 ): Promise<void> {
   try {
-    /* -------------------- VALIDAR PERMISOS --------------------------- */
-
     const member =
       await guild.members
         .fetch(
@@ -1269,15 +1232,13 @@ async function handleDar(
     ) {
       await sendReply({
         content:
-          "❌ No tenés los roles autorizados para usar este subcomando.",
+          "❌ No tenés ninguno de los roles autorizados para usar este subcomando.",
         flags:
           MessageFlags.Ephemeral,
       });
 
       return;
     }
-
-    /* -------------------- EVITAR AUTOREGALO -------------------------- */
 
     if (
       moderatorUser.id ===
@@ -1285,15 +1246,13 @@ async function handleDar(
     ) {
       await sendReply({
         content:
-          "❌ Dejá de querer imprimir billetes tramposo de mierda.",
+          "❌ No te podés regalar una caja a vos mismo, tramposo de mierda.",
         flags:
           MessageFlags.Ephemeral,
       });
 
       return;
     }
-
-    /* -------------------- OBTENER ITEM -------------------------------- */
 
     const itemId =
       getLuckyboxItemId(
@@ -1303,7 +1262,7 @@ async function handleDar(
     if (!itemId) {
       await sendReply({
         content:
-          "❌ El tipo de caja especificado no tiene un ID de UnbelievaBoat válido configurado.",
+          "❌ La caja que especificaste no tiene configurado un ID válido de UnbelievaBoat.",
         flags:
           MessageFlags.Ephemeral,
       });
@@ -1323,8 +1282,6 @@ async function handleDar(
       "INTENTANDO DAR ITEM MEDIANTE UNBELIEVABOAT",
     );
 
-    /* -------------------- AÑADIR ITEM -------------------------------- */
-
     await addInventoryItem(
       guild.id,
       targetUser.id,
@@ -1343,13 +1300,11 @@ async function handleDar(
       "ITEM AÑADIDO CORRECTAMENTE AL INVENTARIO.",
     );
 
-    /* -------------------- CONFIRMACIÓN -------------------------------- */
-
     const embed =
       new EmbedBuilder()
         .setColor("Green")
         .setTitle(
-          "🎁 ¡Caja Entregada!",
+          "🎁 ¡Caja entregada!",
         )
         .setDescription(
           `El usuario <@${moderatorUser.id}> le entregó un **${cajaNombre}** a <@${targetUser.id}>.`,
@@ -1408,8 +1363,6 @@ async function handleAbrir(
     const userId =
       targetUser.id;
 
-    /* -------------------- OBTENER INVENTARIO ------------------------- */
-
     let items: InventoryItem[];
 
     try {
@@ -1439,11 +1392,9 @@ async function handleAbrir(
       );
 
       throw new Error(
-        "No se pudo consultar el inventario de UnbelievaBoat.",
+        "No se pudo consultar tu inventario de UnbelievaBoat.",
       );
     }
-
-    /* -------------------- BUSCAR CAJA -------------------------------- */
 
     const userBox =
       findLuckyboxInInventory(
@@ -1470,11 +1421,9 @@ async function handleAbrir(
 
     if (!itemId) {
       throw new Error(
-        "La Luckybox encontrada no tiene un item_id válido.",
+        "La Luckybox encontrada no tiene un ID de item válido.",
       );
     }
-
-    /* -------------------- CONSUMIR CAJA ------------------------------ */
 
     await removeInventoryItem(
       guildId,
@@ -1493,8 +1442,6 @@ async function handleAbrir(
       "Luckybox consumida correctamente.",
     );
 
-    /* -------------------- SELECCIONAR PREMIO -------------------------- */
-
     const reward =
       pickReward(
         cajaNombre,
@@ -1502,8 +1449,6 @@ async function handleAbrir(
 
     let rewardDescription =
       reward.texto;
-
-    /* -------------------- APLICAR PREMIO ------------------------------ */
 
     const rewardRoleId =
       ROLE_MAP[
@@ -1569,11 +1514,6 @@ async function handleAbrir(
     } else if (
       reward.valor !== 0
     ) {
-      /*
-       * editUserBalance utiliza PATCH en la API actual
-       * y modifica el balance por la cantidad indicada.
-       */
-
       await unb.editUserBalance(
         guildId,
         userId,
@@ -1584,13 +1524,11 @@ async function handleAbrir(
       );
     }
 
-    /* -------------------- CREAR EMBED ------------------------------- */
-
     const embed =
       new EmbedBuilder()
         .setColor("Orange")
         .setTitle(
-          `🎁 ${cajaNombre} Abierto`,
+          `🎁 ${cajaNombre} abierta`,
         )
         .setDescription(
           `¡<@${userId}> abrió su **${cajaNombre}**!`,
@@ -1598,7 +1536,7 @@ async function handleAbrir(
         .addFields(
           {
             name:
-              "📦 Tipo de Item",
+              "📦 Tipo de item",
             value:
               `\`${cajaNombre}\``,
             inline: true,
@@ -1614,13 +1552,13 @@ async function handleAbrir(
             name:
               "💸 Estado",
             value:
-              "El item fue validado del inventario y el resultado se aplicó a tu cuenta.",
+              "El item fue validado en tu inventario y el resultado se aplicó a tu cuenta.",
             inline: false,
           },
         )
         .setFooter({
           text:
-            "Sistema de Luckybox • Inventario Verificado",
+            "Sistema de Luckybox • Inventario verificado",
         })
         .setTimestamp();
 
@@ -1649,7 +1587,7 @@ async function handleAbrir(
 
     await sendReply({
       content:
-        `❌ **Error al verificar el inventario:**\n\`${err?.message ?? "Error desconocido"}\``,
+        `❌ **No se pudo verificar tu inventario:**\n\`${err?.message ?? "Error desconocido"}\``,
     });
   }
 }
@@ -1675,7 +1613,7 @@ export async function execute(
   ) {
     await interaction.reply({
       content:
-        "Este comando solo se usa en servidores.",
+        "❌ Este comando solamente se puede usar en servidores.",
       flags:
         MessageFlags.Ephemeral,
     });
@@ -1691,8 +1629,6 @@ export async function execute(
       "caja",
       true,
     );
-
-  /* ================================ INFO ================================= */
 
   if (
     subcommand === "info"
@@ -1714,8 +1650,6 @@ export async function execute(
 
     return;
   }
-
-  /* ================================= DAR ================================= */
 
   if (
     subcommand === "dar"
@@ -1746,8 +1680,6 @@ export async function execute(
 
     return;
   }
-
-  /* ================================ ABRIR ================================ */
 
   await interaction.deferReply(
     {
@@ -1799,7 +1731,7 @@ export async function run(
     !message.guild
   ) {
     await message.reply(
-      "Este comando solo se usa en servidores.",
+      "❌ Este comando solamente se puede usar en servidores.",
     );
 
     return;
@@ -1833,16 +1765,12 @@ export async function run(
         | "dar",
     );
 
-  /*
-   * El comando por prefijo debe indicar explícitamente
-   * uno de los subcomandos válidos.
-   */
   if (
     args.length === 0 ||
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Debes usar: -luckybox [caja]",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
     );
 
     return;
@@ -1856,11 +1784,6 @@ export async function run(
 
   const offset = 1;
 
-  /*
-   * Normalizamos únicamente para validar la rareza:
-   * - ignora mayúsculas/minúsculas
-   * - ignora tildes
-   */
   const normalizeCaja =
     (value: string): string => {
       return value
@@ -1878,18 +1801,15 @@ export async function run(
     string
   > = {
     comun:
-      "Mr lucky Común",
+      "Mr Lucky Común",
     raro:
-      "Mr lucky Raro",
+      "Mr Lucky Raro",
     epico:
-      "Mr lucky Épico",
+      "Mr Lucky Épico",
     admin:
       "MR LUCKY ADMIN",
   };
 
-  /*
-   * Obtiene y valida la caja indicada.
-   */
   const getCajaNombre =
     (
       rawCaja: string,
@@ -1909,21 +1829,15 @@ export async function run(
   const opcionesValidas =
     "común, raro, épico y admin";
 
-  /* ================================= DAR ================================= */
-
   if (
     sub === "dar"
   ) {
     const mentionedUser =
       message.mentions.users.first();
 
-    /*
-     * Para "dar" hacen falta tanto el usuario
-     * mencionado como la caja.
-     */
     if (!mentionedUser) {
       await message.reply(
-        "❌ Uso correcto: -luckybox dar [caja] @usuario",
+        "❌ Uso correcto: `-luckybox dar [caja] @usuario`.",
       );
 
       return;
@@ -1947,7 +1861,7 @@ export async function run(
       !cajaNombreRestante
     ) {
       await message.reply(
-        "❌ Uso correcto: -luckybox dar [caja] @usuario",
+        "❌ Uso correcto: `-luckybox dar [caja] @usuario`.",
       );
 
       return;
@@ -1980,22 +1894,17 @@ export async function run(
     return;
   }
 
-  /* ================================ INFO ================================= */
-
   const cajaNombreRestante =
     args
       .slice(offset)
       .join(" ")
       .trim();
 
-  /*
-   * INFO requiere obligatoriamente una caja.
-   */
   if (
     !cajaNombreRestante
   ) {
     await message.reply(
-      "❌ Uso correcto: -luckybox info [caja]",
+      `❌ Uso correcto: \`-luckybox info [caja]\`.\nLas cajas disponibles son: ${opcionesValidas}.`,
     );
 
     return;
@@ -2028,25 +1937,16 @@ export async function run(
     return;
   }
 
-  /* ================================ ABRIR ================================ */
-
-  /*
-   * ABRIR también requiere obligatoriamente una caja.
-   */
   if (
     !cajaNombreRestante
   ) {
     await message.reply(
-      "❌ Uso correcto: -luckybox abrir [caja]",
+      "❌ Uso correcto: `-luckybox abrir [caja]`.",
     );
 
     return;
   }
 
-  /*
-   * La caja ya fue validada arriba, por lo que no puede
-   * llegar una caja inventada a handleAbrir.
-   */
   const cajaNombreAbrir =
     getCajaNombre(
       cajaNombreRestante,
