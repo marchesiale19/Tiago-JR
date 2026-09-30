@@ -337,7 +337,7 @@ async function handleDar(
       })
     });
 
-  if (!response.ok) {
+    if (!response.ok) {
       const errText = await response.text();
       console.error("Error en API de UnbelievaBoat:", response.status, errText);
       throw new Error("Error HTTP " + response.status + ": " + errText);
@@ -349,7 +349,7 @@ async function handleDar(
       .setDescription("El usuario <@" + moderatorUser.id + "> le entregó un **" + cajaNombre + "** a <@" + targetUser.id + ">.")
       .setTimestamp();
 
-      await sendReply({ embeds: [embed] });
+    await sendReply({ embeds: [embed] });
   } catch (err: any) {
     logger.error({ err, targetUserId: targetUser.id }, "Error al dar item de mr lucky");
     await sendReply({ 
