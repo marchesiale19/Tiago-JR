@@ -35,7 +35,7 @@ const TIER_2_ROLES = [
 ];
 
 /*
- * Roles que pueden utilizar el comando:
+ * Roles que pueden utilizar/ver:
  * -luckybox dar
  */
 const LUCKYBOX_GIVE_ROLES = [
@@ -48,6 +48,20 @@ const LUCKYBOX_GIVE_ROLES = [
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
+/*
+ * Roles que pueden utilizar/ver:
+ * -anotar
+ * -girar
+ *
+ * Estos comandos son exclusivos para:
+ * - Developer Tiago Jr
+ * - Manager
+ */
+const LOTTERY_MANAGEMENT_ROLES = [
+  "1539368076326473868", // Developer Tiago Jr
   "1522807097920720967", // Manager
 ];
 
@@ -107,6 +121,21 @@ function canGiveLuckybox(
 
   return member.roles.cache.some((role) =>
     LUCKYBOX_GIVE_ROLES.includes(role.id),
+  );
+}
+
+/*
+ * Comprueba si el usuario puede ver:
+ * -anotar
+ * -girar
+ */
+function canManageLottery(
+  member: GuildMember | null | undefined,
+): boolean {
+  if (!member) return false;
+
+  return member.roles.cache.some((role) =>
+    LOTTERY_MANAGEMENT_ROLES.includes(role.id),
   );
 }
 
@@ -176,6 +205,32 @@ function getCategories(
 
         "-ppt — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
         "-tateti — Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
+      ].join("\n"),
+    },
+
+    /*
+     * LOTERÍA
+     *
+     * La categoría es visible para todos porque
+     * -notas es un comando público.
+     *
+     * -anotar y -girar solamente aparecen para
+     * Developer Tiago Jr y Manager.
+     */
+    {
+      label: "Lotería",
+      description:
+        "Sistema de sorteos y participantes.",
+      emoji: "🎟️",
+      title: "Lotería",
+      content: [
+        ...(canManageLottery(member)
+          ? [
+              "-anotar — Registra a los participantes actuales de la lotería.",
+              "-girar — Realiza el sorteo de la lotería.",
+            ]
+          : []),
+        "-notas — Muestra los participantes actuales de la lotería.",
       ].join("\n"),
     },
 
@@ -311,8 +366,8 @@ async function sendHelpMenu(
   );
 
   /*
-   * Pasamos también el miembro para poder comprobar
-   * los roles específicos de -luckybox dar.
+   * Pasamos también el miembro para comprobar
+   * los roles específicos de Lucky Box y Lotería.
    */
   const categories = getCategories(
     access,
