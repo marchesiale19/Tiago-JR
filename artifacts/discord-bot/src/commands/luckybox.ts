@@ -1621,7 +1621,7 @@ async function handleCollect(
 
     const successEmbed =
       new EmbedBuilder()
-        .setColor(0x57F287)
+        .setColor(Orange)
         .setTitle(
           "🎁 ¡Collect realizado con éxito!",
         )
