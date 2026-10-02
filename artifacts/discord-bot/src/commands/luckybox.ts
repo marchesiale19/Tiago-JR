@@ -43,6 +43,37 @@ const LUCKYBOX_LOG_CHANNEL_ID =
   "1555430585403703396";
 
 /* ========================================================================== */
+/*                              IDS DE ROLES                                  */
+/* ========================================================================== */
+
+const ROL_SEGURO_ID =
+  "1461499864457412865";
+
+const ROL_QUEBRADO_ID =
+  "1478210697199353976";
+
+const ROL_ESCLAVO_SADY_ID =
+  "1478210995066372337";
+
+const ROL_ESCLAVO_RAYII_ID =
+  "1478210926883639456";
+
+const ROL_ESCLAVO_BAX_ID =
+  "1461517408203313244";
+
+const ROL_ESCLAVO_SANTIAGO_ID =
+  "1461961845513519187";
+
+const ROL_ESCLAVO_RAYI_ID =
+  "1478210926883639456";
+
+const ROL_OMG_BRO_ID =
+  "1478217120465555630";
+
+const ROL_TOP_CASINO_ID =
+  "1546068235072442398";
+
+/* ========================================================================== */
 /*                                  TIPOS                                     */
 /* ========================================================================== */
 
@@ -273,18 +304,27 @@ const ROLE_MAP: Record<
   string,
   string
 > = {
-  rol_seguro: ROL_SEGURO_ID,
-  rol_quebrado: ROL_QUEBRADO_ID,
+  rol_seguro:
+    ROL_SEGURO_ID,
+
+  rol_quebrado:
+    ROL_QUEBRADO_ID,
+
   rol_esclavo_sady:
     ROL_ESCLAVO_SADY_ID,
+
   rol_esclavo_rayii:
     ROL_ESCLAVO_RAYII_ID,
+
   rol_esclavo_bax:
     ROL_ESCLAVO_BAX_ID,
+
   rol_esclavo_santiago:
     ROL_ESCLAVO_SANTIAGO_ID,
+
   rol_esclavo_rayi:
     ROL_ESCLAVO_RAYI_ID,
+
   rol_omg_bro:
     ROL_OMG_BRO_ID,
 };
@@ -1465,14 +1505,8 @@ async function handleCollect(
     message.author;
 
   try {
-    /*
-     * Cargamos primero el cooldown persistente.
-     */
     await loadCollectCooldowns();
 
-    /*
-     * Buscamos al miembro en Discord para verificar los roles actuales.
-     */
     const member =
       await guild.members
         .fetch(user.id)
@@ -1488,12 +1522,6 @@ async function handleCollect(
       return;
     }
 
-    /*
-     * Primero verificamos autorización por rol.
-     *
-     * Esto evita que un usuario sin rol válido consuma cualquier
-     * información o interactúe con el cooldown.
-     */
     const collectRole =
       getCollectRoleForMember(
         member,
@@ -1540,9 +1568,6 @@ async function handleCollect(
       return;
     }
 
-    /*
-     * Verificamos el cooldown antes de hacer cualquier entrega.
-     */
     const now =
       Date.now();
 
@@ -1629,9 +1654,6 @@ async function handleCollect(
       return;
     }
 
-    /*
-     * Convertimos las recompensas del rol a IDs reales de UnbelievaBoat.
-     */
     const rewards =
       collectRole.rewards.map(
         (reward) => {
@@ -1653,13 +1675,6 @@ async function handleCollect(
         },
       );
 
-    /*
-     * Entregamos todas las recompensas.
-     *
-     * Guardamos lo entregado para poder revertirlo si una entrega posterior
-     * falla. De esta forma el cooldown no se consume si el collect no
-     * terminó correctamente.
-     */
     const deliveredRewards: Array<{
       itemId: string;
       quantity: number;
@@ -1701,9 +1716,6 @@ async function handleCollect(
         "Falló una entrega de -collect. Intentando revertir las recompensas ya entregadas.",
       );
 
-      /*
-       * Rollback de seguridad.
-       */
       for (
         const delivered of
           deliveredRewards
@@ -1736,12 +1748,6 @@ async function handleCollect(
       throw err;
     }
 
-    /*
-     * IMPORTANTE:
-     *
-     * El cooldown se registra recién después de haber agregado
-     * correctamente todas las cajas.
-     */
     collectCooldownStore[
       getCollectCooldownKey(
         guild.id,
@@ -2693,15 +2699,6 @@ export async function run(
   /*                              -collect                                    */
   /* ======================================================================== */
 
-  /**
-   * -collect es un comando independiente por prefijo.
-   *
-   * Ejemplo:
-   *
-   * -collect
-   *
-   * No requiere argumentos adicionales.
-   */
   if (
     mainArg ===
     "collect"
