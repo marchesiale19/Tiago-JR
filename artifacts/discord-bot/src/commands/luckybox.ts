@@ -1,7 +1,12 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
   EmbedBuilder,
   MessageFlags,
   SlashCommandBuilder,
+  type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Guild,
   type Message,
@@ -239,6 +244,56 @@ export const AUTHORIZED_ROLES: readonly string[] = [
   "1522807097920720967",
   "1539368076326473868",
 ];
+
+/* ========================================================================== */
+/*                       ROLES AUTORIZADOS PARA DROP                          */
+/* ========================================================================== */
+
+const LUCKYBOX_DROP_AUTHORIZED_ROLES:
+  readonly string[] = [
+    "1539368076326473868", // Developer Tiago Jr
+    "1522807097920720967", // Manager
+  ];
+
+/* ========================================================================== */
+/*                         CONFIGURACIÓN DROP                                 */
+/* ========================================================================== */
+
+const LUCKYBOX_DROP_BUTTON_PREFIX =
+  "luckybox_drop_claim";
+
+const LUCKYBOX_DROP_ORANGE =
+  0xFFA500;
+
+const LUCKYBOX_DROP_GREEN =
+  0x57F287;
+
+/*
+ * Estado en memoria de los drops activos.
+ *
+ * La clave es el dropId.
+ *
+ * Esto evita que dos usuarios puedan reclamar
+ * simultáneamente la misma Luckybox dentro de
+ * la misma instancia del bot.
+ */
+interface ActiveLuckyboxDrop {
+  readonly dropId: string;
+  readonly guildId: string;
+  readonly channelId: string;
+  readonly messageId: string;
+  readonly cajaNombre: string;
+  readonly itemId: string;
+
+  claimed: boolean;
+  claimedBy?: string;
+}
+
+const activeLuckyboxDrops =
+  new Map<
+    string,
+    ActiveLuckyboxDrop
+  >();
 
 /* ========================================================================== */
 /*                             MAPA DE ROLES                                  */
@@ -1019,6 +1074,505 @@ function startAutoSync(
 }
 
 /* ========================================================================== */
+/*                     LUCKYBOX DROP - HELPERS                               */
+/* ========================================================================== */
+
+function hasLuckyboxDropPermission(
+  member: {
+    roles: {
+      cache: {
+        has: (
+          roleId: string,
+        ) => boolean;
+      };
+    };
+  },
+): boolean {
+  return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
+    (roleId) =>
+      member.roles.cache.has(
+        roleId,
+      ),
+  );
+}
+
+function createLuckyboxDropEmbed(
+  cajaNombre: string,
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(
+      LUCKYBOX_DROP_ORANGE,
+    )
+    .setTitle(
+      "🎁 ¡Luckybox soltada!",
+    )
+    .setDescription(
+      `¡Se ha soltado una **${cajaNombre}**!\n\n` +
+      `El primero en presionar **Reclamar** se queda con la caja.`,
+    )
+    .addFields({
+      name: "📦 Caja",
+      value:
+        `**${cajaNombre}**`,
+      inline: true,
+    })
+    .setFooter({
+      text:
+        "Sistema de Luckybox • Drop disponible",
+    })
+    .setTimestamp();
+}
+
+function createLuckyboxDropButton(
+  dropId: string,
+  disabled = false,
+): ActionRowBuilder<ButtonBuilder> {
+  const button =
+    new ButtonBuilder()
+      .setCustomId(
+        `${LUCKYBOX_DROP_BUTTON_PREFIX}:${dropId}`,
+      )
+      .setLabel("Reclamar")
+      .setEmoji("🎁")
+      .setStyle(
+        ButtonStyle.Primary,
+      )
+      .setDisabled(disabled);
+
+  return new ActionRowBuilder<ButtonBuilder>()
+    .addComponents(button);
+}
+
+function createLuckyboxClaimedEmbed(
+  cajaNombre: string,
+  user: User,
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(
+      LUCKYBOX_DROP_GREEN,
+    )
+    .setTitle(
+      "🎁 ¡Luckybox reclamada!",
+    )
+    .setDescription(
+      `La **${cajaNombre}** fue reclamada correctamente.`,
+    )
+    .addFields(
+      {
+        name: "📦 Caja",
+        value:
+          `**${cajaNombre}**`,
+        inline: true,
+      },
+      {
+        name: "👤 Reclamada por",
+        value:
+          `<@${user.id}>`,
+        inline: true,
+      },
+      {
+        name: "✅ Estado",
+        value:
+          "`RECLAMADA`",
+        inline: false,
+      },
+    )
+    .setFooter({
+      text:
+        "Sistema de Luckybox • Drop finalizado",
+    })
+    .setTimestamp();
+}
+
+/* ========================================================================== */
+/*                       HANDLE LUCKYBOX DROP                                 */
+/* ========================================================================== */
+
+async function handleLuckyboxDrop(
+  sendReply: ReplyFunction,
+  guild: Guild,
+  moderatorUser: User,
+  cajaNombre: string,
+  targetChannel: {
+    send: (options: any) => Promise<any>;
+  },
+): Promise<void> {
+  try {
+    const member =
+      await guild.members
+        .fetch(moderatorUser.id)
+        .catch(() => null);
+
+    if (!member) {
+      await sendReply({
+        content:
+          "❌ No pude verificar tus roles en este servidor.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    if (
+      !hasLuckyboxDropPermission(
+        member,
+      )
+    ) {
+      await sendReply({
+        content:
+          "No tenés un rol autorizado para gestionar las luckyboxes",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    const itemId =
+      getLuckyboxItemId(
+        cajaNombre,
+      );
+
+    if (!itemId) {
+      await sendReply({
+        content:
+          "❌ La caja que especificaste no tiene configurado un ID válido de UnbelievaBoat.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    const dropId =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 10)}`;
+
+    const embed =
+      createLuckyboxDropEmbed(
+        cajaNombre,
+      );
+
+    const row =
+      createLuckyboxDropButton(
+        dropId,
+      );
+
+    const dropMessage =
+      await targetChannel.send({
+        embeds: [embed],
+        components: [row],
+      });
+
+    activeLuckyboxDrops.set(
+      dropId,
+      {
+        dropId,
+        guildId: guild.id,
+        channelId:
+          dropMessage.channelId,
+        messageId:
+          dropMessage.id,
+        cajaNombre,
+        itemId,
+        claimed: false,
+      },
+    );
+
+    await sendReply({
+      content:
+        `✅ La **${cajaNombre}** fue soltada correctamente en <#${dropMessage.channelId}>.`,
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    logger.info(
+      {
+        guildId: guild.id,
+        moderatorUserId:
+          moderatorUser.id,
+        cajaNombre,
+        itemId,
+        dropId,
+        messageId:
+          dropMessage.id,
+        channelId:
+          dropMessage.channelId,
+      },
+      "Luckybox drop creado correctamente.",
+    );
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        guildId: guild.id,
+        moderatorUserId:
+          moderatorUser.id,
+        cajaNombre,
+      },
+      "Error creando Luckybox drop.",
+    );
+
+    await sendReply({
+      content:
+        "❌ No se pudo crear la Luckybox.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+  }
+}
+
+/* ========================================================================== */
+/*                     HANDLE BOTÓN RECLAMAR                                  */
+/* ========================================================================== */
+
+export async function handleLuckyboxDropButton(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const dropId =
+    interaction.customId.slice(
+      `${LUCKYBOX_DROP_BUTTON_PREFIX}:`
+        .length,
+    );
+
+  if (!dropId) {
+    await interaction.reply({
+      content:
+        "❌ Este botón de Luckybox no es válido.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  if (
+    !interaction.guildId ||
+    !interaction.guild
+  ) {
+    await interaction.reply({
+      content:
+        "❌ Este botón solamente puede utilizarse en un servidor.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  const drop =
+    activeLuckyboxDrops.get(
+      dropId,
+    );
+
+  /*
+   * Si el bot se reinició después de crear el drop,
+   * el estado en memoria se perdió. En ese caso no
+   * entregamos la caja accidentalmente.
+   */
+  if (!drop) {
+    await interaction.reply({
+      content:
+        "❌ Esta Luckybox ya no está disponible. Es posible que el bot haya sido reiniciado.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  if (
+    drop.guildId !==
+    interaction.guildId
+  ) {
+    await interaction.reply({
+      content:
+        "❌ Esta Luckybox pertenece a otro servidor.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  if (drop.claimed) {
+    await interaction.reply({
+      content:
+        "❌ Esta Luckybox ya fue reclamada por otro usuario.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  /*
+   * Lock inmediato.
+   *
+   * JavaScript ejecuta este bloque de forma secuencial
+   * dentro de la instancia del proceso, por lo que una vez
+   * que este valor cambia a true, los siguientes handlers
+   * ya no pueden ganar este mismo drop.
+   */
+  drop.claimed = true;
+  drop.claimedBy =
+    interaction.user.id;
+
+  await interaction.deferUpdate();
+
+  const message =
+    interaction.message;
+
+  /*
+   * Actualizamos visualmente el mensaje primero.
+   */
+  try {
+    const claimedEmbed =
+      createLuckyboxClaimedEmbed(
+        drop.cajaNombre,
+        interaction.user,
+      );
+
+    const disabledRow =
+      createLuckyboxDropButton(
+        drop.dropId,
+        true,
+      );
+
+    await message.edit({
+      embeds: [
+        claimedEmbed,
+      ],
+      components: [
+        disabledRow,
+      ],
+    });
+  } catch (err) {
+    /*
+     * Si no podemos actualizar el mensaje,
+     * liberamos el lock para que se pueda volver
+     * a intentar.
+     */
+    drop.claimed = false;
+    drop.claimedBy =
+      undefined;
+
+    logger.error(
+      {
+        err,
+        guildId:
+          interaction.guildId,
+        userId:
+          interaction.user.id,
+        dropId,
+        cajaNombre:
+          drop.cajaNombre,
+      },
+      "No se pudo actualizar el mensaje del Luckybox drop.",
+    );
+
+    return;
+  }
+
+  /*
+   * Entregamos la Luckybox al usuario.
+   */
+  try {
+    await addInventoryItem(
+      interaction.guildId,
+      interaction.user.id,
+      drop.itemId,
+      1,
+    );
+
+    logger.info(
+      {
+        guildId:
+          interaction.guildId,
+        userId:
+          interaction.user.id,
+        cajaNombre:
+          drop.cajaNombre,
+        itemId:
+          drop.itemId,
+        dropId:
+          drop.dropId,
+        messageId:
+          drop.messageId,
+      },
+      "Luckybox drop reclamada y entregada correctamente.",
+    );
+
+    /*
+     * Una vez entregada correctamente,
+     * ya no necesitamos mantenerla activa.
+     */
+    activeLuckyboxDrops.delete(
+      drop.dropId,
+    );
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        guildId:
+          interaction.guildId,
+        userId:
+          interaction.user.id,
+        cajaNombre:
+          drop.cajaNombre,
+        itemId:
+          drop.itemId,
+        dropId:
+          drop.dropId,
+      },
+      "Falló la entrega de la Luckybox reclamada.",
+    );
+
+    /*
+     * Si UnbelievaBoat falla, restauramos el drop.
+     */
+    drop.claimed = false;
+    drop.claimedBy =
+      undefined;
+
+    try {
+      const availableEmbed =
+        createLuckyboxDropEmbed(
+          drop.cajaNombre,
+        );
+
+      const availableRow =
+        createLuckyboxDropButton(
+          drop.dropId,
+          false,
+        );
+
+      await message.edit({
+        embeds: [
+          availableEmbed,
+        ],
+        components: [
+          availableRow,
+        ],
+      });
+    } catch (restoreError) {
+      logger.error(
+        {
+          restoreError,
+          dropId:
+            drop.dropId,
+          messageId:
+            drop.messageId,
+        },
+        "No se pudo restaurar el Luckybox drop después de un fallo.",
+      );
+    }
+  }
+}
+
+/* ========================================================================== */
 /*                     PERSISTENCIA DE COOLDOWN                               */
 /* ========================================================================== */
 
@@ -1621,7 +2175,7 @@ async function handleCollect(
 
     const successEmbed =
       new EmbedBuilder()
-        .setColor(Orange)
+        .setColor("Orange")
         .setTitle(
           "🎁 ¡Collect realizado con éxito!",
         )
@@ -2125,6 +2679,66 @@ export const data =
     )
 
     /* ---------------------------------------------------------------------- */
+    /* /luckybox drop                                                         */
+    /* ---------------------------------------------------------------------- */
+
+    .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("drop")
+          .setDescription(
+            "Soltá una Luckybox para que alguien pueda reclamarla.",
+          )
+          .addStringOption(
+            (option) =>
+              option
+                .setName("caja")
+                .setDescription(
+                  "Elegí el tipo de Luckybox que querés soltar.",
+                )
+                .setRequired(true)
+                .addChoices(
+                  {
+                    name:
+                      "Mr Lucky Común",
+                    value:
+                      "Mr Lucky Común",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Raro",
+                    value:
+                      "Mr Lucky Raro",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Épico",
+                    value:
+                      "Mr Lucky Épico",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Admin",
+                    value:
+                      "Mr Lucky Admin",
+                  },
+                ),
+          )
+          .addChannelOption(
+            (option) =>
+              option
+                .setName("canal")
+                .setDescription(
+                  "Canal donde se soltará la Luckybox. Si no lo indicás, usa el canal actual.",
+                )
+                .addChannelTypes(
+                  ChannelType.GuildText,
+                )
+                .setRequired(false),
+          ),
+    )
+
+    /* ---------------------------------------------------------------------- */
     /* /luckybox abrir                                                        */
     /* ---------------------------------------------------------------------- */
 
@@ -2306,7 +2920,7 @@ export async function execute(
     interaction.options.getSubcommand();
 
   /* ======================================================================== */
-  /*                              COLLECT                                     */
+  /*                                COLLECT                                   */
   /* ======================================================================== */
 
   if (subcommand === "collect") {
@@ -2327,9 +2941,63 @@ export async function execute(
     return;
   }
 
+  /* ======================================================================== */
+  /*                                DROP                                      */
+  /* ======================================================================== */
+
+  if (subcommand === "drop") {
+    const cajaNombre =
+      interaction.options.getString(
+        "caja",
+        true,
+      );
+
+    const selectedChannel =
+      interaction.options.getChannel(
+        "canal",
+      );
+
+    const targetChannel =
+      selectedChannel ??
+      interaction.channel;
+
+    if (
+      !targetChannel ||
+      !targetChannel.isTextBased() ||
+      !("send" in targetChannel)
+    ) {
+      await interaction.reply({
+        content:
+          "❌ No se pudo obtener un canal de texto válido.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    await interaction.deferReply({
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    await handleLuckyboxDrop(
+      (options) =>
+        interaction.editReply(
+          options,
+        ),
+      interaction.guild,
+      interaction.user,
+      cajaNombre,
+      targetChannel,
+    );
+
+    return;
+  }
+
   /*
    * `caja` solamente existe en abrir/info/dar,
-   * por eso se obtiene después de comprobar collect.
+   * por eso se obtiene después de comprobar collect/drop.
    */
   const cajaNombre =
     interaction.options.getString(
@@ -2475,6 +3143,7 @@ export async function run(
       "abrir",
       "info",
       "dar",
+      "drop",
     ] as const;
 
   const isSubcommand =
@@ -2482,7 +3151,8 @@ export async function run(
       mainArg as
         | "abrir"
         | "info"
-        | "dar",
+        | "dar"
+        | "drop",
     );
 
   if (
@@ -2490,7 +3160,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-luckybox drop`.",
     );
 
     return;
@@ -2500,7 +3170,8 @@ export async function run(
     mainArg as
       | "abrir"
       | "info"
-      | "dar";
+      | "dar"
+      | "drop";
 
   const offset = 1;
 
@@ -2548,6 +3219,75 @@ export async function run(
 
   const opcionesValidas =
     "común, raro, épico y admin";
+
+  /* ======================================================================== */
+  /*                                  DROP                                    */
+  /* ======================================================================== */
+
+  if (sub === "drop") {
+    const mentionedChannel =
+      message.mentions.channels.first();
+
+    const cajaArguments =
+      args
+        .slice(offset)
+        .filter(
+          (arg) =>
+            !/^<#\d+>$/.test(
+              arg,
+            ),
+        )
+        .join(" ")
+        .trim();
+
+    if (!cajaArguments) {
+      await message.reply(
+        "❌ Uso correcto: `-luckybox drop [caja] [#canal opcional]`.",
+      );
+
+      return;
+    }
+
+    const cajaNombre =
+      getCajaNombre(
+        cajaArguments,
+      );
+
+    if (!cajaNombre) {
+      await message.reply(
+        `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+      );
+
+      return;
+    }
+
+    const targetChannel =
+      mentionedChannel ??
+      message.channel;
+
+    if (
+      !targetChannel ||
+      !targetChannel.isTextBased() ||
+      !("send" in targetChannel)
+    ) {
+      await message.reply(
+        "❌ No se pudo obtener un canal de texto válido.",
+      );
+
+      return;
+    }
+
+    await handleLuckyboxDrop(
+      (options) =>
+        message.reply(options),
+      message.guild,
+      message.author,
+      cajaNombre,
+      targetChannel,
+    );
+
+    return;
+  }
 
   /* ======================================================================== */
   /*                                  DAR                                     */
