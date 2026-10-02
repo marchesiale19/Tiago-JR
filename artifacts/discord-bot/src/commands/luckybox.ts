@@ -2452,7 +2452,7 @@ export async function run(
     (args[0] ?? "").toLowerCase();
 
   /* ======================================================================== */
-  /*                              COLLECT                                     */
+  /*                              -collect                                    */
   /* ======================================================================== */
 
   if (mainArg === "collect") {
@@ -2490,7 +2490,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox collect`, `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
     );
 
     return;
@@ -2503,6 +2503,7 @@ export async function run(
       | "dar";
 
   const offset = 1;
+}
 
   /* ======================================================================== */
   /*                         NORMALIZAR CAJAS                                 */
