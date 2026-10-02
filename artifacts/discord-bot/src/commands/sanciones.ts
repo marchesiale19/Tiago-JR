@@ -173,7 +173,7 @@ const INFRACTIONS: Infraction[] = [
     nivel: 3,
     tiempo: "1-12 HORAS",
     descripcion:
-      "Intentar evitar una sanción de Nivel 3 cambiando de nombre, cuenta, identidad u ocultando deliberadamente la sanción.",
+      "Intentar evitar una sanción cambiando de nombre, cuenta, identidad u ocultando deliberadamente la sanción.",
   },
   {
     name: "FALTA DE RESPETO AL STAFF",
