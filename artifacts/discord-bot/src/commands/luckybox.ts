@@ -1553,6 +1553,7 @@ export async function handleLuckyboxDropButton(
       });
     }
   }
+}
 
 /* ========================================================================== */
 /*                     PERSISTENCIA DE COOLDOWN                               */
