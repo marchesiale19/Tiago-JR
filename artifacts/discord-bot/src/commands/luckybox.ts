@@ -1330,7 +1330,7 @@ async function handleLuckyboxDrop(
 
 export async function handleLuckyboxDropButton(
   interaction: ButtonInteraction,
-): Promise {
+): Promise<void> {
   const dropId =
     interaction.customId.slice(
       `${LUCKYBOX_DROP_BUTTON_PREFIX}:`
@@ -1452,7 +1452,7 @@ export async function handleLuckyboxDropButton(
 
     // 3. Enviamos un mensaje oculto (ephemeral) de confirmación al usuario
     await interaction.followUp({
-      content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}`} y se añadió a tu inventario de UnbelievaBoat.`,
+      content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}** y se añadió a tu inventario de UnbelievaBoat.`,
       flags: MessageFlags.Ephemeral,
     });
 
