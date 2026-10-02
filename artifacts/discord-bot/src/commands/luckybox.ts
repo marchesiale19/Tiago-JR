@@ -1425,7 +1425,7 @@ export async function handleLuckyboxDropButton(
   const message =
     interaction.message;
 
-  /*
+/*
    * Actualizamos visualmente el mensaje primero.
    */
   try {
@@ -1450,29 +1450,27 @@ export async function handleLuckyboxDropButton(
       ],
     });
   } catch (err) {
-    /*
-     * Si no podemos actualizar el mensaje,
-     * liberamos el lock para que se pueda volver
-     * a intentar.
-     */
     drop.claimed = false;
-    drop.claimedBy =
-      undefined;
+    drop.claimedBy = undefined;
 
     logger.error(
       {
         err,
-        guildId:
-          interaction.guildId,
-        userId:
-          interaction.user.id,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
         dropId,
-        cajaNombre:
-          drop.cajaNombre,
+        cajaNombre: drop.cajaNombre,
       },
       "No se pudo actualizar el mensaje del Luckybox drop.",
     );
 
+    // ¡Importante responderle al usuario si falla aquí también!
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Hubo un error al procesar el reclamo de la caja.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
     return;
   }
 
@@ -1489,88 +1487,72 @@ export async function handleLuckyboxDropButton(
 
     logger.info(
       {
-        guildId:
-          interaction.guildId,
-        userId:
-          interaction.user.id,
-        cajaNombre:
-          drop.cajaNombre,
-        itemId:
-          drop.itemId,
-        dropId:
-          drop.dropId,
-        messageId:
-          drop.messageId,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        cajaNombre: drop.cajaNombre,
+        itemId: drop.itemId,
+        dropId: drop.dropId,
+        messageId: drop.messageId,
       },
       "Luckybox drop reclamada y entregada correctamente.",
     );
 
-    /*
-     * Una vez entregada correctamente,
-     * ya no necesitamos mantenerla activa.
-     */
-    activeLuckyboxDrops.delete(
-      drop.dropId,
-    );
+    activeLuckyboxDrops.delete(drop.dropId);
+
+    // ✅ RESPUESTA FINAL OBLIGATORIA PARA EVITAR EL ERROR DE DISCORD
+    await interaction.followUp({
+      content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}**.`,
+      flags: MessageFlags.Ephemeral, // Si prefieres que sea visible para todos, quita esta línea.
+    });
+
   } catch (err) {
     logger.error(
       {
         err,
-        guildId:
-          interaction.guildId,
-        userId:
-          interaction.user.id,
-        cajaNombre:
-          drop.cajaNombre,
-        itemId:
-          drop.itemId,
-        dropId:
-          drop.dropId,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        cajaNombre: drop.cajaNombre,
+        itemId: drop.itemId,
+        dropId: drop.dropId,
       },
       "Falló la entrega de la Luckybox reclamada.",
     );
 
-    /*
-     * Si UnbelievaBoat falla, restauramos el drop.
-     */
     drop.claimed = false;
-    drop.claimedBy =
-      undefined;
+    drop.claimedBy = undefined;
 
     try {
-      const availableEmbed =
-        createLuckyboxDropEmbed(
-          drop.cajaNombre,
-        );
-
-      const availableRow =
-        createLuckyboxDropButton(
-          drop.dropId,
-          false,
-        );
+      const availableEmbed = createLuckyboxDropEmbed(drop.cajaNombre);
+      const availableRow = createLuckyboxDropButton(drop.dropId, false);
 
       await message.edit({
-        embeds: [
-          availableEmbed,
-        ],
-        components: [
-          availableRow,
-        ],
+        embeds: [availableEmbed],
+        components: [availableRow],
       });
     } catch (restoreError) {
       logger.error(
         {
           restoreError,
-          dropId:
-            drop.dropId,
-          messageId:
-            drop.messageId,
+          dropId: drop.dropId,
+          messageId: drop.messageId,
         },
-        "No se pudo restaurar el Luckybox drop después de un fallo.",
+        "No se pudo restaurar el Luckybox drop",
       );
     }
+
+    // Informar al usuario que la API de UnbelievaBoat falló
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Hubo un error al añadir la caja a tu inventario. Inténtalo de nuevo.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } else {
+      await interaction.followUp({
+        content: "❌ Hubo un error al añadir la caja a tu inventario. Inténtalo de nuevo.",
+        flags: MessageFlags.Ephemeral,
+      });
+    }
   }
-}
 
 /* ========================================================================== */
 /*                     PERSISTENCIA DE COOLDOWN                               */
