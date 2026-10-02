@@ -1,5 +1,6 @@
 import {
   EmbedBuilder,
+  Colors,
   type ChatInputCommandInteraction,
   type Message,
   type GuildMember,
@@ -40,7 +41,7 @@ function tienePermisoLoteria(
  * UTILIDADES
  * ============================================================ */
 
-function mezclar<T>(array: T[]): T[] {
+function mezclar(array: T[]): T[] {
   const resultado = [...array];
 
   // Fisher-Yates:
@@ -65,7 +66,7 @@ function mezclar<T>(array: T[]): T[] {
 
 function esperar(
   ms: number,
-): Promise<void> {
+): Promise {
   return new Promise((resolve) =>
     setTimeout(resolve, ms),
   );
@@ -79,7 +80,7 @@ async function anotar(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise<void> {
+): Promise {
   const guild =
     interactionOrMessage.guild;
 
@@ -156,11 +157,11 @@ async function anotar(
 
     const embed =
       new EmbedBuilder()
-        .setColor("#Orange")
+        .setColor(Colors.Orange)
         .setTitle("🎟️ Participantes de la Lotería")
         .setDescription(
           cantidad > 0
-            ? `Se actualizaron correctamente los participantes de la lotería.\n\n**${cantidad} participante${cantidad === 1 ? "" : "s"} encontrado${cantidad === 1 ? "" : "s"}.**`
+            ? `Se actualizaron correctamente los participantes de la lotería.\n\n**\({cantidad} participante\){cantidad === 1 ? "" : "s"} encontrado${cantidad === 1 ? "" : "s"}.**`
             : "No hay ningún participante con el rol de la lotería.",
         )
         .setTimestamp();
@@ -231,11 +232,11 @@ async function mostrarParticipantes(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise<void> {
+): Promise {
   if (participantes.length === 0) {
     const embed =
       new EmbedBuilder()
-        .setColor("#Orange")
+        .setColor(Colors.Orange)
         .setTitle("🎟️ Lotería")
         .setDescription(
           "No hay participantes anotados actualmente.",
@@ -272,7 +273,7 @@ async function mostrarParticipantes(
             userId,
           );
 
-        return `${index + 1}. ${
+        return `\({index + 1}.\){
           member
             ? `${member}`
             : `<@${userId}>`
@@ -287,12 +288,12 @@ async function mostrarParticipantes(
    */
   const embed =
     new EmbedBuilder()
-      .setColor("#Orange")
+      .setColor(Colors.Orange)
       .setTitle(
         "🎟️ Participantes de la Lotería",
       )
       .setDescription(
-        `Actualmente hay **${participantes.length} participante${participantes.length === 1 ? "" : "s"}** anotado${participantes.length === 1 ? "" : "s"}.`,
+        `Actualmente hay **\({participantes.length} participante\){participantes.length === 1 ? "" : "s"}** anotado${participantes.length === 1 ? "" : "s"}.`,
       )
       .setTimestamp();
 
@@ -355,7 +356,7 @@ async function girar(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise<void> {
+): Promise {
   const guild =
     interactionOrMessage.guild;
 
@@ -528,7 +529,7 @@ async function girar(
 
   const ganadorEmbed =
     new EmbedBuilder()
-      .setColor("#Green")
+      .setColor(Colors.Green)
       .setTitle(
         "🏆 ¡TENEMOS GANADOR!",
       )
@@ -560,9 +561,6 @@ async function girar(
   /*
    * Después de terminar el sorteo, dejamos como lista actual
    * únicamente al ganador.
-   *
-   * Si querés que la lotería se vacíe completamente después
-   * del sorteo, esto se puede cambiar posteriormente.
    */
   participantes = [ganador];
 }
@@ -582,7 +580,7 @@ export const data = {
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
-): Promise<void> {
+): Promise {
   switch (
     interaction.options.getSubcommand()
   ) {
@@ -616,7 +614,7 @@ export async function execute(
 export async function run(
   message: Message,
   args: string[],
-): Promise<void> {
+): Promise {
   const subcomando =
     args[0]?.toLowerCase();
 
@@ -647,10 +645,6 @@ export async function run(
  * EXPORTS OPCIONALES
  * ============================================================ */
 
-/*
- * Permite consultar los participantes desde otro módulo
- * si en el futuro necesitás hacerlo.
- */
 export function getParticipantes(): string[] {
   return [...participantes];
 }
