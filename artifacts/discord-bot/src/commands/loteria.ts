@@ -156,7 +156,7 @@ async function anotar(
 
     const embed =
       new EmbedBuilder()
-        .setColor("#FFD700")
+        .setColor("#Orange")
         .setTitle("🎟️ Participantes de la Lotería")
         .setDescription(
           cantidad > 0
@@ -235,7 +235,7 @@ async function mostrarParticipantes(
   if (participantes.length === 0) {
     const embed =
       new EmbedBuilder()
-        .setColor("#ED4245")
+        .setColor("#Orange")
         .setTitle("🎟️ Lotería")
         .setDescription(
           "No hay participantes anotados actualmente.",
@@ -287,7 +287,7 @@ async function mostrarParticipantes(
    */
   const embed =
     new EmbedBuilder()
-      .setColor("#5865F2")
+      .setColor("#Orange")
       .setTitle(
         "🎟️ Participantes de la Lotería",
       )
@@ -528,7 +528,7 @@ async function girar(
 
   const ganadorEmbed =
     new EmbedBuilder()
-      .setColor("#FFD700")
+      .setColor("#Green")
       .setTitle(
         "🏆 ¡TENEMOS GANADOR!",
       )
