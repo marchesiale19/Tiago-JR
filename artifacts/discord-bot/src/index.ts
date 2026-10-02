@@ -1926,6 +1926,12 @@ client.on(
 
     if (!commandName) return;
 
+    // Alias: -ppt → comando piedrapapeltijera
+    const resolvedCommandName =
+      commandName === "ppt"
+        ? "piedrapapeltijera"
+        : commandName;
+
     /* --------------------------------------------------------
      * LUCKYBOX COLLECT
      * -------------------------------------------------------- */
@@ -2151,7 +2157,7 @@ client.on(
 
     const command =
       commands.get(
-        commandName,
+        resolvedCommandName,
       );
 
     if (!command) return;
@@ -2186,7 +2192,7 @@ client.on(
       const fakeInteraction =
         {
           commandName:
-            commandName,
+            resolvedCommandName,
 
           user:
             message.author,
@@ -2209,7 +2215,7 @@ client.on(
           options: {
             getSubcommand: () => {
               if (
-                commandName ===
+                resolvedCommandName ===
                 "temporada"
               ) {
                 const sub =
@@ -2253,7 +2259,7 @@ client.on(
                 [...args];
 
               if (
-                commandName ===
+                resolvedCommandName ===
                 "temporada"
               ) {
                 subArgs.shift();
@@ -2270,7 +2276,7 @@ client.on(
 
             getInteger: () => {
               if (
-                commandName ===
+                resolvedCommandName ===
                 "temporada"
               ) {
                 return (
@@ -2418,7 +2424,7 @@ client.on(
       logger.error(
         {
           err,
-          commandName,
+          commandName: resolvedCommandName,
         },
         "Error executing command via automatic prefix bridge",
       );
