@@ -2503,7 +2503,6 @@ export async function run(
       | "dar";
 
   const offset = 1;
-}
 
   /* ======================================================================== */
   /*                         NORMALIZAR CAJAS                                 */
