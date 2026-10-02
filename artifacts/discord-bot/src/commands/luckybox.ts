@@ -779,7 +779,7 @@ async function sendLuckyboxLog(
         .addFields(
           {
             name:
-              "👤 Usuario Emisor (Moderador)",
+              "👤 Usuario Emisor",
             value:
               `<@${moderatorUser.id}>\nID: \`${moderatorUser.id}\``,
             inline: true,
