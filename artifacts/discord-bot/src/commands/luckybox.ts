@@ -1100,9 +1100,7 @@ function createLuckyboxDropEmbed(
   cajaNombre: string,
 ): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(
-      LUCKYBOX_DROP_ORANGE,
-    )
+    .setColor(Orange,)
     .setTitle(
       "🎁 ¡Luckybox soltada!",
     )
