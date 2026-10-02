@@ -110,7 +110,7 @@ async function anotar(
 
   if (!tienePermisoLoteria(member)) {
     const respuesta =
-      "No tenés un rol autorizado para gestionar la lotería";
+      "❌ No tenés un rol autorizado para gestionar la lotería.";
 
     if (
       interactionOrMessage.isChatInputCommand?.()
@@ -386,7 +386,7 @@ async function girar(
 
   if (!tienePermisoLoteria(member)) {
     const respuesta =
-      "No tenés un rol autorizado para gestionar la lotería";
+      "❌ No tenés un rol autorizado para gestionar la lotería.";
 
     if (
       interactionOrMessage.isChatInputCommand?.()
