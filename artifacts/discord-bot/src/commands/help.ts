@@ -34,6 +34,23 @@ const TIER_2_ROLES = [
   "1452784726413672643", // Moderador
 ];
 
+/*
+ * Roles que pueden utilizar el comando:
+ * -luckybox dar
+ */
+const LUCKYBOX_GIVE_ROLES = [
+  "1539368076326473868", // Developer Tiago Jr
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
 type AccessLevel = "user" | "staff" | "owner";
 
 function getMemberAccessLevel(
@@ -79,6 +96,20 @@ function getMemberAccessLevel(
   return "user";
 }
 
+/*
+ * Comprueba si el usuario puede ver:
+ * -luckybox dar
+ */
+function canGiveLuckybox(
+  member: GuildMember | null | undefined,
+): boolean {
+  if (!member) return false;
+
+  return member.roles.cache.some((role) =>
+    LUCKYBOX_GIVE_ROLES.includes(role.id),
+  );
+}
+
 interface CategoryData {
   label: string;
   description: string;
@@ -89,6 +120,7 @@ interface CategoryData {
 
 function getCategories(
   access: AccessLevel,
+  member: GuildMember | null | undefined,
 ): CategoryData[] {
   /*
    * Estas categorías están disponibles para todos
@@ -131,6 +163,17 @@ function getCategories(
         "-luckybox abrir — Abre una Lucky Box.",
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
+
+        /*
+         * Este comando solamente aparece si el usuario
+         * tiene alguno de los roles autorizados.
+         */
+        ...(canGiveLuckybox(member)
+          ? [
+              "-luckybox dar — Dale una caja a un usuario.",
+            ]
+          : []),
+
         "-ppt — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
         "-tateti — Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
       ].join("\n"),
@@ -267,7 +310,15 @@ async function sendHelpMenu(
     authorId,
   );
 
-  const categories = getCategories(access);
+  /*
+   * Pasamos también el miembro para poder comprobar
+   * los roles específicos de -luckybox dar.
+   */
+  const categories = getCategories(
+    access,
+    member,
+  );
+
   const initialCat = categories[0];
 
   const buildEmbed = (
