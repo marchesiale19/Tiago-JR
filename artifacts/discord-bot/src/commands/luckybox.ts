@@ -13,6 +13,15 @@ const { Client: UnbClient } = pkg;
 
 import { logger } from "../lib/logger";
 
+import {
+  readFile,
+  writeFile,
+  mkdir,
+  rename,
+} from "node:fs/promises";
+
+import path from "node:path";
+
 /* ========================================================================== */
 /*                           CONFIGURACIÓN API                                */
 /* ========================================================================== */
@@ -79,35 +88,137 @@ type ReplyFunction = (
 ) => Promise<any>;
 
 /* ========================================================================== */
-/*                                  ROLES                                     */
+/*                        CONFIGURACIÓN COLLECT                               */
 /* ========================================================================== */
 
-export const ROL_TOP_CASINO_ID =
-  "1546068235072442398";
+/**
+ * Cooldown obligatorio:
+ *
+ * 6 días exactos = 6 * 24 * 60 * 60 segundos
+ */
+export const COLLECT_COOLDOWN_MS =
+  6 * 24 * 60 * 60 * 1000;
 
-export const ROL_SEGURO_ID =
-  "1461499864457412865";
+/**
+ * Archivo persistente donde se guarda el último collect exitoso.
+ *
+ * Se utiliza una clave por servidor + usuario para evitar que un collect
+ * realizado en un servidor bloquee al usuario en otro servidor.
+ */
+const COLLECT_COOLDOWN_FILE =
+  path.join(
+    process.cwd(),
+    "data",
+    "luckybox-collect-cooldowns.json",
+  );
 
-export const ROL_QUEBRADO_ID =
-  "1478210697199353976";
+type CollectCooldownStore =
+  Record<string, number>;
 
-export const ROL_ESCLAVO_SADY_ID =
-  "1478210995066372337";
+let collectCooldownStore:
+  CollectCooldownStore = {};
 
-export const ROL_ESCLAVO_RAYII_ID =
-  "1478210926883639456";
+let collectCooldownStoreLoaded =
+  false;
 
-export const ROL_ESCLAVO_BAX_ID =
-  "1461517408203313244";
+let collectCooldownStoreLoadPromise:
+  Promise<void> | null = null;
 
-export const ROL_ESCLAVO_SANTIAGO_ID =
-  "1461961845513519187";
+/**
+ * Evita escrituras simultáneas al archivo de cooldown.
+ */
+let collectCooldownWriteQueue:
+  Promise<void> = Promise.resolve();
 
-export const ROL_ESCLAVO_RAYI_ID =
-  "1478210926883639456";
+/* ========================================================================== */
+/*                        ROLES ESPECIALES COLLECT                            */
+/* ========================================================================== */
 
-export const ROL_OMG_BRO_ID =
-  "1478217120465555630";
+/**
+ * Roles habilitados para -collect.
+ *
+ * La prioridad se interpreta de arriba hacia abajo:
+ *
+ * CAMPEÓN
+ * MIEMBRO DEL MES
+ * MEJOR MIEMBRO
+ * EXITOSO
+ *
+ * Si una persona tiene varios de estos roles, recibe solamente la recompensa
+ * correspondiente al rol de mayor prioridad.
+ */
+export const COLLECT_ROLES = {
+  EXITOSO: {
+    roleId:
+      "1525558889779822664",
+    roleName:
+      "👑ヽEXITOSO",
+    rewards: [
+      {
+        cajaNombre:
+          "Mr Lucky Común",
+        quantity: 1,
+      },
+    ],
+  },
+
+  MEJOR_MIEMBRO: {
+    roleId:
+      "1525558946272772247",
+    roleName:
+      "⭐️ヽMEJOR MIEMBRO",
+    rewards: [
+      {
+        cajaNombre:
+          "Mr Lucky Raro",
+        quantity: 1,
+      },
+    ],
+  },
+
+  MIEMBRO_DEL_MES: {
+    roleId:
+      "1545147355928600597",
+    roleName:
+      "🌟ヽMIEMBRO DEL MES",
+    rewards: [
+      {
+        cajaNombre:
+          "Mr Lucky Épico",
+        quantity: 1,
+      },
+    ],
+  },
+
+  CAMPEON: {
+    roleId:
+      "1528916496213086310",
+    roleName:
+      "🏆 ヽCAMPEON",
+    rewards: [
+      {
+        cajaNombre:
+          "Mr Lucky Épico",
+        quantity: 1,
+      },
+      {
+        cajaNombre:
+          "Mr Lucky Raro",
+        quantity: 1,
+      },
+    ],
+  },
+} as const;
+
+/**
+ * Orden de prioridad de los roles especiales.
+ */
+const COLLECT_ROLE_PRIORITY = [
+  COLLECT_ROLES.CAMPEON,
+  COLLECT_ROLES.MIEMBRO_DEL_MES,
+  COLLECT_ROLES.MEJOR_MIEMBRO,
+  COLLECT_ROLES.EXITOSO,
+] as const;
 
 /* ========================================================================== */
 /*                           IDS DE LUCKYBOX                                  */
@@ -1048,6 +1159,727 @@ function startAutoSync(
 }
 
 /* ========================================================================== */
+/*                     PERSISTENCIA DE COOLDOWN                               */
+/* ========================================================================== */
+
+async function loadCollectCooldowns(): Promise<void> {
+  if (
+    collectCooldownStoreLoaded
+  ) {
+    return;
+  }
+
+  if (
+    collectCooldownStoreLoadPromise
+  ) {
+    return collectCooldownStoreLoadPromise;
+  }
+
+  collectCooldownStoreLoadPromise =
+    (async () => {
+      try {
+        const raw =
+          await readFile(
+            COLLECT_COOLDOWN_FILE,
+            "utf8",
+          );
+
+        const parsed =
+          JSON.parse(raw);
+
+        if (
+          parsed &&
+          typeof parsed ===
+            "object" &&
+          !Array.isArray(parsed)
+        ) {
+          collectCooldownStore =
+            parsed as CollectCooldownStore;
+        } else {
+          collectCooldownStore =
+            {};
+        }
+      } catch (err: any) {
+        if (
+          err?.code !==
+          "ENOENT"
+        ) {
+          logger.warn(
+            {
+              err,
+              file:
+                COLLECT_COOLDOWN_FILE,
+            },
+            "No se pudo leer el archivo de cooldown de -collect. Se iniciará uno nuevo.",
+          );
+        }
+
+        collectCooldownStore =
+          {};
+      } finally {
+        collectCooldownStoreLoaded =
+          true;
+
+        collectCooldownStoreLoadPromise =
+          null;
+      }
+    })();
+
+  return collectCooldownStoreLoadPromise;
+}
+
+function getCollectCooldownKey(
+  guildId: string,
+  userId: string,
+): string {
+  return `${guildId}:${userId}`;
+}
+
+async function saveCollectCooldowns(): Promise<void> {
+  collectCooldownWriteQueue =
+    collectCooldownWriteQueue.then(
+      async () => {
+        const directory =
+          path.dirname(
+            COLLECT_COOLDOWN_FILE,
+          );
+
+        await mkdir(
+          directory,
+          {
+            recursive: true,
+          },
+        );
+
+        const temporaryFile =
+          `${COLLECT_COOLDOWN_FILE}.tmp`;
+
+        await writeFile(
+          temporaryFile,
+          JSON.stringify(
+            collectCooldownStore,
+            null,
+            2,
+          ),
+          "utf8",
+        );
+
+        await rename(
+          temporaryFile,
+          COLLECT_COOLDOWN_FILE,
+        );
+      },
+    ).catch(
+      (err) => {
+        logger.error(
+          {
+            err,
+            file:
+              COLLECT_COOLDOWN_FILE,
+          },
+          "No se pudo guardar el cooldown de -collect.",
+        );
+      },
+    );
+
+  return collectCooldownWriteQueue;
+}
+
+function getRemainingCollectCooldown(
+  guildId: string,
+  userId: string,
+  now = Date.now(),
+): number {
+  const key =
+    getCollectCooldownKey(
+      guildId,
+      userId,
+    );
+
+  const lastCollect =
+    collectCooldownStore[
+      key
+    ];
+
+  if (
+    !lastCollect ||
+    !Number.isFinite(
+      lastCollect,
+    )
+  ) {
+    return 0;
+  }
+
+  const elapsed =
+    now - lastCollect;
+
+  const remaining =
+    COLLECT_COOLDOWN_MS -
+    elapsed;
+
+  return Math.max(
+    0,
+    remaining,
+  );
+}
+
+function formatCollectRemaining(
+  milliseconds: number,
+): string {
+  const totalSeconds =
+    Math.ceil(
+      milliseconds / 1000,
+    );
+
+  const days =
+    Math.floor(
+      totalSeconds /
+        86400,
+    );
+
+  const hours =
+    Math.floor(
+      (totalSeconds %
+        86400) /
+        3600,
+    );
+
+  const minutes =
+    Math.floor(
+      (totalSeconds %
+        3600) /
+        60,
+    );
+
+  const seconds =
+    totalSeconds % 60;
+
+  const parts: string[] =
+    [];
+
+  if (days > 0) {
+    parts.push(
+      `${days} día${
+        days === 1
+          ? ""
+          : "s"
+      }`,
+    );
+  }
+
+  if (
+    hours > 0 ||
+    days > 0
+  ) {
+    parts.push(
+      `${hours} hora${
+        hours === 1
+          ? ""
+          : "s"
+      }`,
+    );
+  }
+
+  if (
+    minutes > 0 ||
+    hours > 0 ||
+    days > 0
+  ) {
+    parts.push(
+      `${minutes} minuto${
+        minutes === 1
+          ? ""
+          : "s"
+      }`,
+    );
+  }
+
+  if (
+    seconds > 0 ||
+    parts.length === 0
+  ) {
+    parts.push(
+      `${seconds} segundo${
+        seconds === 1
+          ? ""
+          : "s"
+      }`,
+    );
+  }
+
+  return parts.join(
+    ", ",
+  );
+}
+
+/* ========================================================================== */
+/*                       RESOLVER ROL COLLECT                                 */
+/* ========================================================================== */
+
+function getCollectRoleForMember(
+  member: {
+    roles: {
+      cache: {
+        has: (
+          roleId: string,
+        ) => boolean;
+      };
+    };
+  },
+) {
+  for (
+    const collectRole of
+      COLLECT_ROLE_PRIORITY
+  ) {
+    if (
+      member.roles.cache.has(
+        collectRole.roleId,
+      )
+    ) {
+      return collectRole;
+    }
+  }
+
+  return null;
+}
+
+/* ========================================================================== */
+/*                         HANDLE COLLECT                                     */
+/* ========================================================================== */
+
+async function handleCollect(
+  message: Message,
+): Promise<void> {
+  const guild =
+    message.guild;
+
+  if (!guild) {
+    await message.reply(
+      "❌ Este comando solamente se puede usar en servidores.",
+    );
+
+    return;
+  }
+
+  const user =
+    message.author;
+
+  try {
+    /*
+     * Cargamos primero el cooldown persistente.
+     */
+    await loadCollectCooldowns();
+
+    /*
+     * Buscamos al miembro en Discord para verificar los roles actuales.
+     */
+    const member =
+      await guild.members
+        .fetch(user.id)
+        .catch(
+          () => null,
+        );
+
+    if (!member) {
+      await message.reply(
+        "❌ No pude verificar tus roles en este servidor.",
+      );
+
+      return;
+    }
+
+    /*
+     * Primero verificamos autorización por rol.
+     *
+     * Esto evita que un usuario sin rol válido consuma cualquier
+     * información o interactúe con el cooldown.
+     */
+    const collectRole =
+      getCollectRoleForMember(
+        member,
+      );
+
+    if (!collectRole) {
+      const embed =
+        new EmbedBuilder()
+          .setColor(
+            0xED4245,
+          )
+          .setTitle(
+            "🚫 Collect no disponible",
+          )
+          .setDescription(
+            `<@${user.id}>, no tenés ninguno de los roles habilitados para usar **-collect**.`,
+          )
+          .addFields({
+            name:
+              "🎟️ Roles requeridos",
+            value:
+              [
+                `<@&${COLLECT_ROLES.CAMPEON.roleId}>`,
+                `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
+                `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
+                `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
+              ].join(
+                "\n",
+              ),
+            inline: false,
+          })
+          .setFooter({
+            text:
+              "Sistema de Collect • Luckybox",
+          })
+          .setTimestamp();
+
+      await message.reply({
+        embeds: [
+          embed,
+        ],
+      });
+
+      return;
+    }
+
+    /*
+     * Verificamos el cooldown antes de hacer cualquier entrega.
+     */
+    const now =
+      Date.now();
+
+    const remaining =
+      getRemainingCollectCooldown(
+        guild.id,
+        user.id,
+        now,
+      );
+
+    if (
+      remaining > 0
+    ) {
+      const key =
+        getCollectCooldownKey(
+          guild.id,
+          user.id,
+        );
+
+      const lastCollect =
+        collectCooldownStore[
+          key
+        ];
+
+      const nextCollectTimestamp =
+        Math.ceil(
+          (
+            lastCollect +
+            COLLECT_COOLDOWN_MS
+          ) / 1000,
+        );
+
+      const remainingText =
+        formatCollectRemaining(
+          remaining,
+        );
+
+      const cooldownEmbed =
+        new EmbedBuilder()
+          .setColor(
+            0xED4245,
+          )
+          .setTitle(
+            "⏳ Todavía no podés hacer otro collect",
+          )
+          .setDescription(
+            `<@${user.id}>, ya hiciste tu **collect** recientemente.`,
+          )
+          .addFields(
+            {
+              name:
+                "🕐 Tiempo restante",
+              value:
+                `\`\`\`\n${remainingText}\n\`\`\``,
+              inline: true,
+            },
+            {
+              name:
+                "📅 Próximo collect",
+              value:
+                `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
+              inline: true,
+            },
+            {
+              name:
+                "🎖️ Rol detectado",
+              value:
+                `<@&${collectRole.roleId}>`,
+              inline: false,
+            },
+          )
+          .setFooter({
+            text:
+              "El cooldown es de 6 días por usuario.",
+          })
+          .setTimestamp();
+
+      await message.reply({
+        embeds: [
+          cooldownEmbed,
+        ],
+      });
+
+      return;
+    }
+
+    /*
+     * Convertimos las recompensas del rol a IDs reales de UnbelievaBoat.
+     */
+    const rewards =
+      collectRole.rewards.map(
+        (reward) => {
+          const itemId =
+            getLuckyboxItemId(
+              reward.cajaNombre,
+            );
+
+          if (!itemId) {
+            throw new Error(
+              `La caja "${reward.cajaNombre}" no tiene un ID válido configurado.`,
+            );
+          }
+
+          return {
+            ...reward,
+            itemId,
+          };
+        },
+      );
+
+    /*
+     * Entregamos todas las recompensas.
+     *
+     * Guardamos lo entregado para poder revertirlo si una entrega posterior
+     * falla. De esta forma el cooldown no se consume si el collect no
+     * terminó correctamente.
+     */
+    const deliveredRewards: Array<{
+      itemId: string;
+      quantity: number;
+      cajaNombre: string;
+    }> = [];
+
+    try {
+      for (
+        const reward of rewards
+      ) {
+        await addInventoryItem(
+          guild.id,
+          user.id,
+          reward.itemId,
+          reward.quantity,
+        );
+
+        deliveredRewards.push({
+          itemId:
+            reward.itemId,
+          quantity:
+            reward.quantity,
+          cajaNombre:
+            reward.cajaNombre,
+        });
+      }
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          guildId:
+            guild.id,
+          userId:
+            user.id,
+          roleId:
+            collectRole.roleId,
+          deliveredRewards,
+        },
+        "Falló una entrega de -collect. Intentando revertir las recompensas ya entregadas.",
+      );
+
+      /*
+       * Rollback de seguridad.
+       */
+      for (
+        const delivered of
+          deliveredRewards
+      ) {
+        try {
+          await removeInventoryItem(
+            guild.id,
+            user.id,
+            delivered.itemId,
+            delivered.quantity,
+          );
+        } catch (rollbackError) {
+          logger.error(
+            {
+              rollbackError,
+              guildId:
+                guild.id,
+              userId:
+                user.id,
+              itemId:
+                delivered.itemId,
+              quantity:
+                delivered.quantity,
+            },
+            "No se pudo revertir una recompensa parcial de -collect.",
+          );
+        }
+      }
+
+      throw err;
+    }
+
+    /*
+     * IMPORTANTE:
+     *
+     * El cooldown se registra recién después de haber agregado
+     * correctamente todas las cajas.
+     */
+    collectCooldownStore[
+      getCollectCooldownKey(
+        guild.id,
+        user.id,
+      )
+    ] = Date.now();
+
+    await saveCollectCooldowns();
+
+    logger.info(
+      {
+        guildId:
+          guild.id,
+        userId:
+          user.id,
+        roleId:
+          collectRole.roleId,
+        roleName:
+          collectRole.roleName,
+        rewards:
+          deliveredRewards,
+      },
+      "Collect ejecutado correctamente.",
+    );
+
+    const rewardText =
+      deliveredRewards
+        .map(
+          (reward) =>
+            `• **${reward.cajaNombre}** × \`${reward.quantity}\``,
+        )
+        .join("\n");
+
+    const nextCollectTimestamp =
+      Math.ceil(
+        (
+          Date.now() +
+          COLLECT_COOLDOWN_MS
+        ) / 1000,
+      );
+
+    const successEmbed =
+      new EmbedBuilder()
+        .setColor(
+          0x57F287,
+        )
+        .setTitle(
+          "🎁 ¡Collect realizado con éxito!",
+        )
+        .setDescription(
+          `<@${user.id}>, reclamaste correctamente tu recompensa.`,
+        )
+        .addFields(
+          {
+            name:
+              "🎖️ Rol utilizado",
+            value:
+              `<@&${collectRole.roleId}>`,
+            inline: true,
+          },
+          {
+            name:
+              "📦 Estado",
+            value:
+              "`ENTREGADO`",
+            inline: true,
+          },
+          {
+            name:
+              "🎁 Recompensas obtenidas",
+            value:
+              rewardText,
+            inline: false,
+          },
+          {
+            name:
+              "⏳ Próximo collect",
+            value:
+              `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
+            inline: false,
+          },
+        )
+        .setFooter({
+          text:
+            "Sistema de Collect • Cooldown de 6 días",
+        })
+        .setTimestamp();
+
+    await message.reply({
+      embeds: [
+        successEmbed,
+      ],
+    });
+  } catch (err: any) {
+    logger.error(
+      {
+        err,
+        guildId:
+          guild.id,
+        userId:
+          user.id,
+      },
+      "Error ejecutando -collect.",
+    );
+
+    const errorEmbed =
+      new EmbedBuilder()
+        .setColor(
+          0xED4245,
+        )
+        .setTitle(
+          "❌ No se pudo completar tu collect",
+        )
+        .setDescription(
+          `<@${user.id}>, ocurrió un problema mientras intentaba entregarte las recompensas.`,
+        )
+        .addFields({
+          name:
+            "📋 Estado",
+          value:
+            "`NO COMPLETADO`",
+          inline: false,
+        })
+        .setFooter({
+          text:
+            "No se consumió el cooldown porque el collect no terminó correctamente.",
+        })
+        .setTimestamp();
+
+    await message.reply({
+      embeds: [
+        errorEmbed,
+      ],
+    });
+  }
+}
+
+/* ========================================================================== */
 /*                         SLASH COMMAND                                      */
 /* ========================================================================== */
 
@@ -1857,6 +2689,30 @@ export async function run(
       args[0] ?? ""
     ).toLowerCase();
 
+  /* ======================================================================== */
+  /*                              -collect                                    */
+  /* ======================================================================== */
+
+  /**
+   * -collect es un comando independiente por prefijo.
+   *
+   * Ejemplo:
+   *
+   * -collect
+   *
+   * No requiere argumentos adicionales.
+   */
+  if (
+    mainArg ===
+    "collect"
+  ) {
+    await handleCollect(
+      message,
+    );
+
+    return;
+  }
+
   const validSubcommands =
     [
       "abrir",
@@ -1877,7 +2733,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-collect`.",
     );
 
     return;
