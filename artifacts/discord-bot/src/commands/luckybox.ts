@@ -27,7 +27,7 @@ import path from "node:path";
 /* ========================================================================== */
 
 const UNBELIEVABOAT_API_KEY =
-  process.env.UNBELIEVABOAT_API_KEY;
+  process.env["UNBELIEVABOAT_API_KEY"];
 
 if (!UNBELIEVABOAT_API_KEY) {
   throw new Error(
@@ -35,9 +35,7 @@ if (!UNBELIEVABOAT_API_KEY) {
   );
 }
 
-const unb = new UnbClient(
-  UNBELIEVABOAT_API_KEY,
-);
+const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
 
 const LUCKYBOX_LOG_CHANNEL_ID =
   "1555430585403703396";
@@ -153,61 +151,48 @@ let collectCooldownWriteQueue:
 
 export const COLLECT_ROLES = {
   EXITOSO: {
-    roleId:
-      "1525558889779822664",
-    roleName:
-      "👑ヽEXITOSO",
+    roleId: "1525558889779822664",
+    roleName: "👑ヽEXITOSO",
     rewards: [
       {
-        cajaNombre:
-          "Mr Lucky Común",
+        cajaNombre: "Mr Lucky Común",
         quantity: 1,
       },
     ],
   },
 
   MEJOR_MIEMBRO: {
-    roleId:
-      "1525558946272772247",
-    roleName:
-      "⭐️ヽMEJOR MIEMBRO",
+    roleId: "1525558946272772247",
+    roleName: "⭐️ヽMEJOR MIEMBRO",
     rewards: [
       {
-        cajaNombre:
-          "Mr Lucky Raro",
+        cajaNombre: "Mr Lucky Raro",
         quantity: 1,
       },
     ],
   },
 
   MIEMBRO_DEL_MES: {
-    roleId:
-      "1545147355928600597",
-    roleName:
-      "🌟ヽMIEMBRO DEL MES",
+    roleId: "1545147355928600597",
+    roleName: "🌟ヽMIEMBRO DEL MES",
     rewards: [
       {
-        cajaNombre:
-          "Mr Lucky Épico",
+        cajaNombre: "Mr Lucky Épico",
         quantity: 1,
       },
     ],
   },
 
   CAMPEON: {
-    roleId:
-      "1528916496213086310",
-    roleName:
-      "🏆 ヽCAMPEON",
+    roleId: "1528916496213086310",
+    roleName: "🏆 ヽCAMPEON",
     rewards: [
       {
-        cajaNombre:
-          "Mr Lucky Épico",
+        cajaNombre: "Mr Lucky Épico",
         quantity: 1,
       },
       {
-        cajaNombre:
-          "Mr Lucky Raro",
+        cajaNombre: "Mr Lucky Raro",
         quantity: 1,
       },
     ],
@@ -218,10 +203,7 @@ export const COLLECT_ROLES = {
 /*                           IDS DE LUCKYBOX                                  */
 /* ========================================================================== */
 
-const LUCKYBOX_IDS: Record<
-  string,
-  string
-> = {
+const LUCKYBOX_IDS: Record<string, string> = {
   "mr lucky común":
     "1545211721772305804",
 
@@ -245,51 +227,32 @@ const LUCKYBOX_IDS: Record<
 /*                          ROLES AUTORIZADOS                                 */
 /* ========================================================================== */
 
-export const AUTHORIZED_ROLES: readonly string[] =
-  [
-    "1451383215603585140",
-    "1508266687689003039",
-    "1512634750152478851",
-    "1485101671875874997",
-    "1455419124732657801",
-    "1522434536796061816",
-    "1453211902267228160",
-    "1509760475653472287",
-    "1522807097920720967",
-    "1539368076326473868",
-  ];
+export const AUTHORIZED_ROLES: readonly string[] = [
+  "1451383215603585140",
+  "1508266687689003039",
+  "1512634750152478851",
+  "1485101671875874997",
+  "1455419124732657801",
+  "1522434536796061816",
+  "1453211902267228160",
+  "1509760475653472287",
+  "1522807097920720967",
+  "1539368076326473868",
+];
 
 /* ========================================================================== */
 /*                             MAPA DE ROLES                                  */
 /* ========================================================================== */
 
-const ROLE_MAP: Record<
-  string,
-  string
-> = {
-  rol_seguro:
-    ROL_SEGURO_ID,
-
-  rol_quebrado:
-    ROL_QUEBRADO_ID,
-
-  rol_esclavo_sady:
-    ROL_ESCLAVO_SADY_ID,
-
-  rol_esclavo_rayii:
-    ROL_ESCLAVO_RAYII_ID,
-
-  rol_esclavo_bax:
-    ROL_ESCLAVO_BAX_ID,
-
-  rol_esclavo_santiago:
-    ROL_ESCLAVO_SANTIAGO_ID,
-
-  rol_esclavo_rayi:
-    ROL_ESCLAVO_RAYI_ID,
-
-  rol_omg_bro:
-    ROL_OMG_BRO_ID,
+const ROLE_MAP: Record<string, string> = {
+  rol_seguro: ROL_SEGURO_ID,
+  rol_quebrado: ROL_QUEBRADO_ID,
+  rol_esclavo_sady: ROL_ESCLAVO_SADY_ID,
+  rol_esclavo_rayii: ROL_ESCLAVO_RAYII_ID,
+  rol_esclavo_bax: ROL_ESCLAVO_BAX_ID,
+  rol_esclavo_santiago: ROL_ESCLAVO_SANTIAGO_ID,
+  rol_esclavo_rayi: ROL_ESCLAVO_RAYI_ID,
+  rol_omg_bro: ROL_OMG_BRO_ID,
 };
 
 /* ========================================================================== */
@@ -525,21 +488,14 @@ export const ADMIN_LUCKYBOX_REWARDS = [
 export function pickReward(
   cajaNombre: string,
 ): LuckyboxReward {
-  const rand =
-    Math.random() * 100;
-
-  const nombreLower =
-    cajaNombre.toLowerCase();
+  const rand = Math.random() * 100;
+  const nombreLower = cajaNombre.toLowerCase();
 
   let rewards: readonly LuckyboxReward[];
   let probabilities: readonly number[];
 
-  if (
-    nombreLower.includes("admin")
-  ) {
-    rewards =
-      ADMIN_LUCKYBOX_REWARDS;
-
+  if (nombreLower.includes("admin")) {
+    rewards = ADMIN_LUCKYBOX_REWARDS;
     probabilities = [
       25.0,
       20.0,
@@ -559,9 +515,7 @@ export function pickReward(
     nombreLower.includes("épico") ||
     nombreLower.includes("epico")
   ) {
-    rewards =
-      EPIC_LUCKYBOX_REWARDS;
-
+    rewards = EPIC_LUCKYBOX_REWARDS;
     probabilities = [
       22.0,
       12.0,
@@ -571,12 +525,8 @@ export function pickReward(
       35.0,
       25.0,
     ];
-  } else if (
-    nombreLower.includes("raro")
-  ) {
-    rewards =
-      RARE_LUCKYBOX_REWARDS;
-
+  } else if (nombreLower.includes("raro")) {
+    rewards = RARE_LUCKYBOX_REWARDS;
     probabilities = [
       25.0,
       12.0,
@@ -586,9 +536,7 @@ export function pickReward(
       20.0,
     ];
   } else {
-    rewards =
-      COMMON_LUCKYBOX_REWARDS;
-
+    rewards = COMMON_LUCKYBOX_REWARDS;
     probabilities = [
       25.0,
       20.0,
@@ -602,41 +550,27 @@ export function pickReward(
 
   let acumulado = 0;
 
-  for (
-    let i = 0;
-    i < rewards.length;
-    i++
-  ) {
-    acumulado +=
-      probabilities[i] ?? 0;
+  for (let i = 0; i < rewards.length; i++) {
+    acumulado += probabilities[i] ?? 0;
 
-    if (
-      rand <= acumulado
-    ) {
+    if (rand <= acumulado) {
       return rewards[i];
     }
   }
 
-  return rewards[
-    rewards.length - 1
-  ];
+  return rewards[rewards.length - 1];
 }
 
 /* ========================================================================== */
 /*                       NORMALIZAR NOMBRE                                    */
 /* ========================================================================== */
 
-function normalizeName(
-  value: string,
-): string {
+function normalizeName(value: string): string {
   return value
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    );
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /* ========================================================================== */
@@ -646,29 +580,20 @@ function normalizeName(
 function getLuckyboxItemId(
   cajaNombre: string,
 ): string | undefined {
-  const normalized =
-    normalizeName(cajaNombre);
+  const normalized = normalizeName(cajaNombre);
 
   switch (normalized) {
     case "mr lucky comun":
-      return LUCKYBOX_IDS[
-        "mr lucky comun"
-      ];
+      return LUCKYBOX_IDS["mr lucky comun"];
 
     case "mr lucky raro":
-      return LUCKYBOX_IDS[
-        "mr lucky raro"
-      ];
+      return LUCKYBOX_IDS["mr lucky raro"];
 
     case "mr lucky epico":
-      return LUCKYBOX_IDS[
-        "mr lucky epico"
-      ];
+      return LUCKYBOX_IDS["mr lucky epico"];
 
     case "mr lucky admin":
-      return LUCKYBOX_IDS[
-        "mr lucky admin"
-      ];
+      return LUCKYBOX_IDS["mr lucky admin"];
 
     default:
       return undefined;
@@ -682,24 +607,17 @@ function getLuckyboxItemId(
 function getRewardsArray(
   cajaNombre: string,
 ): readonly LuckyboxReward[] {
-  const lower =
-    normalizeName(cajaNombre);
+  const lower = normalizeName(cajaNombre);
 
-  if (
-    lower.includes("admin")
-  ) {
+  if (lower.includes("admin")) {
     return ADMIN_LUCKYBOX_REWARDS;
   }
 
-  if (
-    lower.includes("epico")
-  ) {
+  if (lower.includes("epico")) {
     return EPIC_LUCKYBOX_REWARDS;
   }
 
-  if (
-    lower.includes("raro")
-  ) {
+  if (lower.includes("raro")) {
     return RARE_LUCKYBOX_REWARDS;
   }
 
@@ -714,18 +632,14 @@ async function getUserInventory(
   guildId: string,
   userId: string,
 ): Promise<InventoryItem[]> {
-  const result =
-    await unb.getInventoryItems(
-      guildId,
-      userId,
-    );
+  const result = await unb.getInventoryItems(
+    guildId,
+    userId,
+  );
 
-  const items =
-    (result as any)?.items;
+  const items = (result as any)?.items;
 
-  return Array.isArray(items)
-    ? items
-    : [];
+  return Array.isArray(items) ? items : [];
 }
 
 async function addInventoryItem(
@@ -785,65 +699,49 @@ function findLuckyboxInInventory(
   cajaNombre: string,
 ): InventoryItem | undefined {
   const expectedId =
-    getLuckyboxItemId(
-      cajaNombre,
-    );
+    getLuckyboxItemId(cajaNombre);
 
   const targetName =
     normalizeName(cajaNombre);
 
-  return items.find(
-    (item) => {
-      const itemId = String(
-        item.item_id ??
-          item.itemId ??
-          item.id ??
+  return items.find((item) => {
+    const itemId = String(
+      item.item_id ??
+        item.itemId ??
+        item.id ??
+        "",
+    );
+
+    const itemName = normalizeName(
+      String(
+        item.name ??
+          item.item_name ??
           "",
-      );
+      ),
+    );
 
-      const itemName =
-        normalizeName(
-          String(
-            item.name ??
-              item.item_name ??
-              "",
-          ),
-        );
+    const quantity = Number(
+      item.quantity ??
+        item.quantiy ??
+        item.count ??
+        0,
+    );
 
-      const quantity =
-        Number(
-          item.quantity ??
-            item.quantiy ??
-            item.count ??
-            0,
-        );
+    if (quantity <= 0) {
+      return false;
+    }
 
-      if (
-        quantity <= 0
-      ) {
-        return false;
-      }
+    const matchesId =
+      Boolean(expectedId) &&
+      itemId === expectedId;
 
-      const matchesId =
-        Boolean(expectedId) &&
-        itemId === expectedId;
+    const matchesName =
+      itemName === targetName ||
+      itemName.includes(targetName) ||
+      targetName.includes(itemName);
 
-      const matchesName =
-        itemName ===
-          targetName ||
-        itemName.includes(
-          targetName,
-        ) ||
-        targetName.includes(
-          itemName,
-        );
-
-      return (
-        matchesId ||
-        matchesName
-      );
-    },
-  );
+    return matchesId || matchesName;
+  });
 }
 
 /* ========================================================================== */
@@ -862,10 +760,7 @@ async function sendLuckyboxLog(
         LUCKYBOX_LOG_CHANNEL_ID,
       );
 
-    if (
-      !channel ||
-      !channel.isTextBased()
-    ) {
+    if (!channel || !channel.isTextBased()) {
       logger.warn(
         {
           channelId:
@@ -877,55 +772,47 @@ async function sendLuckyboxLog(
       return;
     }
 
-    const logEmbed =
-      new EmbedBuilder()
-        .setColor("Orange")
-        .setTitle(
-          "🎁 Registro de entrega de Luckybox",
-        )
-        .setDescription(
-          `<@${moderatorUser.id}> le dio un **${cajaNombre}** a <@${targetUser.id}>.`,
-        )
-        .addFields(
-          {
-            name:
-              "👤 Usuario Emisor",
-            value:
-              `<@${moderatorUser.id}>\nID: \`${moderatorUser.id}\``,
-            inline: true,
-          },
-          {
-            name:
-              "🎯 Usuario Objetivo",
-            value:
-              `<@${targetUser.id}>\nID: \`${targetUser.id}\``,
-            inline: true,
-          },
-          {
-            name:
-              "📦 Tipo de Caja",
-            value:
-              `**${cajaNombre}**`,
-            inline: false,
-          },
-          {
-            name:
-              "🌐 Servidor de Origen",
-            value:
-              `**${guild.name}**\nID: \`${guild.id}\``,
-            inline: false,
-          },
-        )
-        .setFooter({
-          text:
-            "Sistema de Luckybox • Registro de auditoría",
-        })
-        .setTimestamp();
+    const logEmbed = new EmbedBuilder()
+      .setColor("Orange")
+      .setTitle(
+        "🎁 Registro de entrega de Luckybox",
+      )
+      .setDescription(
+        `<@${moderatorUser.id}> le dio un **${cajaNombre}** a <@${targetUser.id}>.`,
+      )
+      .addFields(
+        {
+          name: "👤 Usuario Emisor",
+          value:
+            `<@${moderatorUser.id}>\nID: \`${moderatorUser.id}\``,
+          inline: true,
+        },
+        {
+          name: "🎯 Usuario Objetivo",
+          value:
+            `<@${targetUser.id}>\nID: \`${targetUser.id}\``,
+          inline: true,
+        },
+        {
+          name: "📦 Tipo de Caja",
+          value: `**${cajaNombre}**`,
+          inline: false,
+        },
+        {
+          name: "🌐 Servidor de Origen",
+          value:
+            `**${guild.name}**\nID: \`${guild.id}\``,
+          inline: false,
+        },
+      )
+      .setFooter({
+        text:
+          "Sistema de Luckybox • Registro de auditoría",
+      })
+      .setTimestamp();
 
     await channel.send({
-      embeds: [
-        logEmbed,
-      ],
+      embeds: [logEmbed],
     });
   } catch (err) {
     logger.error(
@@ -933,8 +820,7 @@ async function sendLuckyboxLog(
         err,
         channelId:
           LUCKYBOX_LOG_CHANNEL_ID,
-        guildId:
-          guild.id,
+        guildId: guild.id,
         moderatorUserId:
           moderatorUser.id,
         targetUserId:
@@ -962,19 +848,13 @@ export async function syncTopCasinoRole(
         },
       );
 
-    const topUsers =
-      Array.isArray(
-        leaderboardData,
-      )
-        ? leaderboardData
-        : (
-            leaderboardData as any
-          )?.users ?? [];
+    const topUsers = Array.isArray(
+      leaderboardData,
+    )
+      ? leaderboardData
+      : (leaderboardData as any)?.users ?? [];
 
-    if (
-      !topUsers ||
-      topUsers.length === 0
-    ) {
+    if (!topUsers || topUsers.length === 0) {
       return {
         success: false,
         added: 0,
@@ -984,20 +864,15 @@ export async function syncTopCasinoRole(
       };
     }
 
-    const topUserIds =
-      new Set<string>();
+    const topUserIds = new Set<string>();
 
-    for (
-      const userData of topUsers
-    ) {
+    for (const userData of topUsers) {
       const userId =
         userData?.user_id ??
         userData?.id;
 
       if (userId) {
-        topUserIds.add(
-          String(userId),
-        );
+        topUserIds.add(String(userId));
       }
     }
 
@@ -1021,15 +896,8 @@ export async function syncTopCasinoRole(
     let addedCount = 0;
     let removedCount = 0;
 
-    for (
-      const [, member]
-      of role.members
-    ) {
-      if (
-        !topUserIds.has(
-          member.id,
-        )
-      ) {
+    for (const [, member] of role.members) {
+      if (!topUserIds.has(member.id)) {
         try {
           await member.roles.remove(
             role,
@@ -1049,9 +917,7 @@ export async function syncTopCasinoRole(
       }
     }
 
-    for (
-      const userData of topUsers
-    ) {
+    for (const userData of topUsers) {
       const userId =
         userData?.user_id ??
         userData?.id;
@@ -1119,8 +985,7 @@ export async function syncTopCasinoRole(
 /*                       SINCRONIZACIÓN AUTOMÁTICA                            */
 /* ========================================================================== */
 
-let isIntervalStarted =
-  false;
+let isIntervalStarted = false;
 
 function startAutoSync(
   clientInstance: any,
@@ -1138,13 +1003,9 @@ function startAutoSync(
     async () => {
       try {
         for (
-          const [, guild]
-          of clientInstance.guilds
-            .cache
+          const [, guild] of clientInstance.guilds.cache
         ) {
-          await syncTopCasinoRole(
-            guild,
-          );
+          await syncTopCasinoRole(guild);
         }
       } catch (err) {
         logger.error(
@@ -1162,15 +1023,11 @@ function startAutoSync(
 /* ========================================================================== */
 
 async function loadCollectCooldowns(): Promise<void> {
-  if (
-    collectCooldownStoreLoaded
-  ) {
+  if (collectCooldownStoreLoaded) {
     return;
   }
 
-  if (
-    collectCooldownStoreLoadPromise
-  ) {
+  if (collectCooldownStoreLoadPromise) {
     return collectCooldownStoreLoadPromise;
   }
 
@@ -1183,26 +1040,20 @@ async function loadCollectCooldowns(): Promise<void> {
             "utf8",
           );
 
-        const parsed =
-          JSON.parse(raw);
+        const parsed = JSON.parse(raw);
 
         if (
           parsed &&
-          typeof parsed ===
-            "object" &&
+          typeof parsed === "object" &&
           !Array.isArray(parsed)
         ) {
           collectCooldownStore =
             parsed as CollectCooldownStore;
         } else {
-          collectCooldownStore =
-            {};
+          collectCooldownStore = {};
         }
       } catch (err: any) {
-        if (
-          err?.code !==
-          "ENOENT"
-        ) {
+        if (err?.code !== "ENOENT") {
           logger.warn(
             {
               err,
@@ -1213,14 +1064,10 @@ async function loadCollectCooldowns(): Promise<void> {
           );
         }
 
-        collectCooldownStore =
-          {};
+        collectCooldownStore = {};
       } finally {
-        collectCooldownStoreLoaded =
-          true;
-
-        collectCooldownStoreLoadPromise =
-          null;
+        collectCooldownStoreLoaded = true;
+        collectCooldownStoreLoadPromise = null;
       }
     })();
 
@@ -1236,52 +1083,45 @@ function getCollectCooldownKey(
 
 async function saveCollectCooldowns(): Promise<void> {
   collectCooldownWriteQueue =
-    collectCooldownWriteQueue
-      .then(
-        async () => {
-          const directory =
-            path.dirname(
-              COLLECT_COOLDOWN_FILE,
-            );
-
-          await mkdir(
-            directory,
-            {
-              recursive: true,
-            },
-          );
-
-          const temporaryFile =
-            `${COLLECT_COOLDOWN_FILE}.tmp`;
-
-          await writeFile(
-            temporaryFile,
-            JSON.stringify(
-              collectCooldownStore,
-              null,
-              2,
-            ),
-            "utf8",
-          );
-
-          await rename(
-            temporaryFile,
+    collectCooldownWriteQueue.then(
+      async () => {
+        const directory =
+          path.dirname(
             COLLECT_COOLDOWN_FILE,
           );
+
+        await mkdir(directory, {
+          recursive: true,
+        });
+
+        const temporaryFile =
+          `${COLLECT_COOLDOWN_FILE}.tmp`;
+
+        await writeFile(
+          temporaryFile,
+          JSON.stringify(
+            collectCooldownStore,
+            null,
+            2,
+          ),
+          "utf8",
+        );
+
+        await rename(
+          temporaryFile,
+          COLLECT_COOLDOWN_FILE,
+        );
+      },
+    ).catch((err) => {
+      logger.error(
+        {
+          err,
+          file:
+            COLLECT_COOLDOWN_FILE,
         },
-      )
-      .catch(
-        (err) => {
-          logger.error(
-            {
-              err,
-              file:
-                COLLECT_COOLDOWN_FILE,
-            },
-            "No se pudo guardar el cooldown de -collect.",
-          );
-        },
+        "No se pudo guardar el cooldown de -collect.",
       );
+    });
 
   return collectCooldownWriteQueue;
 }
@@ -1298,15 +1138,11 @@ function getRemainingCollectCooldown(
     );
 
   const lastCollect =
-    collectCooldownStore[
-      key
-    ];
+    collectCooldownStore[key];
 
   if (
     !lastCollect ||
-    !Number.isFinite(
-      lastCollect,
-    )
+    !Number.isFinite(lastCollect)
   ) {
     return 0;
   }
@@ -1328,36 +1164,30 @@ function formatCollectRemaining(
 
   const days =
     Math.floor(
-      totalSeconds /
-        86400,
+      totalSeconds / 86400,
     );
 
   const hours =
     Math.floor(
-      (totalSeconds %
-        86400) /
+      (totalSeconds % 86400) /
         3600,
     );
 
   const minutes =
     Math.floor(
-      (totalSeconds %
-        3600) /
+      (totalSeconds % 3600) /
         60,
     );
 
   const seconds =
     totalSeconds % 60;
 
-  const parts: string[] =
-    [];
+  const parts: string[] = [];
 
   if (days > 0) {
     parts.push(
       `${days} día${
-        days === 1
-          ? ""
-          : "s"
+        days === 1 ? "" : "s"
       }`,
     );
   }
@@ -1368,9 +1198,7 @@ function formatCollectRemaining(
   ) {
     parts.push(
       `${hours} hora${
-        hours === 1
-          ? ""
-          : "s"
+        hours === 1 ? "" : "s"
       }`,
     );
   }
@@ -1382,9 +1210,7 @@ function formatCollectRemaining(
   ) {
     parts.push(
       `${minutes} minuto${
-        minutes === 1
-          ? ""
-          : "s"
+        minutes === 1 ? "" : "s"
       }`,
     );
   }
@@ -1395,16 +1221,12 @@ function formatCollectRemaining(
   ) {
     parts.push(
       `${seconds} segundo${
-        seconds === 1
-          ? ""
-          : "s"
+        seconds === 1 ? "" : "s"
       }`,
     );
   }
 
-  return parts.join(
-    ", ",
-  );
+  return parts.join(", ");
 }
 
 /* ========================================================================== */
@@ -1454,13 +1276,8 @@ function getCollectRewards(
     roleName: string;
   }> = [];
 
-  for (
-    const collectRole of collectRoles
-  ) {
-    for (
-      const reward of
-        collectRole.rewards
-    ) {
+  for (const collectRole of collectRoles) {
+    for (const reward of collectRole.rewards) {
       const itemId =
         getLuckyboxItemId(
           reward.cajaNombre,
@@ -1474,14 +1291,10 @@ function getCollectRewards(
 
       rewards.push({
         itemId,
-        quantity:
-          reward.quantity,
-        cajaNombre:
-          reward.cajaNombre,
-        roleId:
-          collectRole.roleId,
-        roleName:
-          collectRole.roleName,
+        quantity: reward.quantity,
+        cajaNombre: reward.cajaNombre,
+        roleId: collectRole.roleId,
+        roleName: collectRole.roleName,
       });
     }
   }
@@ -1493,16 +1306,6 @@ function getCollectRewards(
 /*                         HANDLE COLLECT                                     */
 /* ========================================================================== */
 
-/**
- * Implementación común de collect.
- *
- * Permite utilizar exactamente la misma lógica desde:
- *
- * - /collect
- * - /luckybox collect
- * - -luckybox collect
- * - -collect, cuando el router de prefix lo derive aquí.
- */
 async function handleCollect(
   guild: Guild,
   user: User,
@@ -1514,9 +1317,7 @@ async function handleCollect(
     const member =
       await guild.members
         .fetch(user.id)
-        .catch(
-          () => null,
-        );
+        .catch(() => null);
 
     if (!member) {
       await sendReply({
@@ -1532,14 +1333,10 @@ async function handleCollect(
         member,
       );
 
-    if (
-      collectRoles.length === 0
-    ) {
+    if (collectRoles.length === 0) {
       const embed =
         new EmbedBuilder()
-          .setColor(
-            0xED4245,
-          )
+          .setColor(0xED4245)
           .setTitle(
             "🚫 Collect no disponible",
           )
@@ -1548,14 +1345,13 @@ async function handleCollect(
           )
           .addFields({
             name:
-              "🎟️ Roles requeridos",
-            value:
-              [
-                `<@&${COLLECT_ROLES.CAMPEON.roleId}>`,
-                `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
-                `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
-                `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
-              ].join("\n"),
+              "🎟️ Roles con Collect",
+            value: [
+              `<@&${COLLECT_ROLES.CAMPEON.roleId}>`,
+              `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
+              `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
+              `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
+            ].join("\n"),
             inline: false,
           })
           .setFooter({
@@ -1565,16 +1361,13 @@ async function handleCollect(
           .setTimestamp();
 
       await sendReply({
-        embeds: [
-          embed,
-        ],
+        embeds: [embed],
       });
 
       return;
     }
 
-    const now =
-      Date.now();
+    const now = Date.now();
 
     const remaining =
       getRemainingCollectCooldown(
@@ -1583,9 +1376,7 @@ async function handleCollect(
         now,
       );
 
-    if (
-      remaining > 0
-    ) {
+    if (remaining > 0) {
       const key =
         getCollectCooldownKey(
           guild.id,
@@ -1593,9 +1384,7 @@ async function handleCollect(
         );
 
       const lastCollect =
-        collectCooldownStore[
-          key
-        ];
+        collectCooldownStore[key];
 
       const nextCollectTimestamp =
         Math.ceil(
@@ -1615,9 +1404,7 @@ async function handleCollect(
 
       const cooldownEmbed =
         new EmbedBuilder()
-          .setColor(
-            0xED4245,
-          )
+          .setColor(0xED4245)
           .setTitle(
             "⏳ Todavía no podés hacer otro collect",
           )
@@ -1656,9 +1443,7 @@ async function handleCollect(
           .setTimestamp();
 
       await sendReply({
-        embeds: [
-          cooldownEmbed,
-        ],
+        embeds: [cooldownEmbed],
       });
 
       return;
@@ -1669,9 +1454,7 @@ async function handleCollect(
         collectRoles,
       );
 
-    if (
-      rewards.length === 0
-    ) {
+    if (rewards.length === 0) {
       await sendReply({
         content:
           "❌ Tus roles de Collect no tienen recompensas configuradas.",
@@ -1689,9 +1472,7 @@ async function handleCollect(
     }> = [];
 
     try {
-      for (
-        const reward of rewards
-      ) {
+      for (const reward of rewards) {
         await addInventoryItem(
           guild.id,
           user.id,
@@ -1707,10 +1488,8 @@ async function handleCollect(
       logger.error(
         {
           err,
-          guildId:
-            guild.id,
-          userId:
-            user.id,
+          guildId: guild.id,
+          userId: user.id,
           collectRoles:
             collectRoles.map(
               (role) => ({
@@ -1726,8 +1505,7 @@ async function handleCollect(
       );
 
       for (
-        const delivered of
-          deliveredRewards
+        const delivered of deliveredRewards
       ) {
         try {
           await removeInventoryItem(
@@ -1771,10 +1549,8 @@ async function handleCollect(
 
     logger.info(
       {
-        guildId:
-          guild.id,
-        userId:
-          user.id,
+        guildId: guild.id,
+        userId: user.id,
         collectRoles:
           collectRoles.map(
             (role) => ({
@@ -1791,14 +1567,10 @@ async function handleCollect(
     );
 
     const rewardCounts =
-      new Map<
-        string,
-        number
-      >();
+      new Map<string, number>();
 
     for (
-      const reward of
-        deliveredRewards
+      const reward of deliveredRewards
     ) {
       rewardCounts.set(
         reward.cajaNombre,
@@ -1821,9 +1593,7 @@ async function handleCollect(
       rewardOrder
         .filter(
           (caja) =>
-            rewardCounts.has(
-              caja,
-            ),
+            rewardCounts.has(caja),
         )
         .map(
           (caja) =>
@@ -1851,14 +1621,12 @@ async function handleCollect(
 
     const successEmbed =
       new EmbedBuilder()
-        .setColor(
-          0x57F287,
-        )
+        .setColor(0x57F287)
         .setTitle(
           "🎁 ¡Collect realizado con éxito!",
         )
         .setDescription(
-          `<@${user.id}>, reclamaste correctamente **todas las recompensas correspondientes a tus roles**.`,
+          `<@${user.id}>, reclamaste correctamente tu Collect.`,
         )
         .addFields(
           {
@@ -1898,18 +1666,14 @@ async function handleCollect(
         .setTimestamp();
 
     await sendReply({
-      embeds: [
-        successEmbed,
-      ],
+      embeds: [successEmbed],
     });
   } catch (err: any) {
     logger.error(
       {
         err,
-        guildId:
-          guild.id,
-        userId:
-          user.id,
+        guildId: guild.id,
+        userId: user.id,
       },
       "Error ejecutando collect.",
     );
@@ -1917,9 +1681,7 @@ async function handleCollect(
     await sendReply({
       embeds: [
         new EmbedBuilder()
-          .setColor(
-            0xED4245,
-          )
+          .setColor(0xED4245)
           .setTitle(
             "❌ No se pudo completar tu collect",
           )
@@ -1952,30 +1714,24 @@ async function handleInfo(
   cajaNombre: string,
 ): Promise<void> {
   const rewards =
-    getRewardsArray(
-      cajaNombre,
-    );
+    getRewardsArray(cajaNombre);
 
   const MONEDA_EMOJI =
     "<:MonedaServer:1524674026188967956>";
 
-  const formatRewardText = (
-    texto: string,
-  ): string =>
-    texto.replace(
-      /Frijoles/gi,
-      MONEDA_EMOJI,
-    );
+  const formatRewardText =
+    (texto: string): string =>
+      texto.replace(
+        /Frijoles/gi,
+        MONEDA_EMOJI,
+      );
 
   const positivos =
     rewards
       .filter(
         (reward) =>
-          reward.tipo ===
-            "positivo" ||
-          reward.tipo.startsWith(
-            "rol",
-          ),
+          reward.tipo === "positivo" ||
+          reward.tipo.startsWith("rol"),
       )
       .map(
         (reward) =>
@@ -1989,8 +1745,7 @@ async function handleInfo(
     rewards
       .filter(
         (reward) =>
-          reward.tipo ===
-          "negativo",
+          reward.tipo === "negativo",
       )
       .map(
         (reward) =>
@@ -2011,16 +1766,14 @@ async function handleInfo(
       )
       .addFields(
         {
-          name:
-            "✨ Recompensas",
+          name: "✨ Recompensas",
           value:
             positivos ||
             "No hay recompensas disponibles.",
           inline: false,
         },
         {
-          name:
-            "⚠️ Castigos",
+          name: "⚠️ Castigos",
           value:
             negativos ||
             "No hay castigos disponibles.",
@@ -2034,9 +1787,7 @@ async function handleInfo(
       .setTimestamp();
 
   await sendReply({
-    embeds: [
-      infoEmbed,
-    ],
+    embeds: [infoEmbed],
   });
 }
 
@@ -2054,12 +1805,8 @@ async function handleDar(
   try {
     const member =
       await guild.members
-        .fetch(
-          moderatorUser.id,
-        )
-        .catch(
-          () => null,
-        );
+        .fetch(moderatorUser.id)
+        .catch(() => null);
 
     const hasAuthorizedRole =
       Boolean(member) &&
@@ -2070,9 +1817,7 @@ async function handleDar(
           ),
       );
 
-    if (
-      !hasAuthorizedRole
-    ) {
+    if (!hasAuthorizedRole) {
       await sendReply({
         content:
           "❌ No tenés ninguno de los roles autorizados para usar este comando.",
@@ -2146,9 +1891,7 @@ async function handleDar(
         .setTimestamp();
 
     await sendReply({
-      embeds: [
-        embed,
-      ],
+      embeds: [embed],
     });
   } catch (err: any) {
     logger.error(
@@ -2184,11 +1927,8 @@ async function handleAbrir(
   cajaNombre: string,
 ): Promise<void> {
   try {
-    const guildId =
-      guild.id;
-
-    const userId =
-      targetUser.id;
+    const guildId = guild.id;
+    const userId = targetUser.id;
 
     const items =
       await getUserInventory(
@@ -2233,24 +1973,18 @@ async function handleAbrir(
     );
 
     const reward =
-      pickReward(
-        cajaNombre,
-      );
+      pickReward(cajaNombre);
 
     let rewardDescription =
       reward.texto;
 
     const rewardRoleId =
-      ROLE_MAP[
-        reward.tipo
-      ];
+      ROLE_MAP[reward.tipo];
 
     const member =
       await guild.members
         .fetch(userId)
-        .catch(
-          () => null,
-        );
+        .catch(() => null);
 
     if (
       rewardRoleId &&
@@ -2258,12 +1992,8 @@ async function handleAbrir(
     ) {
       const role =
         await guild.roles
-          .fetch(
-            rewardRoleId,
-          )
-          .catch(
-            () => null,
-          );
+          .fetch(rewardRoleId)
+          .catch(() => null);
 
       if (!role) {
         rewardDescription =
@@ -2299,8 +2029,7 @@ async function handleAbrir(
         guildId,
         userId,
         {
-          cash:
-            reward.valor,
+          cash: reward.valor,
         },
       );
     }
@@ -2349,9 +2078,7 @@ async function handleAbrir(
     });
 
     await sendChannelMessage({
-      embeds: [
-        embed,
-      ],
+      embeds: [embed],
     });
   } catch (err: any) {
     logger.error(
@@ -2384,6 +2111,10 @@ export const data =
       "Gestioná y abrí tus cajas Mr Lucky.",
     )
 
+    /* ---------------------------------------------------------------------- */
+    /* /luckybox collect                                                      */
+    /* ---------------------------------------------------------------------- */
+
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -2392,6 +2123,10 @@ export const data =
             "Reclamá las Luckybox correspondientes a tus roles.",
           ),
     )
+
+    /* ---------------------------------------------------------------------- */
+    /* /luckybox abrir                                                        */
+    /* ---------------------------------------------------------------------- */
 
     .addSubcommand(
       (subcommand) =>
@@ -2437,6 +2172,10 @@ export const data =
           ),
     )
 
+    /* ---------------------------------------------------------------------- */
+    /* /luckybox info                                                         */
+    /* ---------------------------------------------------------------------- */
+
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -2480,6 +2219,10 @@ export const data =
                 ),
           ),
     )
+
+    /* ---------------------------------------------------------------------- */
+    /* /luckybox dar                                                          */
+    /* ---------------------------------------------------------------------- */
 
     .addSubcommand(
       (subcommand) =>
@@ -2535,72 +2278,14 @@ export const data =
     );
 
 /* ========================================================================== */
-/*                         SLASH COMMAND /COLLECT                             */
-/* ========================================================================== */
-
-/**
- * Este export permite que tu loader registre /collect como comando
- * independiente.
- *
- * Si tu sistema de registro actualmente solamente toma `data` de cada
- * archivo, después habrá que agregar `collectData` al loader.
- */
-export const collectData =
-  new SlashCommandBuilder()
-    .setName("collect")
-    .setDescription(
-      "Reclamá las Luckybox correspondientes a tus roles.",
-    );
-
-/* ========================================================================== */
-/*                         EXECUTE /COLLECT                                   */
-/* ========================================================================== */
-
-export async function executeCollect(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  if (
-    !interaction.guildId ||
-    !interaction.guild
-  ) {
-    await interaction.reply({
-      content:
-        "❌ Este comando solamente se puede usar en servidores.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  await interaction.deferReply({
-    flags:
-      MessageFlags.Ephemeral,
-  });
-
-  await handleCollect(
-    interaction.guild,
-    interaction.user,
-    (options) =>
-      interaction.editReply(
-        options,
-      ),
-  );
-}
-
-/* ========================================================================== */
-/*                         SLASH EXECUTE                                      */
+/*                         EXECUTE /LUCKYBOX                                  */
 /* ========================================================================== */
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (
-    interaction.client
-  ) {
-    startAutoSync(
-      interaction.client,
-    );
+  if (interaction.client) {
+    startAutoSync(interaction.client);
   }
 
   if (
@@ -2624,9 +2309,7 @@ export async function execute(
   /*                              COLLECT                                     */
   /* ======================================================================== */
 
-  if (
-    subcommand === "collect"
-  ) {
+  if (subcommand === "collect") {
     await interaction.deferReply({
       flags:
         MessageFlags.Ephemeral,
@@ -2645,10 +2328,8 @@ export async function execute(
   }
 
   /*
-   * IMPORTANTE:
-   *
-   * `caja` solamente existe en abrir/info/dar.
-   * Por eso se obtiene DESPUÉS de comprobar collect.
+   * `caja` solamente existe en abrir/info/dar,
+   * por eso se obtiene después de comprobar collect.
    */
   const cajaNombre =
     interaction.options.getString(
@@ -2656,9 +2337,11 @@ export async function execute(
       true,
     );
 
-  if (
-    subcommand === "info"
-  ) {
+  /* ======================================================================== */
+  /*                                INFO                                      */
+  /* ======================================================================== */
+
+  if (subcommand === "info") {
     await interaction.deferReply({
       flags:
         MessageFlags.Ephemeral,
@@ -2675,9 +2358,11 @@ export async function execute(
     return;
   }
 
-  if (
-    subcommand === "dar"
-  ) {
+  /* ======================================================================== */
+  /*                                 DAR                                      */
+  /* ======================================================================== */
+
+  if (subcommand === "dar") {
     const targetUser =
       interaction.options.getUser(
         "usuario",
@@ -2702,6 +2387,10 @@ export async function execute(
 
     return;
   }
+
+  /* ======================================================================== */
+  /*                                ABRIR                                     */
+  /* ======================================================================== */
 
   await interaction.deferReply({
     flags:
@@ -2729,9 +2418,7 @@ export async function execute(
         options,
       ),
     (options) =>
-      channel.send(
-        options,
-      ),
+      channel.send(options),
     interaction.guild,
     interaction.user,
     cajaNombre,
@@ -2757,38 +2444,31 @@ export async function run(
     return;
   }
 
-  if (
-    message.client
-  ) {
-    startAutoSync(
-      message.client,
-    );
+  if (message.client) {
+    startAutoSync(message.client);
   }
 
   const mainArg =
-    (
-      args[0] ?? ""
-    ).toLowerCase();
+    (args[0] ?? "").toLowerCase();
 
   /* ======================================================================== */
   /*                              COLLECT                                     */
   /* ======================================================================== */
 
-  if (
-    mainArg ===
-    "collect"
-  ) {
+  if (mainArg === "collect") {
     await handleCollect(
       message.guild,
       message.author,
       (options) =>
-        message.reply(
-          options,
-        ),
+        message.reply(options),
     );
 
     return;
   }
+
+  /* ======================================================================== */
+  /*                         VALIDAR SUBCOMANDO                                */
+  /* ======================================================================== */
 
   const validSubcommands =
     [
@@ -2810,7 +2490,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox collect`, `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-collect`.",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox collect`, `-luckybox abrir`, `-luckybox info` o `-luckybox dar`.",
     );
 
     return;
@@ -2824,9 +2504,13 @@ export async function run(
 
   const offset = 1;
 
+  /* ======================================================================== */
+  /*                         NORMALIZAR CAJAS                                 */
+  /* ======================================================================== */
+
   const normalizeCaja =
-    (value: string): string => {
-      return value
+    (value: string): string =>
+      value
         .trim()
         .toLowerCase()
         .normalize("NFD")
@@ -2834,7 +2518,6 @@ export async function run(
           /[\u0300-\u036f]/g,
           "",
         );
-    };
 
   const validCajas: Record<
     string,
@@ -2855,23 +2538,22 @@ export async function run(
       rawCaja: string,
     ): string | null => {
       const normalized =
-        normalizeCaja(
-          rawCaja,
-        );
+        normalizeCaja(rawCaja);
 
       return (
-        validCajas[
-          normalized
-        ] ?? null
+        validCajas[normalized] ??
+        null
       );
     };
 
   const opcionesValidas =
     "común, raro, épico y admin";
 
-  if (
-    sub === "dar"
-  ) {
+  /* ======================================================================== */
+  /*                                  DAR                                     */
+  /* ======================================================================== */
+
+  if (sub === "dar") {
     const mentionedUser =
       message.mentions.users.first();
 
@@ -2895,9 +2577,7 @@ export async function run(
         .join(" ")
         .trim();
 
-    if (
-      !cajaNombreRestante
-    ) {
+    if (!cajaNombreRestante) {
       await message.reply(
         "❌ Uso correcto: `-luckybox dar [caja] @usuario`.",
       );
@@ -2920,9 +2600,7 @@ export async function run(
 
     await handleDar(
       (options) =>
-        message.reply(
-          options,
-        ),
+        message.reply(options),
       message.guild,
       message.author,
       mentionedUser,
@@ -2932,15 +2610,17 @@ export async function run(
     return;
   }
 
+  /* ======================================================================== */
+  /*                            ABRIR / INFO                                  */
+  /* ======================================================================== */
+
   const cajaNombreRestante =
     args
       .slice(offset)
       .join(" ")
       .trim();
 
-  if (
-    !cajaNombreRestante
-  ) {
+  if (!cajaNombreRestante) {
     await message.reply(
       `❌ Uso correcto: \`-luckybox ${sub} [caja]\`.\nLas cajas disponibles son: ${opcionesValidas}.`,
     );
@@ -2961,14 +2641,10 @@ export async function run(
     return;
   }
 
-  if (
-    sub === "info"
-  ) {
+  if (sub === "info") {
     await handleInfo(
       (options) =>
-        message.reply(
-          options,
-        ),
+        message.reply(options),
       cajaNombre,
     );
 
@@ -2991,13 +2667,9 @@ export async function run(
 
   await handleAbrir(
     (options) =>
-      message.reply(
-        options,
-      ),
+      message.reply(options),
     (options) =>
-      channel.send(
-        options,
-      ),
+      channel.send(options),
     message.guild,
     message.author,
     cajaNombre,
