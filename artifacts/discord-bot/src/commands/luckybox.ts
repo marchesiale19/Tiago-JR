@@ -30,6 +30,9 @@ const unb = new UnbClient(
   UNBELIEVABOAT_API_KEY,
 );
 
+const LUCKYBOX_LOG_CHANNEL_ID =
+  "1553011896507039905";
+
 /* ========================================================================== */
 /*                                  TIPOS                                     */
 /* ========================================================================== */
@@ -364,8 +367,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "1.8%",
   },
   {
-    texto:
-      "2,000,000 Frijoles",
+    texto: "2,000,000 Frijoles",
     valor: 2000000,
     tipo: "positivo",
     probabilidad: "0.2%",
@@ -389,15 +391,13 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "3.0%",
   },
   {
-    texto:
-      `Rol <@&${ROL_OMG_BRO_ID}>`,
+    texto: `Rol <@&${ROL_OMG_BRO_ID}>`,
     valor: 0,
     tipo: "rol_omg_bro",
     probabilidad: "4.0%",
   },
   {
-    texto:
-      "-100,000 Frijoles",
+    texto: "-100,000 Frijoles",
     valor: -100000,
     tipo: "negativo",
     probabilidad: "5.0%",
@@ -435,10 +435,10 @@ export function pickReward(
       3.0,
       1.8,
       0.2,
-      1.0, 
-      2.0, 
-      3.0, 
-      4.0, 
+      1.0,
+      2.0,
+      3.0,
+      4.0,
       5.0,
     ];
   } else if (
@@ -734,6 +734,106 @@ function findLuckyboxInInventory(
       );
     },
   );
+}
+
+/* ========================================================================== */
+/*                         LOGS DE LUCKYBOX                                   */
+/* ========================================================================== */
+
+async function sendLuckyboxLog(
+  guild: Guild,
+  moderatorUser: User,
+  targetUser: User,
+  cajaNombre: string,
+): Promise<void> {
+  try {
+    const channel =
+      await guild.client.channels.fetch(
+        LUCKYBOX_LOG_CHANNEL_ID,
+      );
+
+    if (
+      !channel ||
+      !channel.isTextBased()
+    ) {
+      logger.warn(
+        {
+          channelId:
+            LUCKYBOX_LOG_CHANNEL_ID,
+        },
+        "No se pudo encontrar un canal de logs válido para Luckybox.",
+      );
+
+      return;
+    }
+
+    const logEmbed =
+      new EmbedBuilder()
+        .setColor("Orange")
+        .setTitle(
+          "🎁 Registro de entrega de Luckybox",
+        )
+        .setDescription(
+          `<@${moderatorUser.id}> le dio un **${cajaNombre}** a <@${targetUser.id}>.`,
+        )
+        .addFields(
+          {
+            name:
+              "👤 Usuario Emisor (Moderador)",
+            value:
+              `<@${moderatorUser.id}>\nID: \`${moderatorUser.id}\``,
+            inline: true,
+          },
+          {
+            name:
+              "🎯 Usuario Objetivo",
+            value:
+              `<@${targetUser.id}>\nID: \`${targetUser.id}\``,
+            inline: true,
+          },
+          {
+            name:
+              "📦 Tipo de Caja",
+            value:
+              `**${cajaNombre}**`,
+            inline: false,
+          },
+          {
+            name:
+              "🌐 Servidor de Origen",
+            value:
+              `**${guild.name}**\nID: \`${guild.id}\``,
+            inline: false,
+          },
+        )
+        .setFooter({
+          text:
+            "Sistema de Luckybox • Registro de auditoría",
+        })
+        .setTimestamp();
+
+    await channel.send({
+      embeds: [
+        logEmbed,
+      ],
+    });
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        channelId:
+          LUCKYBOX_LOG_CHANNEL_ID,
+        guildId:
+          guild.id,
+        moderatorUserId:
+          moderatorUser.id,
+        targetUserId:
+          targetUser.id,
+        cajaNombre,
+      },
+      "No se pudo enviar el log de auditoría de Luckybox.",
+    );
+  }
 }
 
 /* ========================================================================== */
@@ -1287,6 +1387,13 @@ async function handleDar(
       targetUser.id,
       itemId,
       1,
+    );
+
+    void sendLuckyboxLog(
+      guild,
+      moderatorUser,
+      targetUser,
+      cajaNombre,
     );
 
     logger.info(
