@@ -168,15 +168,32 @@ let collectCooldownWriteQueue:
 /**
  * Roles habilitados para -collect.
  *
- * La prioridad se interpreta de arriba hacia abajo:
+ * IMPORTANTE:
+ *
+ * NO existe prioridad entre estos roles.
+ *
+ * Si el usuario tiene varios de ellos, recibe las recompensas de TODOS
+ * los roles que tenga.
+ *
+ * Ejemplo:
+ *
+ * EXITOSO
+ *   → 1 Mr Lucky Común
+ *
+ * MEJOR MIEMBRO
+ *   → 1 Mr Lucky Raro
+ *
+ * MIEMBRO DEL MES
+ *   → 1 Mr Lucky Épico
  *
  * CAMPEÓN
- * MIEMBRO DEL MES
- * MEJOR MIEMBRO
- * EXITOSO
+ *   → 1 Mr Lucky Épico
+ *   → 1 Mr Lucky Raro
  *
- * Si una persona tiene varios de estos roles, recibe solamente la recompensa
- * correspondiente al rol de mayor prioridad.
+ * Si tiene los 4:
+ *   → 1 Común
+ *   → 2 Raros
+ *   → 2 Épicos
  */
 export const COLLECT_ROLES = {
   EXITOSO: {
@@ -240,16 +257,6 @@ export const COLLECT_ROLES = {
     ],
   },
 } as const;
-
-/**
- * Orden de prioridad de los roles especiales.
- */
-const COLLECT_ROLE_PRIORITY = [
-  COLLECT_ROLES.CAMPEON,
-  COLLECT_ROLES.MIEMBRO_DEL_MES,
-  COLLECT_ROLES.MEJOR_MIEMBRO,
-  COLLECT_ROLES.EXITOSO,
-] as const;
 
 /* ========================================================================== */
 /*                           IDS DE LUCKYBOX                                  */
@@ -1453,10 +1460,23 @@ function formatCollectRemaining(
 }
 
 /* ========================================================================== */
-/*                       RESOLVER ROL COLLECT                                 */
+/*                    RESOLVER ROLES COLLECT                                  */
 /* ========================================================================== */
 
-function getCollectRoleForMember(
+/**
+ * Obtiene TODOS los roles de collect que posee el usuario.
+ *
+ * No existe prioridad.
+ *
+ * Si tiene:
+ * - EXITOSO
+ * - MEJOR MIEMBRO
+ * - MIEMBRO DEL MES
+ * - CAMPEÓN
+ *
+ * devuelve los 4 roles y posteriormente se acumulan todas sus recompensas.
+ */
+function getCollectRolesForMember(
   member: {
     roles: {
       cache: {
@@ -1467,20 +1487,89 @@ function getCollectRoleForMember(
     };
   },
 ) {
-  for (
-    const collectRole of
-      COLLECT_ROLE_PRIORITY
-  ) {
-    if (
+  return Object.values(
+    COLLECT_ROLES,
+  ).filter(
+    (collectRole) =>
       member.roles.cache.has(
         collectRole.roleId,
-      )
+      ),
+  );
+}
+
+/* ========================================================================== */
+/*                     CONSTRUIR RECOMPENSAS COLLECT                          */
+/* ========================================================================== */
+
+/**
+ * Junta las recompensas de TODOS los roles que tiene el usuario.
+ *
+ * Ejemplo:
+ *
+ * EXITOSO + MEJOR MIEMBRO:
+ *   → Común ×1
+ *   → Raro ×1
+ *
+ * MEJOR MIEMBRO + CAMPEÓN:
+ *   → Raro ×2
+ *   → Épico ×1
+ *
+ * LOS 4 ROLES:
+ *   → Común ×1
+ *   → Raro ×2
+ *   → Épico ×2
+ */
+function getCollectRewards(
+  collectRoles: readonly {
+    roleId: string;
+    roleName: string;
+    rewards: readonly {
+      cajaNombre: string;
+      quantity: number;
+    }[];
+  }[],
+) {
+  const rewards: Array<{
+    itemId: string;
+    quantity: number;
+    cajaNombre: string;
+    roleId: string;
+    roleName: string;
+  }> = [];
+
+  for (
+    const collectRole of collectRoles
+  ) {
+    for (
+      const reward of
+        collectRole.rewards
     ) {
-      return collectRole;
+      const itemId =
+        getLuckyboxItemId(
+          reward.cajaNombre,
+        );
+
+      if (!itemId) {
+        throw new Error(
+          `La caja "${reward.cajaNombre}" no tiene un ID válido configurado.`,
+        );
+      }
+
+      rewards.push({
+        itemId,
+        quantity:
+          reward.quantity,
+        cajaNombre:
+          reward.cajaNombre,
+        roleId:
+          collectRole.roleId,
+        roleName:
+          collectRole.roleName,
+      });
     }
   }
 
-  return null;
+  return rewards;
 }
 
 /* ========================================================================== */
@@ -1522,12 +1611,18 @@ async function handleCollect(
       return;
     }
 
-    const collectRole =
-      getCollectRoleForMember(
+    /* ====================================================================== */
+    /*                  OBTENER TODOS LOS ROLES                                */
+    /* ====================================================================== */
+
+    const collectRoles =
+      getCollectRolesForMember(
         member,
       );
 
-    if (!collectRole) {
+    if (
+      collectRoles.length === 0
+    ) {
       const embed =
         new EmbedBuilder()
           .setColor(
@@ -1537,7 +1632,7 @@ async function handleCollect(
             "🚫 Collect no disponible",
           )
           .setDescription(
-            `<@${user.id}>, no tenés ninguno de los roles habilitados para usar **-collect**.`,
+            `<@${user.id}>, no tenés ningún rol con **Collect Income**.`,
           )
           .addFields({
             name:
@@ -1567,6 +1662,10 @@ async function handleCollect(
 
       return;
     }
+
+    /* ====================================================================== */
+    /*                           COOLDOWN                                     */
+    /* ====================================================================== */
 
     const now =
       Date.now();
@@ -1605,6 +1704,14 @@ async function handleCollect(
           remaining,
         );
 
+      const roleText =
+        collectRoles
+          .map(
+            (role) =>
+              `<@&${role.roleId}>`,
+          )
+          .join("\n");
+
       const cooldownEmbed =
         new EmbedBuilder()
           .setColor(
@@ -1633,9 +1740,9 @@ async function handleCollect(
             },
             {
               name:
-                "🎖️ Rol detectado",
+                "🎖️ Roles detectados",
               value:
-                `<@&${collectRole.roleId}>`,
+                roleText,
               inline: false,
             },
           )
@@ -1654,31 +1761,35 @@ async function handleCollect(
       return;
     }
 
+    /* ====================================================================== */
+    /*                     CONSTRUIR RECOMPENSAS                              */
+    /* ====================================================================== */
+
     const rewards =
-      collectRole.rewards.map(
-        (reward) => {
-          const itemId =
-            getLuckyboxItemId(
-              reward.cajaNombre,
-            );
-
-          if (!itemId) {
-            throw new Error(
-              `La caja "${reward.cajaNombre}" no tiene un ID válido configurado.`,
-            );
-          }
-
-          return {
-            ...reward,
-            itemId,
-          };
-        },
+      getCollectRewards(
+        collectRoles,
       );
+
+    if (
+      rewards.length === 0
+    ) {
+      await message.reply(
+        "❌ Tus roles de Collect no tienen recompensas configuradas.",
+      );
+
+      return;
+    }
+
+    /* ====================================================================== */
+    /*                        ENTREGAR RECOMPENSAS                             */
+    /* ====================================================================== */
 
     const deliveredRewards: Array<{
       itemId: string;
       quantity: number;
       cajaNombre: string;
+      roleId: string;
+      roleName: string;
     }> = [];
 
     try {
@@ -1699,6 +1810,10 @@ async function handleCollect(
             reward.quantity,
           cajaNombre:
             reward.cajaNombre,
+          roleId:
+            reward.roleId,
+          roleName:
+            reward.roleName,
         });
       }
     } catch (err) {
@@ -1709,8 +1824,15 @@ async function handleCollect(
             guild.id,
           userId:
             user.id,
-          roleId:
-            collectRole.roleId,
+          collectRoles:
+            collectRoles.map(
+              (role) => ({
+                roleId:
+                  role.roleId,
+                roleName:
+                  role.roleName,
+              }),
+            ),
           deliveredRewards,
         },
         "Falló una entrega de -collect. Intentando revertir las recompensas ya entregadas.",
@@ -1748,6 +1870,10 @@ async function handleCollect(
       throw err;
     }
 
+    /* ====================================================================== */
+    /*                     GUARDAR COOLDOWN                                   */
+    /* ====================================================================== */
+
     collectCooldownStore[
       getCollectCooldownKey(
         guild.id,
@@ -1763,21 +1889,71 @@ async function handleCollect(
           guild.id,
         userId:
           user.id,
-        roleId:
-          collectRole.roleId,
-        roleName:
-          collectRole.roleName,
+        collectRoles:
+          collectRoles.map(
+            (role) => ({
+              roleId:
+                role.roleId,
+              roleName:
+                role.roleName,
+            }),
+          ),
         rewards:
           deliveredRewards,
       },
-      "Collect ejecutado correctamente.",
+      "Collect acumulativo ejecutado correctamente.",
     );
 
+    /* ====================================================================== */
+    /*                    AGRUPAR RECOMPENSAS                                 */
+    /* ====================================================================== */
+
+    const rewardCounts =
+      new Map<
+        string,
+        number
+      >();
+
+    for (
+      const reward of
+        deliveredRewards
+    ) {
+      rewardCounts.set(
+        reward.cajaNombre,
+        (
+          rewardCounts.get(
+            reward.cajaNombre,
+          ) ?? 0
+        ) + reward.quantity,
+      );
+    }
+
+    const rewardOrder = [
+      "Mr Lucky Común",
+      "Mr Lucky Raro",
+      "Mr Lucky Épico",
+      "MR LUCKY ADMIN",
+    ];
+
     const rewardText =
-      deliveredRewards
+      rewardOrder
+        .filter(
+          (caja) =>
+            rewardCounts.has(
+              caja,
+            ),
+        )
         .map(
-          (reward) =>
-            `• **${reward.cajaNombre}** × \`${reward.quantity}\``,
+          (caja) =>
+            `• **${caja}** × \`${rewardCounts.get(caja)}\``,
+        )
+        .join("\n");
+
+    const rolesText =
+      collectRoles
+        .map(
+          (role) =>
+            `• <@&${role.roleId}>`,
         )
         .join("\n");
 
@@ -1798,15 +1974,15 @@ async function handleCollect(
           "🎁 ¡Collect realizado con éxito!",
         )
         .setDescription(
-          `<@${user.id}>, reclamaste correctamente tu recompensa.`,
+          `<@${user.id}>, reclamaste correctamente **todas las recompensas correspondientes a tus roles**.`,
         )
         .addFields(
           {
             name:
-              "🎖️ Rol utilizado",
+              "🎖️ Roles detectados",
             value:
-              `<@&${collectRole.roleId}>`,
-            inline: true,
+              rolesText,
+            inline: false,
           },
           {
             name:
