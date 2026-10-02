@@ -1,4 +1,4 @@
-import http from 'node:http';
+import http from "node:http";
 import {
   Client,
   Events,
@@ -15,35 +15,68 @@ import {
   type GuildMember,
   REST,
   Routes,
-  AuditLogEvent
+  AuditLogEvent,
 } from "discord.js";
+
 import { commands } from "./commands";
 import { logger } from "./lib/logger";
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
 
-// 1. Servidor HTTP independiente para que Render detecte el puerto de inmediato
+/* ============================================================
+ * RENDER / HTTP HEALTH SERVER
+ * ============================================================ */
+
 const PORT = Number(process.env.PORT) || 10000;
+
 const server = http.createServer((_req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot is running successfully!\n');
+  try {
+    res.writeHead(200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+
+    res.end("Bot is running successfully!\n");
+  } catch (err) {
+    console.error("❌ Error respondiendo al health check:", err);
+
+    try {
+      res.writeHead(500);
+      res.end("Internal Server Error\n");
+    } catch {
+      // Ignorado: la respuesta pudo haberse cerrado.
+    }
+  }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server listening on port ${PORT}`);
+server.on("error", (err) => {
+  console.error("❌ Error crítico del servidor HTTP:", err);
 });
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ HTTP health server listening on port ${PORT}`);
+});
+
+/* ============================================================
+ * PATHS / ENV
+ * ============================================================ */
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
 const token = process.env["DISCORD_BOT_TOKEN"];
 
 if (!token) {
-  throw new Error("DISCORD_BOT_TOKEN environment variable is required.");
+  console.error("❌ DISCORD_BOT_TOKEN environment variable is required.");
 }
+
+/* ============================================================
+ * DISCORD CLIENT
+ * ============================================================ */
 
 const client = new Client({
   intents: [
@@ -56,74 +89,179 @@ const client = new Client({
   ],
 });
 
+/* ============================================================
+ * CLIENT READY
+ * ============================================================ */
+
 client.once(Events.ClientReady, (readyClient) => {
-  logger.info({ tag: readyClient.user.username }, "Discord bot logged in");
-  
+  logger.info(
+    { tag: readyClient.user.username },
+    "Discord bot logged in",
+  );
+
+  console.log(
+    `✅ Discord conectado como ${readyClient.user.tag}`,
+  );
+
   // 🟢 Inicialización del filtro de nombres para nuevos miembros
-  setupNameFilter(client);
+  try {
+    setupNameFilter(client);
+    console.log("✅ NameFilterService inicializado.");
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error inicializando NameFilterService",
+    );
+  }
 
   import("./database/init")
     .then(({ initDatabase }) => initDatabase(readyClient))
-    .catch((err) => logger.warn({ err }, "Database init failed — continuing without DB"));
+    .catch((err) =>
+      logger.warn(
+        { err },
+        "Database init failed — continuing without DB",
+      ),
+    );
 });
 
-const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000; 
+/* ============================================================
+ * POSTULACIONES
+ * ============================================================ */
+
+const REJECTION_COOLDOWN = 7 * 24 * 60 * 60 * 1000;
+
 const REJECT_REASON_INPUT_ID = "postular_reject_reason";
-const COOLDOWNS_FILE = path.join(__dirname, 'cooldowns.json');
+
+const COOLDOWNS_FILE = path.join(
+  __dirname,
+  "cooldowns.json",
+);
+
 const rejectionRegistry = loadCooldowns();
 
-// registro de baneos 
-const BANS_FILE = path.join(__dirname, 'bans_registry.json');
+/* ============================================================
+ * BAN REGISTRY
+ * ============================================================ */
+
+const BANS_FILE = path.join(
+  __dirname,
+  "bans_registry.json",
+);
+
 const banRegistry = loadBansRegistry();
 
-function loadBansRegistry(): Map {
+function loadBansRegistry(): Map<string, any> {
   try {
     if (fs.existsSync(BANS_FILE)) {
-      const data = fs.readFileSync(BANS_FILE, 'utf-8');
-      return new Map(Object.entries(JSON.parse(data)));
+      const data = fs.readFileSync(
+        BANS_FILE,
+        "utf-8",
+      );
+
+      return new Map(
+        Object.entries(JSON.parse(data)),
+      );
     }
   } catch (err) {
-    logger.error({ err }, "Error cargando archivo de registro de bans");
+    logger.error(
+      { err },
+      "Error cargando archivo de registro de bans",
+    );
   }
-  return new Map();
+
+  return new Map<string, any>();
 }
 
-function saveBansRegistry(map: Map) {
+function saveBansRegistry(
+  map: Map<string, any>,
+): void {
   try {
     const obj = Object.fromEntries(map);
-    fs.writeFileSync(BANS_FILE, JSON.stringify(obj, null, 2));
+
+    fs.writeFileSync(
+      BANS_FILE,
+      JSON.stringify(obj, null, 2),
+    );
   } catch (err) {
-    logger.error({ err }, "Error guardando archivo de registro de bans");
+    logger.error(
+      { err },
+      "Error guardando archivo de registro de bans",
+    );
   }
 }
 
-function loadCooldowns(): Map {
+/* ============================================================
+ * COOLDOWNS
+ * ============================================================ */
+
+function loadCooldowns(): Map<string, number> {
   try {
     if (fs.existsSync(COOLDOWNS_FILE)) {
-      const data = fs.readFileSync(COOLDOWNS_FILE, 'utf-8');
-      return new Map(Object.entries(JSON.parse(data)));
+      const data = fs.readFileSync(
+        COOLDOWNS_FILE,
+        "utf-8",
+      );
+
+      const parsed = JSON.parse(data);
+
+      return new Map(
+        Object.entries(parsed).map(
+          ([key, value]) => [
+            key,
+            Number(value),
+          ],
+        ),
+      );
     }
   } catch (err) {
-    logger.error({ err }, "Error cargando archivo de cooldowns");
+    logger.error(
+      { err },
+      "Error cargando archivo de cooldowns",
+    );
   }
-  return new Map();
+
+  return new Map<string, number>();
 }
 
-function saveCooldowns(map: Map) {
+function saveCooldowns(
+  map: Map<string, number>,
+): void {
   try {
     const obj = Object.fromEntries(map);
-    fs.writeFileSync(COOLDOWNS_FILE, JSON.stringify(obj, null, 2));
+
+    fs.writeFileSync(
+      COOLDOWNS_FILE,
+      JSON.stringify(obj, null, 2),
+    );
   } catch (err) {
-    logger.error({ err }, "Error guardando archivo de cooldowns");
+    logger.error(
+      { err },
+      "Error guardando archivo de cooldowns",
+    );
   }
 }
 
+/* ============================================================
+ * DATE FORMAT
+ * ============================================================ */
+
 function formatActionTimestamp(date: Date): string {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(
+    date.getDate(),
+  ).padStart(2, "0");
+
+  const month = String(
+    date.getMonth() + 1,
+  ).padStart(2, "0");
+
   const year = date.getFullYear();
-  return `\({day}/\){month}/${year}`;
+
+  return `${day}/${month}/${year}`;
 }
+
+/* ============================================================
+ * ROLES
+ * ============================================================ */
 
 // lista de roles auras autorizados
 const ROLES_AUTORIZADOS = [
@@ -144,931 +282,2587 @@ const ROLES_FORENSIC_AUTORIZADOS = [
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
   "1452784726413672643", // Moderador
-  "1509760381525164123"  // Moderador [PB]
+  "1509760381525164123", // Moderador [PB]
 ];
 
-function hasReviewPermission(member: any): boolean {
+/* ============================================================
+ * PERMISSIONS
+ * ============================================================ */
+
+function hasReviewPermission(
+  member: any,
+): boolean {
   if (!member) return false;
-  if (typeof member !== 'object') return false;
-  if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
+
+  if (typeof member !== "object") {
     return false;
   }
 
   if (
-    member.roles.cache.has("1522434536796061816") || 
-    member.roles.cache.has("1539368076326473868")
+    !("guild" in member) ||
+    !member.guild ||
+    !("roles" in member) ||
+    !member.roles?.cache
   ) {
-    return true;
-  }
-
-  return ROLES_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
-}
-
-function hasForensicPermission(member: any): boolean {
-  if (!member) return false;
-  if (typeof member !== 'object') return false;
-  if (!('guild' in member) || !member.guild || !('roles' in member) || !member.roles.cache) {
     return false;
   }
 
   if (
-    member.roles.cache.has("1522434536796061816") || 
-    member.roles.cache.has("1539368076326473868")
+    member.roles.cache.has(
+      "1522434536796061816",
+    ) ||
+    member.roles.cache.has(
+      "1539368076326473868",
+    )
   ) {
     return true;
   }
 
-  return ROLES_FORENSIC_AUTORIZADOS.some((roleId) => member.roles.cache.has(roleId));
+  return ROLES_AUTORIZADOS.some(
+    (roleId) =>
+      member.roles.cache.has(roleId),
+  );
 }
 
-const disabledRow = new ActionRowBuilder().addComponents(
-  new ButtonBuilder()
-    .setCustomId("postular_approve_disabled")
-    .setLabel("Aceptar")
-    .setStyle(ButtonStyle.Success)
-    .setDisabled(true),
-  new ButtonBuilder()
-    .setCustomId("postular_reject_disabled")
-    .setLabel("Rechazar")
-    .setStyle(ButtonStyle.Danger)
-    .setDisabled(true),
-);
+function hasForensicPermission(
+  member: any,
+): boolean {
+  if (!member) return false;
 
-const POSTULADOS_ROLE_ID = "1509745451224797274";
+  if (typeof member !== "object") {
+    return false;
+  }
 
-async function assignPostuladosRole(interaction: ButtonInteraction, applicantId: string): Promise {
+  if (
+    !("guild" in member) ||
+    !member.guild ||
+    !("roles" in member) ||
+    !member.roles?.cache
+  ) {
+    return false;
+  }
+
+  if (
+    member.roles.cache.has(
+      "1522434536796061816",
+    ) ||
+    member.roles.cache.has(
+      "1539368076326473868",
+    )
+  ) {
+    return true;
+  }
+
+  return ROLES_FORENSIC_AUTORIZADOS.some(
+    (roleId) =>
+      member.roles.cache.has(roleId),
+  );
+}
+
+/* ============================================================
+ * POSTULADOS ROLE
+ * ============================================================ */
+
+const POSTULADOS_ROLE_ID =
+  "1509745451224797274";
+
+/* ============================================================
+ * DISABLED BUTTONS
+ * ============================================================ */
+
+const disabledRow =
+  new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(
+        "postular_approve_disabled",
+      )
+      .setLabel("Aceptar")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(true),
+
+    new ButtonBuilder()
+      .setCustomId(
+        "postular_reject_disabled",
+      )
+      .setLabel("Rechazar")
+      .setStyle(ButtonStyle.Danger)
+      .setDisabled(true),
+  );
+
+/* ============================================================
+ * ASSIGN POSTULADOS ROLE
+ * ============================================================ */
+
+async function assignPostuladosRole(
+  interaction: ButtonInteraction,
+  applicantId: string,
+): Promise<void> {
   const guild = interaction.guild;
+
   if (!guild) return;
 
   try {
-    const member = await guild.members.fetch(applicantId);
-    await member.roles.add(POSTULADOS_ROLE_ID);
-    console.log(`[DEBUG] ¡Rol con ID "\({POSTULADOS_ROLE_ID}" asignado correctamente a\){member.user.username}!`);
+    const member =
+      await guild.members.fetch(
+        applicantId,
+      );
+
+    await member.roles.add(
+      POSTULADOS_ROLE_ID,
+    );
+
+    console.log(
+      `[DEBUG] ¡Rol con ID "${POSTULADOS_ROLE_ID}" asignado correctamente a ${member.user.username}!`,
+    );
   } catch (err) {
-    console.log(`[DEBUG] Error crítico: No pude asignar el rol.`);
+    console.log(
+      `[DEBUG] Error crítico: No pude asignar el rol.`,
+    );
+
     console.error(err);
   }
 }
 
-async function handleApprove(interaction: ButtonInteraction, applicantId: string): Promise {
-  if (interaction.message.embeds[0]?.title?.includes("APROBADA")) {
-    return; 
+/* ============================================================
+ * APPROVE APPLICATION
+ * ============================================================ */
+
+async function handleApprove(
+  interaction: ButtonInteraction,
+  applicantId: string,
+): Promise<void> {
+  if (
+    interaction.message.embeds[0]?.title?.includes(
+      "APROBADA",
+    )
+  ) {
+    return;
   }
 
-  const originalEmbed = interaction.message.embeds[0];
-  const now = formatActionTimestamp(new Date());
+  const originalEmbed =
+    interaction.message.embeds[0];
 
-  const updatedEmbed = originalEmbed
-    ? EmbedBuilder.from(originalEmbed)
-        .setColor("Green")
-        .setTitle("✅ Postulación APROBADA")
-        .setImage("https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png")
-        .setFooter({ text: `✅ Aprobado por \({interaction.user.username} el\){now}` })
-    : null;
+  const now =
+    formatActionTimestamp(
+      new Date(),
+    );
+
+  const updatedEmbed =
+    originalEmbed
+      ? EmbedBuilder.from(originalEmbed)
+          .setColor("Green")
+          .setTitle(
+            "✅ Postulación APROBADA",
+          )
+          .setImage(
+            "https://i.postimg.cc/x86X0Z13/file-000000005990720eb92eca47227692a2.png",
+          )
+          .setFooter({
+            text: `✅ Aprobado por ${interaction.user.username} el ${now}`,
+          })
+      : null;
 
   try {
     await interaction.update({
-      embeds: updatedEmbed ? [updatedEmbed] : undefined,
+      embeds: updatedEmbed
+        ? [updatedEmbed]
+        : undefined,
       components: [disabledRow],
     });
   } catch (err) {
-    logger.warn({ err }, "Failed to update application message");
+    logger.warn(
+      { err },
+      "Failed to update application message",
+    );
   }
 
   try {
-    const applicant = await interaction.client.users.fetch(applicantId);
+    const applicant =
+      await interaction.client.users.fetch(
+        applicantId,
+      );
+
     await applicant.send(
       "Buenas noticias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad.",
     );
   } catch (err) {
-    logger.info({ err, applicantId }, "Could not DM applicant about decision");
+    logger.info(
+      { err, applicantId },
+      "Could not DM applicant about decision",
+    );
   }
 
-  await assignPostuladosRole(interaction, applicantId);
+  await assignPostuladosRole(
+    interaction,
+    applicantId,
+  );
 }
 
-async function handleRejectionModalSubmit(interaction: ModalSubmitInteraction): Promise {
-  const match = interaction.customId.match(/^postular_reject_modal_(\d+)$/);
+/* ============================================================
+ * REJECTION MODAL SUBMIT
+ * ============================================================ */
+
+async function handleRejectionModalSubmit(
+  interaction: ModalSubmitInteraction,
+): Promise<void> {
+  const match =
+    interaction.customId.match(
+      /^postular_reject_modal_(\d+)$/,
+    );
 
   if (!match) {
-    console.error(`[ERROR] El ID del modal no coincide con el formato esperado: ${interaction.customId}`);
+    console.error(
+      `[ERROR] El ID del modal no coincide con el formato esperado: ${interaction.customId}`,
+    );
     return;
   }
 
   const [, applicantId] = match;
+
   if (!applicantId) return;
 
-  if (!hasReviewPermission(interaction.member)) {
+  if (
+    !hasReviewPermission(
+      interaction.member,
+    )
+  ) {
     await interaction.reply({
-      content: "No tienes permiso para revisar postulaciones.",
+      content:
+        "No tienes permiso para revisar postulaciones.",
       ephemeral: true,
     });
+
     return;
   }
 
-  const reason = interaction.fields.getTextInputValue(REJECT_REASON_INPUT_ID).trim();
-  const message = interaction.message;
-  const originalEmbed = message?.embeds[0];
-  const now = formatActionTimestamp(new Date());
+  const reason =
+    interaction.fields
+      .getTextInputValue(
+        REJECT_REASON_INPUT_ID,
+      )
+      .trim();
 
-  const updatedEmbed = originalEmbed
-    ? EmbedBuilder.from(originalEmbed)
-        .setColor("Red")
-        .setTitle("❌ Postulación RECHAZADA")
-        .addFields({ name: "Razón del rechazo", value: reason })
-        .setImage("https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png") 
-        .setFooter({ text: `❌ Rechazado por \({interaction.user.username} el\){now}` })
-    : null;
+  const message =
+    interaction.message;
+
+  const originalEmbed =
+    message?.embeds[0];
+
+  const now =
+    formatActionTimestamp(
+      new Date(),
+    );
+
+  const updatedEmbed =
+    originalEmbed
+      ? EmbedBuilder.from(originalEmbed)
+          .setColor("Red")
+          .setTitle(
+            "❌ Postulación RECHAZADA",
+          )
+          .addFields({
+            name: "Razón del rechazo",
+            value:
+              reason ||
+              "Sin razón especificada",
+          })
+          .setImage(
+            "https://i.postimg.cc/k5NXJHjB/file000000003dfc720e904bc161db2db57a.png",
+          )
+          .setFooter({
+            text: `❌ Rechazado por ${interaction.user.username} el ${now}`,
+          })
+      : null;
 
   try {
-    if (interaction.isFromMessage()) {
+    if (
+      interaction.isFromMessage() &&
+      message
+    ) {
       await interaction.update({
-        embeds: updatedEmbed ? [updatedEmbed] : undefined,
+        embeds: updatedEmbed
+          ? [updatedEmbed]
+          : undefined,
         components: [disabledRow],
       });
     } else {
       await interaction.deferUpdate();
     }
   } catch (err) {
-    logger.warn({ err }, "Failed to update application message");
+    logger.warn(
+      { err },
+      "Failed to update application message",
+    );
   }
 
-  const cooldownKey = `\({interaction.guildId}-\){applicantId}`;
-  rejectionRegistry.set(cooldownKey, Date.now());
-  saveCooldowns(rejectionRegistry);
+  const cooldownKey =
+    `${interaction.guildId}-${applicantId}`;
+
+  rejectionRegistry.set(
+    cooldownKey,
+    Date.now(),
+  );
+
+  saveCooldowns(
+    rejectionRegistry,
+  );
 
   try {
-    const applicant = await interaction.client.users.fetch(applicantId);
-    await applicant.send(`❌ Tu postulación fue RECHAZADA. Razón: ${reason}`);
+    const applicant =
+      await interaction.client.users.fetch(
+        applicantId,
+      );
 
-    const guild = interaction.guild;
+    await applicant.send(
+      `❌ Tu postulación fue RECHAZADA. Razón: ${reason || "Sin razón especificada"}`,
+    );
+
+    const guild =
+      interaction.guild;
+
     if (guild) {
-      const member = await guild.members.fetch(applicantId);
-      if (member.roles.cache.has(POSTULADOS_ROLE_ID)) {
-        await member.roles.remove(POSTULADOS_ROLE_ID);
+      const member =
+        await guild.members
+          .fetch(applicantId)
+          .catch(() => null);
+
+      if (
+        member &&
+        member.roles.cache.has(
+          POSTULADOS_ROLE_ID,
+        )
+      ) {
+        await member.roles.remove(
+          POSTULADOS_ROLE_ID,
+        );
       }
     }
   } catch (err) {
-    logger.info({ err, applicantId }, "Could not DM applicant or remove role");
+    logger.info(
+      { err, applicantId },
+      "Could not DM applicant or remove role",
+    );
   }
 }
 
-async function handleRejectButton(interaction: ButtonInteraction, applicantId: string): Promise {
-  const modal = new ModalBuilder()
-    .setCustomId(`postular_reject_modal_${applicantId}`)
-    .setTitle("Razón del rechazo");
+/* ============================================================
+ * REJECT BUTTON
+ * ============================================================ */
 
-  const reasonInput = new TextInputBuilder()
-    .setCustomId(REJECT_REASON_INPUT_ID)
-    .setLabel("Razón del rechazo")
-    .setStyle(TextInputStyle.Paragraph)
-    .setRequired(true)
-    .setMaxLength(1000);
+async function handleRejectButton(
+  interaction: ButtonInteraction,
+  applicantId: string,
+): Promise<void> {
+  const modal =
+    new ModalBuilder()
+      .setCustomId(
+        `postular_reject_modal_${applicantId}`,
+      )
+      .setTitle("Razón del rechazo");
 
-  const row = new ActionRowBuilder().addComponents(reasonInput);
+  const reasonInput =
+    new TextInputBuilder()
+      .setCustomId(
+        REJECT_REASON_INPUT_ID,
+      )
+      .setLabel(
+        "Razón del rechazo",
+      )
+      .setStyle(
+        TextInputStyle.Paragraph,
+      )
+      .setRequired(true)
+      .setMaxLength(1000);
+
+  const row =
+    new ActionRowBuilder<TextInputBuilder>()
+      .addComponents(reasonInput);
+
   modal.addComponents(row);
 
   try {
-    await interaction.showModal(modal);
+    await interaction.showModal(
+      modal,
+    );
   } catch (err) {
-    logger.error({ err, applicantId }, "Failed to show rejection modal");
+    logger.error(
+      { err, applicantId },
+      "Failed to show rejection modal",
+    );
   }
 }
 
-async function handlePostulationDecision(interaction: ButtonInteraction): Promise {
-  const match = interaction.customId.match(/^postular_(approve|reject)_(\d+)$/);
+/* ============================================================
+ * POSTULATION DECISION
+ * ============================================================ */
+
+async function handlePostulationDecision(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  const match =
+    interaction.customId.match(
+      /^postular_(approve|reject)_(\d+)$/,
+    );
+
   if (!match) return;
 
-  const [, decision, applicantId] = match;
+  const [, decision, applicantId] =
+    match;
+
   if (!applicantId) return;
 
-  if (!hasReviewPermission(interaction.member)) {
-    await interaction.reply({ content: "No tienes permiso.", ephemeral: true });
+  if (
+    !hasReviewPermission(
+      interaction.member,
+    )
+  ) {
+    await interaction.reply({
+      content: "No tienes permiso.",
+      ephemeral: true,
+    });
+
     return;
   }
 
   if (decision === "approve") {
-    await handleApprove(interaction, applicantId);
+    await handleApprove(
+      interaction,
+      applicantId,
+    );
   } else {
-    await handleRejectButton(interaction, applicantId);
+    await handleRejectButton(
+      interaction,
+      applicantId,
+    );
   }
 }
 
-client.on(Events.InteractionCreate, async (interaction) => {
-  if (interaction.isChatInputCommand() && interaction.commandName === "postular") {
-    const cooldownKey = `\({interaction.guildId}-\){interaction.user.id}`;
-    const rejectionTime = rejectionRegistry.get(cooldownKey);
+/* ============================================================
+ * INTERACTIONS
+ * ============================================================ */
 
-    if (rejectionTime) {
-      const elapsed = Date.now() - rejectionTime;
-      if (elapsed < REJECTION_COOLDOWN) {
-        const daysLeft = Math.ceil((REJECTION_COOLDOWN - elapsed) / (24 * 60 * 60 * 1000));
-        await interaction.reply({
-          content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
-          ephemeral: true
-        });
-        return;
-      } else {
-        rejectionRegistry.delete(cooldownKey);
-        saveCooldowns(rejectionRegistry);
-      }
-    }
+client.on(
+  Events.InteractionCreate,
+  async (interaction) => {
+    /* --------------------------------------------------------
+     * POSTULAR
+     * -------------------------------------------------------- */
 
-    const member = interaction.member;
-    if (member && typeof member !== 'string' && 'roles' in member) {
-      const tieneRolActivo = (member.roles as any).cache.has(POSTULADOS_ROLE_ID);
-      if (tieneRolActivo) {
-        await interaction.reply({
-          content: "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
-          ephemeral: true
-        });
-        return;
-      }
-    }
+    if (
+      interaction.isChatInputCommand() &&
+      interaction.commandName === "postular"
+    ) {
+      const cooldownKey =
+        `${interaction.guildId}-${interaction.user.id}`;
 
-    const createdAt = interaction.user.createdAt;
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const rejectionTime =
+        rejectionRegistry.get(
+          cooldownKey,
+        );
 
-    if (createdAt > sevenDaysAgo) {
-      await interaction.reply({
-        content: `❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.`,
-        ephemeral: true
-      });
-      return;
-    }
+      if (rejectionTime) {
+        const elapsed =
+          Date.now() -
+          rejectionTime;
 
-    const command = commands.get("postular");
-    if (command) {
-      try {
-        await command.execute(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error executing postular command");
-      }
-    }
-    return;
-  }
+        if (
+          elapsed <
+          REJECTION_COOLDOWN
+        ) {
+          const daysLeft =
+            Math.ceil(
+              (REJECTION_COOLDOWN -
+                elapsed) /
+                (24 *
+                  60 *
+                  60 *
+                  1000),
+            );
 
-  if (interaction.isAutocomplete()) {
-    const command = commands.get(interaction.commandName);
-    if (command?.autocomplete) {
-      try {
-        await command.autocomplete(interaction);
-      } catch (err) {
-        logger.error({ err, commandName: interaction.commandName }, "Error handling autocomplete");
-      }
-    }
-    return;
-  }
-
-  if (interaction.isButton()) {
-    if (interaction.customId.startsWith("postular_")) {
-      try {
-        await handlePostulationDecision(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error handling postulation decision button");
-      }
-      return;
-    }
-    if (interaction.customId.startsWith("reputacion_")) {
-      try {
-        await reputacionCommand.handleButton(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error handling reputation button");
-
-        if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
-            content: "❌ Hubo un error al procesar la reputación.",
+            content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
             ephemeral: true,
-          }).catch(() => {});
-        }
-      }
-      return;
-    }
-    if (interaction.customId.startsWith("tateti_")) {
-      try {
-        const tatetiModule = commands.get("tateti") as any;
-        if (tatetiModule && typeof tatetiModule.handleButton === "function") {
-          await tatetiModule.handleButton(interaction);
-        }
-      } catch (err) {
-        logger.error({ err }, "Error handling tateti button");
-      }
-      return;
-    }
-    if (interaction.customId.startsWith("ppt_")) {
-      try {
-        const pptModule = commands.get("piedrapapeltijera") as any;
-        if (pptModule && typeof pptModule.handleButton === "function") {
-          await pptModule.handleButton(interaction);
-        }
-      } catch (err) {
-        logger.error({ err }, "Error handling ppt button");
-      }
-      return;
-    }
-    if (interaction.customId.startsWith("supervision_accept_")) {
-      const lobbyId = interaction.customId.slice("supervision_accept_".length);
-      const member = interaction.member as GuildMember | null;
-      if (!member) {
-        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
-        return;
-      }
-      try {
-        const { handleSupervisionAccept } = await import("./services/SupervisorService");
-        await interaction.deferReply({ ephemeral: true });
-        await handleSupervisionAccept(interaction.user.id, lobbyId, member, interaction.client);
-        await interaction.editReply("✅ Has aceptado la supervisión. La partida ha comenzado.");
-      } catch (err: any) {
-        logger.error({ err, lobbyId }, "Error handling supervision accept");
-        if (interaction.deferred) {
-          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar la supervisión."}`).catch(() => {});
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("supervision_replace_")) {
-      const lobbyId = interaction.customId.slice("supervision_replace_".length);
-      const member = interaction.member as GuildMember | null;
-      if (!member) {
-        await interaction.reply({ content: "❌ Este botón sólo funciona desde el servidor.", ephemeral: true });
-        return;
-      }
-      try {
-        const { handleSupervisionReplace } = await import("./services/SupervisorService");
-        await interaction.deferReply({ ephemeral: true });
-        await handleSupervisionReplace(interaction.user.id, lobbyId, member, interaction.client);
-        await interaction.editReply("✅ Has tomado el control de la partida como supervisor de reemplazo.");
-      } catch (err: any) {
-        logger.error({ err, lobbyId }, "Error handling supervision replace");
-        if (interaction.deferred) {
-          await interaction.editReply(`❌ ${err?.message ?? "Error al aceptar el reemplazo."}`).catch(() => {});
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("q_open_")) {
-      const [matchId, discordId] = interaction.customId.slice("q_open_".length).split("_");
-      if (matchId && discordId) {
-        try {
-          const { openQuestionnaireModal } = await import("./services/QuestionnaireService");
-          await openQuestionnaireModal(interaction, matchId, discordId);
-        } catch (err) {
-          logger.error({ err }, "Error opening questionnaire modal");
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: "❌ Error al abrir el cuestionario.", ephemeral: true }).catch(() => {});
-          }
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("play_again_")) {
-      const matchId = interaction.customId.slice("play_again_".length);
-      try {
-        const { handlePlayAgain } = await import("./services/QuestionnaireService");
-        await interaction.deferReply({ ephemeral: true });
-        await handlePlayAgain(matchId, interaction.user.id, interaction.client);
-        await interaction.editReply("🎮 ¡Quedas en el canal para la próxima partida!");
-      } catch (err) {
-        logger.error({ err }, "Error handling play again");
-        if (interaction.deferred) {
-          await interaction.editReply("❌ Error al procesar la acción.").catch(() => {});
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("leave_match_")) {
-      const matchId = interaction.customId.slice("leave_match_".length);
-      try {
-        const { handleLeaveMatch } = await import("./services/QuestionnaireService");
-        await interaction.deferReply({ ephemeral: true });
-        await handleLeaveMatch(matchId, interaction.user.id, interaction.client);
-        await interaction.editReply("🚪 Has salido del canal de voz.");
-      } catch (err) {
-        logger.error({ err }, "Error handling leave match");
-        if (interaction.deferred) {
-          await interaction.editReply("❌ Error al procesar la salida.").catch(() => {});
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("forensic_untimeout_") || interaction.customId.startsWith("forensic_ban_")) {
-      const member = interaction.member as GuildMember | null;
-
-      if (!hasForensicPermission(member)) {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
-            ephemeral: true
           });
-        }
-        return;
-      }
 
-      const action = interaction.customId.startsWith("forensic_untimeout_") ? "untimeout" : "ban";
-      const targetUserId = interaction.customId.replace(action === "untimeout" ? "forensic_untimeout_" : "forensic_ban_", "");
-
-      try {
-        const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
-        const moderatorName = interaction.user.username;
-
-        if (action === "untimeout") {
-          if (guildMember) {
-            await guildMember.timeout(null, `Revisado y marcado como seguro por ${moderatorName}`);
-          }
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.update({
-              content: `✅ Timeout retirado. <@\({targetUserId}> fue marcado como seguro por **\){moderatorName}**.`,
-              components: []
-            });
-          }
-        } else {
-          if (guildMember) {
-            await guildMember.ban({ reason: `Confirmado como alt/amenaza por ${moderatorName}` });
-          }
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.update({
-              content: `🔨 <@\({targetUserId}> fue baneado del servidor por **\){moderatorName}**.`,
-              components: []
-            });
-          }
-        }
-      } catch (err) {
-        logger.error({ err }, "Error procesando acción forense sobre el usuario");
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "❌ Hubo un error al ejecutar la acción sobre el usuario.", ephemeral: true }).catch(() => {});
-        } else {
-          await interaction.followUp({ content: "❌ Hubo un error al ejecutar la acción sobre el usuario.", ephemeral: true }).catch(() => {});
-        }
-      }
-      return;
-    }
-
-    if (interaction.customId.startsWith("harassment_timeout_") || 
-        interaction.customId.startsWith("harassment_ignore_") ||
-        interaction.customId.startsWith("harassment_confirm_") ||
-        interaction.customId.startsWith("harassment_cancel_")) {
-
-      const member = interaction.member as GuildMember | null;
-
-      if (!hasForensicPermission(member)) {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({
-            content: "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
-            ephemeral: true
-          });
-        }
-        return;
-      }
-
-      const targetUserId = interaction.customId.split('_').pop();
-      if (!targetUserId) return;
-
-      if (interaction.customId.startsWith("harassment_cancel_")) {
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.update({
-            content: `⚠️ Acción de timeout cancelada por **${interaction.user.username}**.`,
-            components: []
-          });
-        }
-        return;
-      }
-
-      if (interaction.customId.startsWith("harassment_timeout_")) {
-        const targetMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
-
-        if (!targetMember) {
-          await interaction.reply({
-            content: "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté aquí.",
-            ephemeral: true
-          });
           return;
         }
 
-        const moderatorHighestRole = member?.roles.highest;
-        const targetHighestRole = targetMember.roles.highest;
-
-        if (interaction.guild?.ownerId !== member?.id) {
-            if (moderatorHighestRole && targetHighestRole && 
-                moderatorHighestRole.position <= targetHighestRole.position) {
-                await interaction.reply({
-                    content: "❌ **Error de Jerarquía:** No puedes sancionar a un usuario con un rol igual o superior al tuyo.",
-                    ephemeral: true
-                });
-                return;
-            }
-        }
-
-        const confirmRow = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`harassment_confirm_${targetUserId}`)
-            .setLabel("✅ Sí, aplicar timeout (10m)")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`harassment_cancel_${targetUserId}`)
-            .setLabel("❌ Cancelar")
-            .setStyle(ButtonStyle.Secondary)
+        rejectionRegistry.delete(
+          cooldownKey,
         );
 
+        saveCooldowns(
+          rejectionRegistry,
+        );
+      }
+
+      const member =
+        interaction.member;
+
+      if (
+        member &&
+        typeof member !== "string" &&
+        "roles" in member
+      ) {
+        const tieneRolActivo =
+          (member.roles as any)
+            .cache.has(
+              POSTULADOS_ROLE_ID,
+            );
+
+        if (tieneRolActivo) {
+          await interaction.reply({
+            content:
+              "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
+            ephemeral: true,
+          });
+
+          return;
+        }
+      }
+
+      const createdAt =
+        interaction.user.createdAt;
+
+      const sevenDaysAgo =
+        new Date();
+
+      sevenDaysAgo.setDate(
+        sevenDaysAgo.getDate() -
+          7,
+      );
+
+      if (
+        createdAt >
+        sevenDaysAgo
+      ) {
         await interaction.reply({
-          content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que deseas aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción es inmediata al confirmar.`,
-          components: [confirmRow],
-          ephemeral: true
+          content:
+            "❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.",
+          ephemeral: true,
         });
+
         return;
       }
 
-      if (interaction.customId.startsWith("harassment_confirm_")) {
-        const moderatorName = interaction.user.username;
+      const command =
+        commands.get(
+          "postular",
+        );
+
+      if (command) {
+        try {
+          await command.execute(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error executing postular command",
+          );
+        }
+      }
+
+      return;
+    }
+
+    /* --------------------------------------------------------
+     * AUTOCOMPLETE
+     * -------------------------------------------------------- */
+
+    if (interaction.isAutocomplete()) {
+      const command =
+        commands.get(
+          interaction.commandName,
+        );
+
+      if (command?.autocomplete) {
+        try {
+          await command.autocomplete(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            {
+              err,
+              commandName:
+                interaction.commandName,
+            },
+            "Error handling autocomplete",
+          );
+        }
+      }
+
+      return;
+    }
+
+    /* --------------------------------------------------------
+     * BUTTONS
+     * -------------------------------------------------------- */
+
+    if (interaction.isButton()) {
+      /* ------------------------------------------------------
+       * POSTULACIONES
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "postular_",
+        )
+      ) {
+        try {
+          await handlePostulationDecision(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling postulation decision button",
+          );
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * REPUTACION
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "reputacion_",
+        )
+      ) {
+        try {
+          await reputacionCommand.handleButton(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling reputation button",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al procesar la reputación.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * TATETI
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "tateti_",
+        )
+      ) {
+        try {
+          const tatetiModule =
+            commands.get(
+              "tateti",
+            ) as any;
+
+          if (
+            tatetiModule &&
+            typeof tatetiModule.handleButton ===
+              "function"
+          ) {
+            await tatetiModule.handleButton(
+              interaction,
+            );
+          }
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling tateti button",
+          );
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * PIEDRA PAPEL TIJERA
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "ppt_",
+        )
+      ) {
+        try {
+          const pptModule =
+            commands.get(
+              "piedrapapeltijera",
+            ) as any;
+
+          if (
+            pptModule &&
+            typeof pptModule.handleButton ===
+              "function"
+          ) {
+            await pptModule.handleButton(
+              interaction,
+            );
+          }
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling ppt button",
+          );
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * SUPERVISION ACCEPT
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "supervision_accept_",
+        )
+      ) {
+        const lobbyId =
+          interaction.customId.slice(
+            "supervision_accept_"
+              .length,
+          );
+
+        const member =
+          interaction.member as GuildMember | null;
+
+        if (!member) {
+          await interaction.reply({
+            content:
+              "❌ Este botón sólo funciona desde el servidor.",
+            ephemeral: true,
+          });
+
+          return;
+        }
 
         try {
-          const guildMember = await interaction.guild?.members.fetch(targetUserId).catch(() => null);
+          const {
+            handleSupervisionAccept,
+          } = await import(
+            "./services/SupervisorService"
+          );
 
-          if (guildMember) {
-            await guildMember.timeout(10 * 60 * 1000, `Timeout por hostigamiento aplicado por ${moderatorName} (Confirmado)`);
+          await interaction.deferReply({
+            ephemeral: true,
+          });
 
-            if (interaction.message && interaction.message.editable) {
-                await interaction.message.edit({
-                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@\({targetUserId}> ha recibido un timeout de 10 minutos por **\){moderatorName}**.`,
-                    components: []
-                }).catch(() => logger.warn("No se pudo editar el mensaje original de alerta"));
+          await handleSupervisionAccept(
+            interaction.user.id,
+            lobbyId,
+            member,
+            interaction.client,
+          );
+
+          await interaction.editReply(
+            "✅ Has aceptado la supervisión. La partida ha comenzado.",
+          );
+        } catch (err: any) {
+          logger.error(
+            { err, lobbyId },
+            "Error handling supervision accept",
+          );
+
+          if (
+            interaction.deferred
+          ) {
+            await interaction
+              .editReply(
+                `❌ ${err?.message ?? "Error al aceptar la supervisión."}`,
+              )
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * SUPERVISION REPLACE
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "supervision_replace_",
+        )
+      ) {
+        const lobbyId =
+          interaction.customId.slice(
+            "supervision_replace_"
+              .length,
+          );
+
+        const member =
+          interaction.member as GuildMember | null;
+
+        if (!member) {
+          await interaction.reply({
+            content:
+              "❌ Este botón sólo funciona desde el servidor.",
+            ephemeral: true,
+          });
+
+          return;
+        }
+
+        try {
+          const {
+            handleSupervisionReplace,
+          } = await import(
+            "./services/SupervisorService"
+          );
+
+          await interaction.deferReply({
+            ephemeral: true,
+          });
+
+          await handleSupervisionReplace(
+            interaction.user.id,
+            lobbyId,
+            member,
+            interaction.client,
+          );
+
+          await interaction.editReply(
+            "✅ Has tomado el control de la partida como supervisor de reemplazo.",
+          );
+        } catch (err: any) {
+          logger.error(
+            { err, lobbyId },
+            "Error handling supervision replace",
+          );
+
+          if (
+            interaction.deferred
+          ) {
+            await interaction
+              .editReply(
+                `❌ ${err?.message ?? "Error al aceptar el reemplazo."}`,
+              )
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * QUESTIONNAIRE OPEN
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "q_open_",
+        )
+      ) {
+        const [
+          matchId,
+          discordId,
+        ] = interaction.customId
+          .slice(
+            "q_open_".length,
+          )
+          .split("_");
+
+        if (
+          matchId &&
+          discordId
+        ) {
+          try {
+            const {
+              openQuestionnaireModal,
+            } = await import(
+              "./services/QuestionnaireService"
+            );
+
+            await openQuestionnaireModal(
+              interaction,
+              matchId,
+              discordId,
+            );
+          } catch (err) {
+            logger.error(
+              { err },
+              "Error opening questionnaire modal",
+            );
+
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction
+                .reply({
+                  content:
+                    "❌ Error al abrir el cuestionario.",
+                  ephemeral: true,
+                })
+                .catch(() => {});
+            }
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * PLAY AGAIN
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "play_again_",
+        )
+      ) {
+        const matchId =
+          interaction.customId.slice(
+            "play_again_".length,
+          );
+
+        try {
+          const {
+            handlePlayAgain,
+          } = await import(
+            "./services/QuestionnaireService"
+          );
+
+          await interaction.deferReply({
+            ephemeral: true,
+          });
+
+          await handlePlayAgain(
+            matchId,
+            interaction.user.id,
+            interaction.client,
+          );
+
+          await interaction.editReply(
+            "🎮 ¡Quedas en el canal para la próxima partida!",
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling play again",
+          );
+
+          if (
+            interaction.deferred
+          ) {
+            await interaction
+              .editReply(
+                "❌ Error al procesar la acción.",
+              )
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * LEAVE MATCH
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "leave_match_",
+        )
+      ) {
+        const matchId =
+          interaction.customId.slice(
+            "leave_match_".length,
+          );
+
+        try {
+          const {
+            handleLeaveMatch,
+          } = await import(
+            "./services/QuestionnaireService"
+          );
+
+          await interaction.deferReply({
+            ephemeral: true,
+          });
+
+          await handleLeaveMatch(
+            matchId,
+            interaction.user.id,
+            interaction.client,
+          );
+
+          await interaction.editReply(
+            "🚪 Has salido del canal de voz.",
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling leave match",
+          );
+
+          if (
+            interaction.deferred
+          ) {
+            await interaction
+              .editReply(
+                "❌ Error al procesar la salida.",
+              )
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * FORENSIC
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "forensic_untimeout_",
+        ) ||
+        interaction.customId.startsWith(
+          "forensic_ban_",
+        )
+      ) {
+        const member =
+          interaction.member as GuildMember | null;
+
+        if (
+          !hasForensicPermission(
+            member,
+          )
+        ) {
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction.reply({
+              content:
+                "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+              ephemeral: true,
+            });
+          }
+
+          return;
+        }
+
+        const action =
+          interaction.customId.startsWith(
+            "forensic_untimeout_",
+          )
+            ? "untimeout"
+            : "ban";
+
+        const prefix =
+          action === "untimeout"
+            ? "forensic_untimeout_"
+            : "forensic_ban_";
+
+        const targetUserId =
+          interaction.customId.replace(
+            prefix,
+            "",
+          );
+
+        try {
+          const guildMember =
+            await interaction.guild?.members
+              .fetch(targetUserId)
+              .catch(() => null);
+
+          const moderatorName =
+            interaction.user.username;
+
+          if (
+            action === "untimeout"
+          ) {
+            if (guildMember) {
+              await guildMember.timeout(
+                null,
+                `Revisado y marcado como seguro por ${moderatorName}`,
+              );
             }
 
-            await interaction.update({
-              content: `✅ Sanción aplicada correctamente a <@${targetUserId}>.`,
-              components: []
-            });
-
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction.update({
+                content: `✅ Timeout retirado. <@${targetUserId}> fue marcado como seguro por **${moderatorName}**.`,
+                components: [],
+              });
+            }
           } else {
-             await interaction.update({
-                content: "❌ El usuario ya no está en el servidor, no se pudo aplicar la sanción.",
-                components: []
-             });
-          }
+            if (guildMember) {
+              await guildMember.ban({
+                reason: `Confirmado como alt/amenaza por ${moderatorName}`,
+              });
+            }
 
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction.update({
+                content: `🔨 <@${targetUserId}> fue baneado del servidor por **${moderatorName}**.`,
+                components: [],
+              });
+            }
+          }
         } catch (err) {
-          logger.error({ err, userId: targetUserId }, "Error crítico al aplicar timeout confirmado");
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: "❌ Hubo un error grave al intentar aplicar el timeout.", ephemeral: true });
+          logger.error(
+            { err },
+            "Error procesando acción forense sobre el usuario",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al ejecutar la acción sobre el usuario.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          } else {
+            await interaction
+              .followUp({
+                content:
+                  "❌ Hubo un error al ejecutar la acción sobre el usuario.",
+                ephemeral: true,
+              })
+              .catch(() => {});
           }
         }
+
         return;
       }
 
-      if (interaction.customId.startsWith("harassment_ignore_")) {
-        const moderatorName = interaction.user.username;
-        try {
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.update({
-              content: `✅ Alerta de hostigamiento marcada como **resuelta/ignorada** por **${moderatorName}**.`,
-              components: []
+      /* ------------------------------------------------------
+       * HARASSMENT
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "harassment_timeout_",
+        ) ||
+        interaction.customId.startsWith(
+          "harassment_ignore_",
+        ) ||
+        interaction.customId.startsWith(
+          "harassment_confirm_",
+        ) ||
+        interaction.customId.startsWith(
+          "harassment_cancel_",
+        )
+      ) {
+        const member =
+          interaction.member as GuildMember | null;
+
+        if (
+          !hasForensicPermission(
+            member,
+          )
+        ) {
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction.reply({
+              content:
+                "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+              ephemeral: true,
             });
           }
-        } catch (err) {
-          logger.error({ err }, "Error procesando ignorar alerta de hostigamiento");
+
+          return;
         }
+
+        const targetUserId =
+          interaction.customId
+            .split("_")
+            .pop();
+
+        if (!targetUserId) return;
+
+        /* ----------------------------------------------------
+         * CANCEL
+         * ---------------------------------------------------- */
+
+        if (
+          interaction.customId.startsWith(
+            "harassment_cancel_",
+          )
+        ) {
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction.update({
+              content: `⚠️ Acción de timeout cancelada por **${interaction.user.username}**.`,
+              components: [],
+            });
+          }
+
+          return;
+        }
+
+        /* ----------------------------------------------------
+         * TIMEOUT REQUEST
+         * ---------------------------------------------------- */
+
+        if (
+          interaction.customId.startsWith(
+            "harassment_timeout_",
+          )
+        ) {
+          const targetMember =
+            await interaction.guild?.members
+              .fetch(targetUserId)
+              .catch(() => null);
+
+          if (!targetMember) {
+            await interaction.reply({
+              content:
+                "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté aquí.",
+              ephemeral: true,
+            });
+
+            return;
+          }
+
+          const moderatorHighestRole =
+            member?.roles.highest;
+
+          const targetHighestRole =
+            targetMember.roles.highest;
+
+          if (
+            interaction.guild
+              ?.ownerId !==
+            member?.id
+          ) {
+            if (
+              moderatorHighestRole &&
+              targetHighestRole &&
+              moderatorHighestRole.position <=
+                targetHighestRole.position
+            ) {
+              await interaction.reply({
+                content:
+                  "❌ **Error de Jerarquía:** No puedes sancionar a un usuario con un rol igual o superior al tuyo.",
+                ephemeral: true,
+              });
+
+              return;
+            }
+          }
+
+          const confirmRow =
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(
+                  `harassment_confirm_${targetUserId}`,
+                )
+                .setLabel(
+                  "✅ Sí, aplicar timeout (10m)",
+                )
+                .setStyle(
+                  ButtonStyle.Danger,
+                ),
+
+              new ButtonBuilder()
+                .setCustomId(
+                  `harassment_cancel_${targetUserId}`,
+                )
+                .setLabel(
+                  "❌ Cancelar",
+                )
+                .setStyle(
+                  ButtonStyle.Secondary,
+                ),
+            );
+
+          await interaction.reply({
+            content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que deseas aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción es inmediata al confirmar.`,
+            components: [
+              confirmRow,
+            ],
+            ephemeral: true,
+          });
+
+          return;
+        }
+
+        /* ----------------------------------------------------
+         * TIMEOUT CONFIRM
+         * ---------------------------------------------------- */
+
+        if (
+          interaction.customId.startsWith(
+            "harassment_confirm_",
+          )
+        ) {
+          const moderatorName =
+            interaction.user.username;
+
+          try {
+            const guildMember =
+              await interaction.guild?.members
+                .fetch(
+                  targetUserId,
+                )
+                .catch(
+                  () => null,
+                );
+
+            if (guildMember) {
+              await guildMember.timeout(
+                10 * 60 * 1000,
+                `Timeout por hostigamiento aplicado por ${moderatorName} (Confirmado)`,
+              );
+
+              if (
+                interaction.message &&
+                interaction.message.editable
+              ) {
+                await interaction.message
+                  .edit({
+                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@${targetUserId}> ha recibido un timeout de 10 minutos por **${moderatorName}**.`,
+                    components: [],
+                  })
+                  .catch(() =>
+                    logger.warn(
+                      "No se pudo editar el mensaje original de alerta",
+                    ),
+                  );
+              }
+
+              await interaction.update({
+                content: `✅ Sanción aplicada correctamente a <@${targetUserId}>.`,
+                components: [],
+              });
+            } else {
+              await interaction.update({
+                content:
+                  "❌ El usuario ya no está en el servidor, no se pudo aplicar la sanción.",
+                components: [],
+              });
+            }
+          } catch (err) {
+            logger.error(
+              {
+                err,
+                userId:
+                  targetUserId,
+              },
+              "Error crítico al aplicar timeout confirmado",
+            );
+
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction
+                .reply({
+                  content:
+                    "❌ Hubo un error grave al intentar aplicar el timeout.",
+                  ephemeral: true,
+                })
+                .catch(
+                  () => {},
+                );
+            }
+          }
+
+          return;
+        }
+
+        /* ----------------------------------------------------
+         * IGNORE
+         * ---------------------------------------------------- */
+
+        if (
+          interaction.customId.startsWith(
+            "harassment_ignore_",
+          )
+        ) {
+          const moderatorName =
+            interaction.user.username;
+
+          try {
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction.update({
+                content: `✅ Alerta de hostigamiento marcada como **resuelta/ignorada** por **${moderatorName}**.`,
+                components: [],
+              });
+            }
+          } catch (err) {
+            logger.error(
+              { err },
+              "Error procesando ignorar alerta de hostigamiento",
+            );
+          }
+
+          return;
+        }
+      }
+    }
+
+    /* ========================================================
+     * MODALS
+     * ======================================================== */
+
+    if (interaction.isModalSubmit()) {
+      /* ------------------------------------------------------
+       * POSTULAR REJECTION
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "postular_reject_modal_",
+        )
+      ) {
+        try {
+          await handleRejectionModalSubmit(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling rejection modal submission",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "Hubo un error al procesar el rechazo.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * QUESTIONNAIRE FORM
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "q_form_",
+        )
+      ) {
+        const rest =
+          interaction.customId.slice(
+            "q_form_".length,
+          );
+
+        const underscoreIdx =
+          rest.indexOf("_");
+
+        if (
+          underscoreIdx !== -1
+        ) {
+          const matchId =
+            rest.slice(
+              0,
+              underscoreIdx,
+            );
+
+          const discordId =
+            rest.slice(
+              underscoreIdx + 1,
+            );
+
+          try {
+            const {
+              recordAnswer,
+            } = await import(
+              "./services/QuestionnaireService"
+            );
+
+            await recordAnswer(
+              interaction,
+              matchId,
+              discordId,
+              interaction.client,
+            );
+          } catch (err) {
+            logger.error(
+              { err },
+              "Error recording questionnaire answer",
+            );
+
+            if (
+              !interaction.replied &&
+              !interaction.deferred
+            ) {
+              await interaction
+                .reply({
+                  content:
+                    "❌ Error al registrar tu respuesta.",
+                  ephemeral: true,
+                })
+                .catch(() => {});
+            }
+          }
+        }
+
+        return;
+      }
+
+      return;
+    }
+
+    /* ========================================================
+     * SLASH COMMANDS GENERIC
+     * ======================================================== */
+
+    if (
+      !interaction.isChatInputCommand()
+    ) {
+      return;
+    }
+
+    const command =
+      commands.get(
+        interaction.commandName,
+      );
+
+    if (!command) return;
+
+    try {
+      await command.execute(
+        interaction,
+      );
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          commandName:
+            interaction.commandName,
+        },
+        "Error executing command",
+      );
+
+      const errorMessage = {
+        content:
+          "Hubo un error al ejecutar este comando.",
+        ephemeral: true,
+      };
+
+      if (
+        interaction.replied ||
+        interaction.deferred
+      ) {
+        await interaction.followUp(
+          errorMessage,
+        );
+      } else {
+        await interaction.reply(
+          errorMessage,
+        );
+      }
+    }
+  },
+);
+
+/* ============================================================
+ * PREFIX COMMANDS
+ * ============================================================ */
+
+client.on(
+  Events.MessageCreate,
+  async (message) => {
+    if (
+      message.author.bot ||
+      !message.content.startsWith("-")
+    ) {
+      return;
+    }
+
+    const args =
+      message.content
+        .slice(1)
+        .trim()
+        .split(/ +/);
+
+    const commandName =
+      args
+        .shift()
+        ?.toLowerCase();
+
+    if (!commandName) return;
+
+    /* --------------------------------------------------------
+     * ABRIR
+     * -------------------------------------------------------- */
+
+    if (
+      commandName === "abrir"
+    ) {
+      const sub =
+        args[0]?.toLowerCase();
+
+      if (
+        sub !== "temporada" &&
+        sub !== "postulaciones"
+      ) {
+        await message.reply(
+          "❌ Uso incorrecto. Debes usar: `-abrir temporada` o `-abrir postulaciones`.",
+        );
+
         return;
       }
     }
-  }
 
-  if (interaction.isModalSubmit()) {
-    if (interaction.customId.startsWith("postular_reject_modal_")) {
-      try {
-        await handleRejectionModalSubmit(interaction);
-      } catch (err) {
-        logger.error({ err }, "Error handling rejection modal submission");
-        if (!interaction.replied && !interaction.deferred) {
-          await interaction.reply({ content: "Hubo un error al procesar el rechazo.", ephemeral: true }).catch(() => {});
-        }
+    const command =
+      commands.get(
+        commandName,
+      );
+
+    if (!command) return;
+
+    try {
+      const cmdAny =
+        command as any;
+
+      /* ------------------------------------------------------
+       * COMMAND WITH run()
+       * ------------------------------------------------------ */
+
+      if (
+        typeof cmdAny.run ===
+        "function"
+      ) {
+        await cmdAny.run(
+          message,
+          args,
+        );
+
+        return;
       }
-      return;
-    }
 
-    if (interaction.customId.startsWith("q_form_")) {
-      const rest = interaction.customId.slice("q_form_".length);
-      const underscoreIdx = rest.indexOf("_");
-      if (underscoreIdx !== -1) {
-        const matchId = rest.slice(0, underscoreIdx);
-        const discordId = rest.slice(underscoreIdx + 1);
+      /* ------------------------------------------------------
+       * FAKE INTERACTION
+       * ------------------------------------------------------ */
+
+      const member =
+        message.member;
+
+      const fakeInteraction =
+        {
+          commandName:
+            commandName,
+
+          user:
+            message.author,
+
+          client:
+            message.client,
+
+          guild:
+            message.guild,
+
+          guildId:
+            message.guild?.id,
+
+          member:
+            member,
+
+          channel:
+            message.channel,
+
+          options: {
+            getSubcommand: () => {
+              if (
+                commandName ===
+                "temporada"
+              ) {
+                const sub =
+                  args[0]?.toLowerCase();
+
+                return sub ===
+                  "info"
+                  ? sub
+                  : null;
+              }
+
+              const firstArg =
+                args[0]?.toLowerCase();
+
+              return (
+                firstArg ===
+                  "temporada" ||
+                firstArg ===
+                  "postulaciones"
+              )
+                ? firstArg
+                : null;
+            },
+
+            getString: (
+              name: string,
+            ) => {
+              if (
+                name ===
+                  "infraccion" ||
+                args.length === 1
+              ) {
+                return (
+                  args.join(
+                    " ",
+                  ) || null
+                );
+              }
+
+              const subArgs =
+                [...args];
+
+              if (
+                commandName ===
+                "temporada"
+              ) {
+                subArgs.shift();
+              }
+
+              subArgs.shift();
+
+              return (
+                subArgs.join(
+                  " ",
+                ) || null
+              );
+            },
+
+            getInteger: () => {
+              if (
+                commandName ===
+                "temporada"
+              ) {
+                return (
+                  parseInt(
+                    args[1],
+                  ) || null
+                );
+              }
+
+              return (
+                parseInt(
+                  args[0],
+                ) || null
+              );
+            },
+
+            getBoolean: () =>
+              args[2] ===
+                "true" ||
+              args[1] ===
+                "true",
+
+            getUser: () =>
+              message.mentions.users.first() ||
+              null,
+
+            getMember: () =>
+              message.mentions.members?.first() ||
+              null,
+
+            getChannel: () =>
+              message.mentions.channels.first() ||
+              null,
+          },
+
+          replied: false,
+
+          deferred: false,
+
+          isChatInputCommand:
+            () => true,
+
+          isCommand:
+            () => true,
+
+          async reply(
+            options: any,
+          ) {
+            this.replied =
+              true;
+
+            const content =
+              typeof options ===
+              "string"
+                ? options
+                : options.content;
+
+            return message.reply({
+              content,
+              embeds:
+                options.embeds ||
+                [],
+              components:
+                options.components ||
+                [],
+            });
+          },
+
+          async followUp(
+            options: any,
+          ) {
+            const content =
+              typeof options ===
+              "string"
+                ? options
+                : options.content;
+
+            return message.channel.send({
+              content,
+              embeds:
+                options.embeds ||
+                [],
+              components:
+                options.components ||
+                [],
+            });
+          },
+
+          async deferReply(
+            options: any,
+          ) {
+            this.deferred =
+              true;
+
+            return message.channel.send({
+              content:
+                "⏳ Procesando...",
+              flags:
+                options?.flags,
+            });
+          },
+
+          async editReply(
+            options: any,
+          ) {
+            this.replied =
+              true;
+
+            const content =
+              typeof options ===
+              "string"
+                ? options
+                : options.content;
+
+            return message.reply({
+              content,
+              embeds:
+                options.embeds ||
+                [],
+              components:
+                options.components ||
+                [],
+            });
+          },
+        };
+
+      await command.execute(
+        fakeInteraction as any,
+      );
+    } catch (err) {
+      console.error(
+        "❌ ERROR CRÍTICO EN COMANDO POR PREFIJO:",
+        err,
+      );
+
+      if (
+        err instanceof Error
+      ) {
+        console.error(
+          "Stack trace:",
+          err.stack,
+        );
+      }
+
+      logger.error(
+        {
+          err,
+          commandName,
+        },
+        "Error executing command via automatic prefix bridge",
+      );
+
+      await message
+        .reply(
+          `Hubo un error al ejecutar este comando por prefijo: \`${err}\``,
+        )
+        .catch(() => {});
+    }
+  },
+);
+
+/* ============================================================
+ * POSTULADOS ROLE UPDATE
+ * ============================================================ */
+
+client.on(
+  Events.GuildMemberUpdate,
+  async (
+    oldMember,
+    newMember,
+  ) => {
+    const role =
+      newMember.guild.roles.cache.get(
+        POSTULADOS_ROLE_ID,
+      );
+
+    if (!role) return;
+
+    if (
+      oldMember.roles.cache.has(
+        role.id,
+      ) &&
+      !newMember.roles.cache.has(
+        role.id,
+      )
+    ) {
+      const cooldownKey =
+        `${newMember.guild.id}-${newMember.id}`;
+
+      rejectionRegistry.set(
+        cooldownKey,
+        Date.now(),
+      );
+
+      saveCooldowns(
+        rejectionRegistry,
+      );
+
+      console.log(
+        `[EVENTO] Rol con ID ${POSTULADOS_ROLE_ID} quitado a ${newMember.user.username}. Cooldown aplicado.`,
+      );
+    }
+  },
+);
+
+/* ============================================================
+ * BAN REGISTRY EVENT
+ * ============================================================ */
+
+client.on(
+  Events.GuildBanAdd,
+  async (ban) => {
+    try {
+      await new Promise(
+        (resolve) =>
+          setTimeout(
+            resolve,
+            500,
+          ),
+      );
+
+      const fetchedLogs =
+        await ban.guild.fetchAuditLogs(
+          {
+            limit: 1,
+            type:
+              AuditLogEvent.MemberBanAdd,
+          },
+        );
+
+      const banLog =
+        fetchedLogs.entries.first();
+
+      const executor =
+        banLog?.executor
+          ?.username ??
+        "Staff";
+
+      const reason =
+        banLog?.reason ??
+        ban.reason ??
+        "Sin razón especificada";
+
+      banRegistry.set(
+        ban.user.id,
+        {
+          reason,
+          timestamp:
+            Date.now(),
+          moderator:
+            executor,
+        },
+      );
+
+      saveBansRegistry(
+        banRegistry,
+      );
+
+      logger.info(
+        {
+          userId:
+            ban.user.id,
+          username:
+            ban.user.username,
+        },
+        "Usuario baneado registrado en el historial forense",
+      );
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error al registrar baneo en ForensicRegistry",
+      );
+    }
+  },
+);
+
+/* ============================================================
+ * FORENSIC MEMBER JOIN
+ * ============================================================ */
+
+client.on(
+  Events.GuildMemberAdd,
+  async (member) => {
+    try {
+      const {
+        ForensicService,
+      } = await import(
+        "./services/ForensicService"
+      );
+
+      const user =
+        member.user;
+
+      const previousBan =
+        banRegistry.get(
+          user.id,
+        );
+
+      const evaluation =
+        ForensicService.evaluateMember(
+          user.id,
+          user.username ??
+            "Desconocido",
+          user.createdAt,
+          user.bot
+            ? false
+            : user.avatar ===
+              null,
+        );
+
+      if (previousBan) {
+        evaluation.riskScore =
+          100;
+
+        evaluation.reasons.unshift(
+          `🚨 ¡ESTUVO BANEADO ANTES! Razón previa: "${previousBan.reason}"`,
+        );
+      }
+
+      if (
+        evaluation.riskScore >=
+          75 ||
+        evaluation.isSuspiciousCluster ||
+        previousBan
+      ) {
         try {
-          const { recordAnswer } = await import("./services/QuestionnaireService");
-          await recordAnswer(interaction, matchId, discordId, interaction.client);
+          await member.timeout(
+            10 * 60 * 1000,
+            "Alerta Forense: Prevención de alt/spam en revisión",
+          );
         } catch (err) {
-          logger.error({ err }, "Error recording questionnaire answer");
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: "❌ Error al registrar tu respuesta.", ephemeral: true }).catch(() => {});
-          }
+          logger.warn(
+            { err },
+            "No se pudo aplicar el timeout automático al miembro sospechoso",
+          );
+        }
+
+        const STAFF_LOG_CHANNEL_ID =
+          "1522430713746424001";
+
+        const channel =
+          member.guild.channels.cache.get(
+            STAFF_LOG_CHANNEL_ID,
+          );
+
+        if (
+          channel &&
+          channel.isTextBased()
+        ) {
+          const embed =
+            new EmbedBuilder()
+              .setColor("Red")
+              .setTitle(
+                "🚨 Alerta Forense: Usuario Sospechoso (Timeout Aplicado)",
+              )
+              .setDescription(
+                "Se detectó una cuenta sospechosa y se le aplicó un **timeout preventivo de 10 minutos** mientras el staff revisa su historial.",
+              )
+              .addFields(
+                {
+                  name:
+                    "Usuario",
+                  value: `<@${evaluation.userId}> (${evaluation.username})`,
+                  inline: true,
+                },
+                {
+                  name:
+                    "Riesgo Calculado",
+                  value: `${evaluation.riskScore}%`,
+                  inline: true,
+                },
+                {
+                  name:
+                    "Razones",
+                  value:
+                    evaluation.reasons
+                      .map(
+                        (r) =>
+                          `• ${r}`,
+                      )
+                      .join(
+                        "\n",
+                      ),
+                },
+              )
+              .setTimestamp();
+
+          const row =
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(
+                  `forensic_untimeout_${evaluation.userId}`,
+                )
+                .setLabel(
+                  "Quitar Timeout (Seguro)",
+                )
+                .setStyle(
+                  ButtonStyle.Success,
+                ),
+
+              new ButtonBuilder()
+                .setCustomId(
+                  `forensic_ban_${evaluation.userId}`,
+                )
+                .setLabel(
+                  "Confirmar Baneo",
+                )
+                .setStyle(
+                  ButtonStyle.Danger,
+                ),
+            );
+
+          await channel.send({
+            embeds: [embed],
+            components: [
+              row,
+            ],
+          });
         }
       }
-      return;
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error handling guildMemberAdd forensic evaluation",
+      );
     }
-    return;
-  }
+  },
+);
 
-  if (!interaction.isChatInputCommand()) return;
+/* ============================================================
+ * HARASSMENT MONITOR
+ * ============================================================ */
 
-  const command = commands.get(interaction.commandName);
-  if (!command) return;
-
-  try {
-    await command.execute(interaction);
-  } catch (err) {
-    logger.error({ err, commandName: interaction.commandName }, "Error executing command");
-    const errorMessage = { content: "Hubo un error al ejecutar este comando.", ephemeral: true };
-    if (interaction.replied || interaction.deferred) {
-      await interaction.followUp(errorMessage);
-    } else {
-      await interaction.reply(errorMessage);
-    }
-  }
-});
-
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.content.startsWith("-")) return;
-
-  const args = message.content.slice(1).trim().split(/ +/);
-  const commandName = args.shift()?.toLowerCase();
-  if (!commandName) return;
-
-  if (commandName === "abrir") {
-    const sub = args[0]?.toLowerCase();
-    if (sub !== "temporada" && sub !== "postulaciones") {
-      await message.reply("❌ Uso incorrecto. Debes usar: `-abrir temporada ` o `-abrir postulaciones`.");
-      return;
-    }
-  }
-
-  const command = commands.get(commandName);
-  if (!command) return;
-
-  try {
-    const cmdAny = command as any;
-    if (typeof cmdAny.run === "function") {
-      await cmdAny.run(message, args);
+client.on(
+  Events.MessageCreate,
+  async (message) => {
+    if (
+      message.author.bot ||
+      !message.guild
+    ) {
       return;
     }
 
-    const member = message.member;
-    const fakeInteraction = {
-      commandName: commandName,
-      user: message.author,
-      client: message.client,
-      guild: message.guild,
-      guildId: message.guild?.id,
-      member: member,
-      channel: message.channel,
-      options: {
-        getSubcommand: () => {
-          if (commandName === "temporada") {
-            const sub = args[0]?.toLowerCase();
-            return sub === "info" ? sub : null;
-          }
-          const firstArg = args[0]?.toLowerCase();
-          return (firstArg === "temporada" || firstArg === "postulaciones") ? firstArg : null;
-        },
-        getString: (name: string) => {
-          if (name === "infraccion" || args.length === 1) {
-            return args.join(" ") || null;
-          }
-          const subArgs = [...args];
-          if (commandName === "temporada") subArgs.shift(); 
-          subArgs.shift();
-          return subArgs.join(" ") || null;
-        },
-        getInteger: () => {
-          if (commandName === "temporada") {
-            return parseInt(args[1]) || null;
-          }
-          return parseInt(args[0]) || null;
-        },
-        getBoolean: () => args[2] === "true" || args[1] === "true",
-        getUser: () => message.mentions.users.first() || null,
-        getMember: () => message.mentions.members?.first() || null,
-        getChannel: () => message.mentions.channels.first() || null,
-      },
-      replied: false,
-      deferred: false,
-      isChatInputCommand: () => true,
-      isCommand: () => true,
-      async reply(options: any) {
-        this.replied = true;
-        const content = typeof options === "string" ? options : options.content;
-        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
-      },
-      async followUp(options: any) {
-        const content = typeof options === "string" ? options : options.content;
-        return message.channel.send({ content, embeds: options.embeds || [], components: options.components || [] });
-      },
-      async deferReply(options: any) {
-        this.deferred = true;
-        return message.channel.send({ content: "⏳ Procesando...", flags: options?.flags });
-      },
-      async editReply(options: any) {
-        this.replied = true;
-        const content = typeof options === "string" ? options : options.content;
-        return message.reply({ content, embeds: options.embeds || [], components: options.components || [] });
+    const mentionedUser =
+      message.mentions.users.first();
+
+    if (!mentionedUser) {
+      return;
+    }
+
+    if (
+      mentionedUser.bot ||
+      mentionedUser.id ===
+        message.author.id
+    ) {
+      return;
+    }
+
+    try {
+      const {
+        HarassmentService,
+      } = await import(
+        "./services/HarassmentService"
+      );
+
+      const evaluation =
+        HarassmentService.evaluateMention(
+          message.author.id,
+          mentionedUser.id,
+        );
+
+      if (
+        evaluation &&
+        evaluation.isHarassment
+      ) {
+        const STAFF_LOG_CHANNEL_ID =
+          "1522430713746424001";
+
+        const channel =
+          message.guild.channels.cache.get(
+            STAFF_LOG_CHANNEL_ID,
+          );
+
+        if (
+          channel &&
+          channel.isTextBased()
+        ) {
+          const embed =
+            new EmbedBuilder()
+              .setColor("Orange")
+              .setTitle(
+                "⚠️ Alerta: Posible Hostigamiento por Menciones",
+              )
+              .setDescription(
+                `Se detectó una alta frecuencia de menciones repetidas entre usuarios en <#${message.channel.id}>.`,
+              )
+              .addFields(
+                {
+                  name:
+                    "Usuario (Agresor)",
+                  value: `<@${evaluation.authorId}>`,
+                  inline: true,
+                },
+                {
+                  name:
+                    "Usuario Mencionado (Objetivo)",
+                  value: `<@${evaluation.targetId}>`,
+                  inline: true,
+                },
+                {
+                  name:
+                    "Menciones registradas",
+                  value: `${evaluation.count} veces en 15 minutos o menos`,
+                  inline: true,
+                },
+                {
+                  name:
+                    "Motivo",
+                  value:
+                    evaluation.reasons
+                      .map(
+                        (r) =>
+                          `• ${r}`,
+                      )
+                      .join(
+                        "\n",
+                      ),
+                },
+              )
+              .setTimestamp();
+
+          const row =
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(
+                  `harassment_timeout_${evaluation.authorId}`,
+                )
+                .setLabel(
+                  "Aplicar Timeout (10m)",
+                )
+                .setStyle(
+                  ButtonStyle.Danger,
+                ),
+
+              new ButtonBuilder()
+                .setCustomId(
+                  `harassment_ignore_${evaluation.authorId}`,
+                )
+                .setLabel(
+                  "Ignorar Alerta",
+                )
+                .setStyle(
+                  ButtonStyle.Secondary,
+                ),
+            );
+
+          await channel.send({
+            embeds: [embed],
+            components: [
+              row,
+            ],
+          });
+        }
       }
-    };
-    await command.execute(fakeInteraction as any);
-  } catch (err) {
-    console.error("❌ ERROR CRÍTICO EN COMANDO POR PREFIJO:", err);
-    if (err instanceof Error) {
-      console.error("Stack trace:", err.stack);
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error procesando la evaluación de hostigamiento por menciones",
+      );
     }
-    logger.error({ err, commandName }, "Error executing command via automatic prefix bridge");
-    await message.reply(`Hubo un error al ejecutar este comando por prefijo: \`${err}\``).catch(() => {});
-  }
-});
+  },
+);
 
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-  const role = newMember.guild.roles.cache.get(POSTULADOS_ROLE_ID);
-  if (!role) return;
+/* ============================================================
+ * TRAFFIC MONITOR
+ * ============================================================ */
 
-  if (oldMember.roles.cache.has(role.id) && !newMember.roles.cache.has(role.id)) {
-    const cooldownKey = `\({newMember.guild.id}-\){newMember.id}`;
-    rejectionRegistry.set(cooldownKey, Date.now());
-    saveCooldowns(rejectionRegistry);
-    console.log(`[EVENTO] Rol con ID \({POSTULADOS_ROLE_ID} quitado a\){newMember.user.username}. Cooldown aplicado.`);
-  }
-});
+client.on(
+  Events.MessageCreate,
+  async (message) => {
+    try {
+      const {
+        TrafficMonitorService,
+      } = await import(
+        "./services/TrafficMonitorService"
+      );
 
-client.on(Events.GuildBanAdd, async (ban) => {
-  try {
-    await new Promise(resolve => setTimeout(resolve, 500));
+      TrafficMonitorService.handleMessage(
+        message,
+      );
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error en TrafficMonitorService",
+      );
+    }
+  },
+);
 
-    const fetchedLogs = await ban.guild.fetchAuditLogs({
-      limit: 1,
-      type: AuditLogEvent.MemberBanAdd,
-    });
-    const banLog = fetchedLogs.entries.first();
-    const executor = banLog?.executor?.username ?? "Staff";
-    const reason = banLog?.reason ?? ban.reason ?? "Sin razón especificada";
+/* ============================================================
+ * BOT STARTUP
+ * ============================================================ */
 
-    banRegistry.set(ban.user.id, {
-      reason,
-      timestamp: Date.now(),
-      moderator: executor,
-    });
-    saveBansRegistry(banRegistry);
+async function iniciarBot(): Promise<void> {
+  const discordToken =
+    process.env[
+      "DISCORD_BOT_TOKEN"
+    ];
 
-    logger.info({ userId: ban.user.id, username: ban.user.username }, "Usuario baneado registrado en el historial forense");
-  } catch (err) {
-    logger.error({ err }, "Error al registrar baneo en ForensicRegistry");
-  }
-});
-
-client.on(Events.GuildMemberAdd, async (member) => {
-  try {
-    const { ForensicService } = await import("./services/ForensicService");
-    const user = member.user;
-
-    const previousBan = banRegistry.get(user.id);
-
-    const evaluation = ForensicService.evaluateMember(
-      user.id,
-      user.username ?? "Desconocido",
-      user.createdAt,
-      user.bot ? false : user.avatar === null
+  if (!discordToken) {
+    console.error(
+      "❌ Falta el DISCORD_BOT_TOKEN.",
     );
 
-    if (previousBan) {
-      evaluation.riskScore = 100;
-      evaluation.reasons.unshift(`🚨 ¡ESTUVO BANEADO ANTES! Razón previa: "${previousBan.reason}"`);
-    }
-
-    if (evaluation.riskScore >= 75 || evaluation.isSuspiciousCluster || previousBan) {
-      try {
-        await member.timeout(10 * 60 * 1000, "Alerta Forense: Prevención de alt/spam en revisión");
-      } catch (err) {
-        logger.warn({ err }, "No se pudo aplicar el timeout automático al miembro sospechoso");
-      }
-
-      const STAFF_LOG_CHANNEL_ID = "1522430713746424001"; 
-      const channel = member.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
-
-      if (channel && channel.isTextBased()) {
-        const embed = new EmbedBuilder()
-          .setColor("Red")
-          .setTitle("🚨 Alerta Forense: Usuario Sospechoso (Timeout Aplicado)")
-          .setDescription(`Se detectó una cuenta sospechosa y se le aplicó un **timeout preventivo de 10 minutos** mientras el staff revisa su historial.`)
-          .addFields(
-            { name: "Usuario", value: `<@\({evaluation.userId}> (\){evaluation.username})`, inline: true },
-            { name: "Riesgo Calculado", value: `${evaluation.riskScore}%`, inline: true },
-            { name: "Razones", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
-          )
-          .setTimestamp();
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`forensic_untimeout_${evaluation.userId}`)
-            .setLabel("Quitar Timeout (Seguro)")
-            .setStyle(ButtonStyle.Success),
-          new ButtonBuilder()
-            .setCustomId(`forensic_ban_${evaluation.userId}`)
-            .setLabel("Confirmar Baneo")
-            .setStyle(ButtonStyle.Danger)
-        );
-
-        await channel.send({ embeds: [embed], components: [row] });
-      }
-    }
-  } catch (err) {
-    logger.error({ err }, "Error handling guildMemberAdd forensic evaluation");
-  }
-}); 
-
-client.on(Events.MessageCreate, async (message) => {
-  if (message.author.bot || !message.guild) return;
-
-  const mentionedUser = message.mentions.users.first();
-  if (!mentionedUser) return;
-
-  if (mentionedUser.bot || mentionedUser.id === message.author.id) return;
-
-  try {
-    const { HarassmentService } = await import("./services/HarassmentService");
-    const evaluation = HarassmentService.evaluateMention(message.author.id, mentionedUser.id);
-
-    if (evaluation && evaluation.isHarassment) {
-      const STAFF_LOG_CHANNEL_ID = "1522430713746424001";
-      const channel = message.guild.channels.cache.get(STAFF_LOG_CHANNEL_ID);
-
-      if (channel && channel.isTextBased()) {
-        const embed = new EmbedBuilder()
-          .setColor("Orange")
-          .setTitle("⚠️ Alerta: Posible Hostigamiento por Menciones")
-          .setDescription(`Se detectó una alta frecuencia de menciones repetidas entre usuarios en <#${message.channel.id}>.`)
-          .addFields(
-            { name: "Usuario (Agresor)", value: `<@${evaluation.authorId}>`, inline: true },
-            { name: "Usuario Mencionado (Objetivo)", value: `<@${evaluation.targetId}>`, inline: true },
-            { name: "Menciones registradas", value: `${evaluation.count} veces en 15 minutos o menos`, inline: true },
-            { name: "Motivo", value: evaluation.reasons.map(r => `• ${r}`).join("\n") }
-          )
-          .setTimestamp();
-
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setCustomId(`harassment_timeout_${evaluation.authorId}`)
-            .setLabel("Aplicar Timeout (10m)")
-            .setStyle(ButtonStyle.Danger),
-          new ButtonBuilder()
-            .setCustomId(`harassment_ignore_${evaluation.authorId}`)
-            .setLabel("Ignorar Alerta")
-            .setStyle(ButtonStyle.Secondary)
-        );
-
-        await channel.send({ embeds: [embed], components: [row] });
-      }
-    }
-  } catch (err) {
-    logger.error({ err }, "Error procesando la evaluación de hostigamiento por menciones");
-  }
-});
-
-client.on(Events.MessageCreate, async (message) => {
-  try {
-    const { TrafficMonitorService } = await import("./services/TrafficMonitorService");
-    TrafficMonitorService.handleMessage(message);
-  } catch (err) {
-    logger.error({ err }, "Error en TrafficMonitorService");
-  }
-});
-
-// Función de inicio asíncrona para Discord (no bloquea el servidor HTTP)
-async function iniciarBot() {
-  const token = process.env["DISCORD_BOT_TOKEN"];
-  if (!token) {
-    console.error("❌ Falta el DISCORD_BOT_TOKEN.");
     return;
   }
 
-  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
-  
+  console.log(
+    "[DEBUG] Intentando conectar el cliente de Discord...",
+  );
+
   try {
-    await client.login(token);
-    console.log(`[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`);
-    
-    // Registro de comandos global una vez logueado
-    const clientId = process.env["DISCORD_CLIENT_ID"];
+    await client.login(
+      discordToken,
+    );
+
+    console.log(
+      `[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`,
+    );
+
+    /* --------------------------------------------------------
+     * GLOBAL COMMAND REGISTRATION
+     * -------------------------------------------------------- */
+
+    const clientId =
+      process.env[
+        "DISCORD_CLIENT_ID"
+      ];
+
     if (clientId) {
-      const rest = new REST().setToken(token);
-      const body = Array.from(commands.values()).map(c => c.data.toJSON());
-      rest.put(Routes.applicationCommands(clientId), { body })
-        .then(() => console.log("✅ Comandos registrados correctamente en Discord."))
-        .catch((e) => console.error("❌ Error registrando comandos:", e));
+      try {
+        const rest =
+          new REST().setToken(
+            discordToken,
+          );
+
+        const body =
+          Array.from(
+            commands.values(),
+          ).map((c) =>
+            c.data.toJSON(),
+          );
+
+        await rest.put(
+          Routes.applicationCommands(
+            clientId,
+          ),
+          {
+            body,
+          },
+        );
+
+        console.log(
+          "✅ Comandos registrados correctamente en Discord.",
+        );
+      } catch (err) {
+        console.error(
+          "❌ Error registrando comandos:",
+          err,
+        );
+
+        logger.error(
+          { err },
+          "Error registering Discord commands",
+        );
+      }
+    } else {
+      console.warn(
+        "⚠️ DISCORD_CLIENT_ID no está configurado. Se omitió el registro global de comandos.",
+      );
     }
   } catch (err) {
-    console.error("[DEBUG] ❌ Error al conectar con Discord:", err);
+    console.error(
+      "[DEBUG] ❌ Error al conectar con Discord:",
+      err,
+    );
+
+    logger.error(
+      { err },
+      "Discord login failed",
+    );
+
+    /*
+     * IMPORTANTE:
+     * No cerramos el proceso aquí.
+     *
+     * Render necesita que el servidor HTTP siga vivo
+     * para detectar el puerto y mantener el Web Service.
+     */
   }
 }
 
-// Ejecutamos la función de inicio
+/* ============================================================
+ * GLOBAL ERROR PROTECTION
+ * ============================================================ */
+
+process.on(
+  "uncaughtException",
+  (err) => {
+    console.error(
+      "❌ UNCAUGHT EXCEPTION:",
+      err,
+    );
+
+    logger.error(
+      { err },
+      "Uncaught exception",
+    );
+  },
+);
+
+process.on(
+  "unhandledRejection",
+  (reason) => {
+    console.error(
+      "❌ UNHANDLED REJECTION:",
+      reason,
+    );
+
+    logger.error(
+      { reason },
+      "Unhandled promise rejection",
+    );
+  },
+);
+
+process.on(
+  "SIGTERM",
+  () => {
+    console.log(
+      "⚠️ SIGTERM recibido. Cerrando conexiones...",
+    );
+
+    server.close(() => {
+      console.log(
+        "✅ Servidor HTTP cerrado.",
+      );
+    });
+
+    if (client.isReady()) {
+      client.destroy();
+    }
+  },
+);
+
+process.on(
+  "SIGINT",
+  () => {
+    console.log(
+      "⚠️ SIGINT recibido. Cerrando conexiones...",
+    );
+
+    server.close(() => {
+      console.log(
+        "✅ Servidor HTTP cerrado.",
+      );
+    });
+
+    if (client.isReady()) {
+      client.destroy();
+    }
+  },
+);
+
+/* ============================================================
+ * START
+ * ============================================================ */
+
 iniciarBot().catch((err) => {
-  console.error("[DEBUG] Error crítico en la inicialización:", err);
+  console.error(
+    "[DEBUG] Error crítico en la inicialización:",
+    err,
+  );
+
+  logger.error(
+    { err },
+    "Critical initialization error",
+  );
+
+  /*
+   * No hacemos process.exit(1).
+   *
+   * El health server debe continuar funcionando
+   * para que Render pueda mantener el servicio activo.
+   */
 });
