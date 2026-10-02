@@ -901,6 +901,49 @@ client.on(
      * -------------------------------------------------------- */
 
     if (interaction.isButton()) {
+
+      /* ------------------------------------------------------
+       * LUCKYBOX DROP
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "luckybox_drop_claim:",
+        )
+      ) {
+        try {
+          const {
+            handleLuckyboxDropButton,
+          } = await import(
+            "./commands/luckybox"
+          );
+
+          await handleLuckyboxDropButton(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling Luckybox drop claim button",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al procesar el reclamo de la Luckybox.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+      
       /* ------------------------------------------------------
        * POSTULACIONES
        * ------------------------------------------------------ */
