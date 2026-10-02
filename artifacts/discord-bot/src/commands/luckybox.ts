@@ -122,20 +122,9 @@ type ReplyFunction = (
 /*                        CONFIGURACIÓN COLLECT                               */
 /* ========================================================================== */
 
-/**
- * Cooldown obligatorio:
- *
- * 6 días exactos = 6 * 24 * 60 * 60 segundos
- */
 export const COLLECT_COOLDOWN_MS =
   6 * 24 * 60 * 60 * 1000;
 
-/**
- * Archivo persistente donde se guarda el último collect exitoso.
- *
- * Se utiliza una clave por servidor + usuario para evitar que un collect
- * realizado en un servidor bloquee al usuario en otro servidor.
- */
 const COLLECT_COOLDOWN_FILE =
   path.join(
     process.cwd(),
@@ -155,9 +144,6 @@ let collectCooldownStoreLoaded =
 let collectCooldownStoreLoadPromise:
   Promise<void> | null = null;
 
-/**
- * Evita escrituras simultáneas al archivo de cooldown.
- */
 let collectCooldownWriteQueue:
   Promise<void> = Promise.resolve();
 
@@ -165,36 +151,6 @@ let collectCooldownWriteQueue:
 /*                        ROLES ESPECIALES COLLECT                            */
 /* ========================================================================== */
 
-/**
- * Roles habilitados para -collect.
- *
- * IMPORTANTE:
- *
- * NO existe prioridad entre estos roles.
- *
- * Si el usuario tiene varios de ellos, recibe las recompensas de TODOS
- * los roles que tenga.
- *
- * Ejemplo:
- *
- * EXITOSO
- *   → 1 Mr Lucky Común
- *
- * MEJOR MIEMBRO
- *   → 1 Mr Lucky Raro
- *
- * MIEMBRO DEL MES
- *   → 1 Mr Lucky Épico
- *
- * CAMPEÓN
- *   → 1 Mr Lucky Épico
- *   → 1 Mr Lucky Raro
- *
- * Si tiene los 4:
- *   → 1 Común
- *   → 2 Raros
- *   → 2 Épicos
- */
 export const COLLECT_ROLES = {
   EXITOSO: {
     roleId:
@@ -767,13 +723,9 @@ async function getUserInventory(
   const items =
     (result as any)?.items;
 
-  if (
-    Array.isArray(items)
-  ) {
-    return items;
-  }
-
-  return [];
+  return Array.isArray(items)
+    ? items
+    : [];
 }
 
 async function addInventoryItem(
@@ -1284,50 +1236,52 @@ function getCollectCooldownKey(
 
 async function saveCollectCooldowns(): Promise<void> {
   collectCooldownWriteQueue =
-    collectCooldownWriteQueue.then(
-      async () => {
-        const directory =
-          path.dirname(
-            COLLECT_COOLDOWN_FILE,
+    collectCooldownWriteQueue
+      .then(
+        async () => {
+          const directory =
+            path.dirname(
+              COLLECT_COOLDOWN_FILE,
+            );
+
+          await mkdir(
+            directory,
+            {
+              recursive: true,
+            },
           );
 
-        await mkdir(
-          directory,
-          {
-            recursive: true,
-          },
-        );
+          const temporaryFile =
+            `${COLLECT_COOLDOWN_FILE}.tmp`;
 
-        const temporaryFile =
-          `${COLLECT_COOLDOWN_FILE}.tmp`;
+          await writeFile(
+            temporaryFile,
+            JSON.stringify(
+              collectCooldownStore,
+              null,
+              2,
+            ),
+            "utf8",
+          );
 
-        await writeFile(
-          temporaryFile,
-          JSON.stringify(
-            collectCooldownStore,
-            null,
-            2,
-          ),
-          "utf8",
-        );
-
-        await rename(
-          temporaryFile,
-          COLLECT_COOLDOWN_FILE,
-        );
-      },
-    ).catch(
-      (err) => {
-        logger.error(
-          {
-            err,
-            file:
-              COLLECT_COOLDOWN_FILE,
-          },
-          "No se pudo guardar el cooldown de -collect.",
-        );
-      },
-    );
+          await rename(
+            temporaryFile,
+            COLLECT_COOLDOWN_FILE,
+          );
+        },
+      )
+      .catch(
+        (err) => {
+          logger.error(
+            {
+              err,
+              file:
+                COLLECT_COOLDOWN_FILE,
+            },
+            "No se pudo guardar el cooldown de -collect.",
+          );
+        },
+      );
 
   return collectCooldownWriteQueue;
 }
@@ -1357,16 +1311,10 @@ function getRemainingCollectCooldown(
     return 0;
   }
 
-  const elapsed =
-    now - lastCollect;
-
-  const remaining =
-    COLLECT_COOLDOWN_MS -
-    elapsed;
-
   return Math.max(
     0,
-    remaining,
+    COLLECT_COOLDOWN_MS -
+      (now - lastCollect),
   );
 }
 
@@ -1463,19 +1411,6 @@ function formatCollectRemaining(
 /*                    RESOLVER ROLES COLLECT                                  */
 /* ========================================================================== */
 
-/**
- * Obtiene TODOS los roles de collect que posee el usuario.
- *
- * No existe prioridad.
- *
- * Si tiene:
- * - EXITOSO
- * - MEJOR MIEMBRO
- * - MIEMBRO DEL MES
- * - CAMPEÓN
- *
- * devuelve los 4 roles y posteriormente se acumulan todas sus recompensas.
- */
 function getCollectRolesForMember(
   member: {
     roles: {
@@ -1501,24 +1436,6 @@ function getCollectRolesForMember(
 /*                     CONSTRUIR RECOMPENSAS COLLECT                          */
 /* ========================================================================== */
 
-/**
- * Junta las recompensas de TODOS los roles que tiene el usuario.
- *
- * Ejemplo:
- *
- * EXITOSO + MEJOR MIEMBRO:
- *   → Común ×1
- *   → Raro ×1
- *
- * MEJOR MIEMBRO + CAMPEÓN:
- *   → Raro ×2
- *   → Épico ×1
- *
- * LOS 4 ROLES:
- *   → Común ×1
- *   → Raro ×2
- *   → Épico ×2
- */
 function getCollectRewards(
   collectRoles: readonly {
     roleId: string;
@@ -1576,23 +1493,21 @@ function getCollectRewards(
 /*                         HANDLE COLLECT                                     */
 /* ========================================================================== */
 
+/**
+ * Implementación común de collect.
+ *
+ * Permite utilizar exactamente la misma lógica desde:
+ *
+ * - /collect
+ * - /luckybox collect
+ * - -luckybox collect
+ * - -collect, cuando el router de prefix lo derive aquí.
+ */
 async function handleCollect(
-  message: Message,
+  guild: Guild,
+  user: User,
+  sendReply: ReplyFunction,
 ): Promise<void> {
-  const guild =
-    message.guild;
-
-  if (!guild) {
-    await message.reply(
-      "❌ Este comando solamente se puede usar en servidores.",
-    );
-
-    return;
-  }
-
-  const user =
-    message.author;
-
   try {
     await loadCollectCooldowns();
 
@@ -1604,16 +1519,13 @@ async function handleCollect(
         );
 
     if (!member) {
-      await message.reply(
-        "❌ No pude verificar tus roles en este servidor.",
-      );
+      await sendReply({
+        content:
+          "❌ No pude verificar tus roles en este servidor.",
+      });
 
       return;
     }
-
-    /* ====================================================================== */
-    /*                  OBTENER TODOS LOS ROLES                                */
-    /* ====================================================================== */
 
     const collectRoles =
       getCollectRolesForMember(
@@ -1643,9 +1555,7 @@ async function handleCollect(
                 `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
                 `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
                 `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
-              ].join(
-                "\n",
-              ),
+              ].join("\n"),
             inline: false,
           })
           .setFooter({
@@ -1654,7 +1564,7 @@ async function handleCollect(
           })
           .setTimestamp();
 
-      await message.reply({
+      await sendReply({
         embeds: [
           embed,
         ],
@@ -1662,10 +1572,6 @@ async function handleCollect(
 
       return;
     }
-
-    /* ====================================================================== */
-    /*                           COOLDOWN                                     */
-    /* ====================================================================== */
 
     const now =
       Date.now();
@@ -1699,11 +1605,6 @@ async function handleCollect(
           ) / 1000,
         );
 
-      const remainingText =
-        formatCollectRemaining(
-          remaining,
-        );
-
       const roleText =
         collectRoles
           .map(
@@ -1728,7 +1629,9 @@ async function handleCollect(
               name:
                 "🕐 Tiempo restante",
               value:
-                `\`\`\`\n${remainingText}\n\`\`\``,
+                `\`\`\`\n${formatCollectRemaining(
+                  remaining,
+                )}\n\`\`\``,
               inline: true,
             },
             {
@@ -1748,11 +1651,11 @@ async function handleCollect(
           )
           .setFooter({
             text:
-              "El cooldown es de 6 días por usuario.",
+              "El cooldown es de 6 días por servidor y usuario.",
           })
           .setTimestamp();
 
-      await message.reply({
+      await sendReply({
         embeds: [
           cooldownEmbed,
         ],
@@ -1760,10 +1663,6 @@ async function handleCollect(
 
       return;
     }
-
-    /* ====================================================================== */
-    /*                     CONSTRUIR RECOMPENSAS                              */
-    /* ====================================================================== */
 
     const rewards =
       getCollectRewards(
@@ -1773,16 +1672,13 @@ async function handleCollect(
     if (
       rewards.length === 0
     ) {
-      await message.reply(
-        "❌ Tus roles de Collect no tienen recompensas configuradas.",
-      );
+      await sendReply({
+        content:
+          "❌ Tus roles de Collect no tienen recompensas configuradas.",
+      });
 
       return;
     }
-
-    /* ====================================================================== */
-    /*                        ENTREGAR RECOMPENSAS                             */
-    /* ====================================================================== */
 
     const deliveredRewards: Array<{
       itemId: string;
@@ -1804,16 +1700,7 @@ async function handleCollect(
         );
 
         deliveredRewards.push({
-          itemId:
-            reward.itemId,
-          quantity:
-            reward.quantity,
-          cajaNombre:
-            reward.cajaNombre,
-          roleId:
-            reward.roleId,
-          roleName:
-            reward.roleName,
+          ...reward,
         });
       }
     } catch (err) {
@@ -1870,16 +1757,15 @@ async function handleCollect(
       throw err;
     }
 
-    /* ====================================================================== */
-    /*                     GUARDAR COOLDOWN                                   */
-    /* ====================================================================== */
+    const collectTimestamp =
+      Date.now();
 
     collectCooldownStore[
       getCollectCooldownKey(
         guild.id,
         user.id,
       )
-    ] = Date.now();
+    ] = collectTimestamp;
 
     await saveCollectCooldowns();
 
@@ -1903,10 +1789,6 @@ async function handleCollect(
       },
       "Collect acumulativo ejecutado correctamente.",
     );
-
-    /* ====================================================================== */
-    /*                    AGRUPAR RECOMPENSAS                                 */
-    /* ====================================================================== */
 
     const rewardCounts =
       new Map<
@@ -1945,7 +1827,9 @@ async function handleCollect(
         )
         .map(
           (caja) =>
-            `• **${caja}** × \`${rewardCounts.get(caja)}\``,
+            `• **${caja}** × \`${rewardCounts.get(
+              caja,
+            )}\``,
         )
         .join("\n");
 
@@ -1960,7 +1844,7 @@ async function handleCollect(
     const nextCollectTimestamp =
       Math.ceil(
         (
-          Date.now() +
+          collectTimestamp +
           COLLECT_COOLDOWN_MS
         ) / 1000,
       );
@@ -1995,7 +1879,8 @@ async function handleCollect(
             name:
               "🎁 Recompensas obtenidas",
             value:
-              rewardText,
+              rewardText ||
+              "No se pudieron determinar las recompensas.",
             inline: false,
           },
           {
@@ -2012,7 +1897,7 @@ async function handleCollect(
         })
         .setTimestamp();
 
-    await message.reply({
+    await sendReply({
       embeds: [
         successEmbed,
       ],
@@ -2026,195 +1911,40 @@ async function handleCollect(
         userId:
           user.id,
       },
-      "Error ejecutando -collect.",
+      "Error ejecutando collect.",
     );
 
-    const errorEmbed =
-      new EmbedBuilder()
-        .setColor(
-          0xED4245,
-        )
-        .setTitle(
-          "❌ No se pudo completar tu collect",
-        )
-        .setDescription(
-          `<@${user.id}>, ocurrió un problema mientras intentaba entregarte las recompensas.`,
-        )
-        .addFields({
-          name:
-            "📋 Estado",
-          value:
-            "`NO COMPLETADO`",
-          inline: false,
-        })
-        .setFooter({
-          text:
-            "No se consumió el cooldown porque el collect no terminó correctamente.",
-        })
-        .setTimestamp();
-
-    await message.reply({
+    await sendReply({
       embeds: [
-        errorEmbed,
+        new EmbedBuilder()
+          .setColor(
+            0xED4245,
+          )
+          .setTitle(
+            "❌ No se pudo completar tu collect",
+          )
+          .setDescription(
+            `<@${user.id}>, ocurrió un problema mientras intentaba entregarte las recompensas.`,
+          )
+          .addFields({
+            name:
+              "📋 Estado",
+            value:
+              "`NO COMPLETADO`",
+            inline: false,
+          })
+          .setFooter({
+            text:
+              "No se consumió el cooldown porque el collect no terminó correctamente.",
+          })
+          .setTimestamp(),
       ],
     });
   }
 }
 
 /* ========================================================================== */
-/*                         SLASH COMMAND                                      */
-/* ========================================================================== */
-
-export const data =
-  new SlashCommandBuilder()
-    .setName("luckybox")
-    .setDescription(
-      "Gestioná y abrí tus cajas Mr Lucky.",
-    )
-
-    .addSubcommand(
-      (subcommand) =>
-        subcommand
-          .setName("abrir")
-          .setDescription(
-            "Abrí un Mr Lucky si lo tenés en tu inventario.",
-          )
-          .addStringOption(
-            (option) =>
-              option
-                .setName("caja")
-                .setDescription(
-                  "Elegí el tipo de Mr Lucky que querés abrir.",
-                )
-                .setRequired(true)
-                .addChoices(
-                  {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Admin",
-                    value:
-                      "Mr Lucky Admin",
-                  },
-                ),
-          ),
-    )
-
-    .addSubcommand(
-      (subcommand) =>
-        subcommand
-          .setName("info")
-          .setDescription(
-            "Mirá la información y las recompensas posibles de los Mr Lucky.",
-          )
-          .addStringOption(
-            (option) =>
-              option
-                .setName("caja")
-                .setDescription(
-                  "Elegí el tipo de caja del que querés ver la información.",
-                )
-                .setRequired(true)
-                .addChoices(
-                  {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
-                  },
-                  {
-                    name:
-                      "MR LUCKY ADMIN",
-                    value:
-                      "MR LUCKY ADMIN",
-                  },
-                ),
-          ),
-    )
-
-    .addSubcommand(
-      (subcommand) =>
-        subcommand
-          .setName("dar")
-          .setDescription(
-            "Dale una caja Mr Lucky a un usuario autorizado.",
-          )
-          .addUserOption(
-            (option) =>
-              option
-                .setName("usuario")
-                .setDescription(
-                  "Elegí al usuario al que le vas a dar la caja.",
-                )
-                .setRequired(true),
-          )
-          .addStringOption(
-            (option) =>
-              option
-                .setName("caja")
-                .setDescription(
-                  "Elegí el tipo de Mr Lucky que querés regalar.",
-                )
-                .setRequired(true)
-                .addChoices(
-                  {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
-                  },
-                  {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
-                  },
-                  {
-                    name:
-                      "MR LUCKY ADMIN",
-                    value:
-                      "MR LUCKY ADMIN",
-                  },
-                ),
-          ),
-    );
-
-/* ========================================================================== */
-/*                             HANDLE INFO                                    */
+/*                         HANDLE INFO                                        */
 /* ========================================================================== */
 
 async function handleInfo(
@@ -2231,12 +1961,11 @@ async function handleInfo(
 
   const formatRewardText = (
     texto: string,
-  ): string => {
-    return texto.replace(
+  ): string =>
+    texto.replace(
       /Frijoles/gi,
       MONEDA_EMOJI,
     );
-  };
 
   const positivos =
     rewards
@@ -2384,18 +2113,6 @@ async function handleDar(
       return;
     }
 
-    logger.info(
-      {
-        guildId:
-          guild.id,
-        userId:
-          targetUser.id,
-        itemId,
-        cajaNombre,
-      },
-      "INTENTANDO DAR ITEM MEDIANTE UNBELIEVABOAT",
-    );
-
     await addInventoryItem(
       guild.id,
       targetUser.id,
@@ -2408,17 +2125,6 @@ async function handleDar(
       moderatorUser,
       targetUser,
       cajaNombre,
-    );
-
-    logger.info(
-      {
-        guildId:
-          guild.id,
-        userId:
-          targetUser.id,
-        itemId,
-      },
-      "ITEM AÑADIDO CORRECTAMENTE AL INVENTARIO.",
     );
 
     const embed =
@@ -2484,38 +2190,11 @@ async function handleAbrir(
     const userId =
       targetUser.id;
 
-    let items: InventoryItem[];
-
-    try {
-      items =
-        await getUserInventory(
-          guildId,
-          userId,
-        );
-
-      logger.info(
-        {
-          guildId,
-          userId,
-          itemCount:
-            items.length,
-        },
-        "Inventario UnbelievaBoat obtenido correctamente.",
+    const items =
+      await getUserInventory(
+        guildId,
+        userId,
       );
-    } catch (err) {
-      logger.error(
-        {
-          err,
-          guildId,
-          userId,
-        },
-        "Error consultando inventario UnbelievaBoat.",
-      );
-
-      throw new Error(
-        "No se pudo consultar tu inventario de UnbelievaBoat.",
-      );
-    }
 
     const userBox =
       findLuckyboxInInventory(
@@ -2553,16 +2232,6 @@ async function handleAbrir(
       1,
     );
 
-    logger.info(
-      {
-        guildId,
-        userId,
-        itemId,
-        cajaNombre,
-      },
-      "Luckybox consumida correctamente.",
-    );
-
     const reward =
       pickReward(
         cajaNombre,
@@ -2597,15 +2266,6 @@ async function handleAbrir(
           );
 
       if (!role) {
-        logger.error(
-          {
-            roleId:
-              rewardRoleId,
-            userId,
-          },
-          "El rol de recompensa no existe.",
-        );
-
         rewardDescription =
           `${reward.texto}\n⚠️ El rol no existe en el servidor.`;
       } else {
@@ -2714,6 +2374,221 @@ async function handleAbrir(
 }
 
 /* ========================================================================== */
+/*                         SLASH COMMAND /LUCKYBOX                            */
+/* ========================================================================== */
+
+export const data =
+  new SlashCommandBuilder()
+    .setName("luckybox")
+    .setDescription(
+      "Gestioná y abrí tus cajas Mr Lucky.",
+    )
+
+    .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("collect")
+          .setDescription(
+            "Reclamá las Luckybox correspondientes a tus roles.",
+          ),
+    )
+
+    .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("abrir")
+          .setDescription(
+            "Abrí un Mr Lucky si lo tenés en tu inventario.",
+          )
+          .addStringOption(
+            (option) =>
+              option
+                .setName("caja")
+                .setDescription(
+                  "Elegí el tipo de Mr Lucky que querés abrir.",
+                )
+                .setRequired(true)
+                .addChoices(
+                  {
+                    name:
+                      "Mr Lucky Común",
+                    value:
+                      "Mr Lucky Común",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Raro",
+                    value:
+                      "Mr Lucky Raro",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Épico",
+                    value:
+                      "Mr Lucky Épico",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Admin",
+                    value:
+                      "Mr Lucky Admin",
+                  },
+                ),
+          ),
+    )
+
+    .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("info")
+          .setDescription(
+            "Mirá la información y las recompensas posibles de los Mr Lucky.",
+          )
+          .addStringOption(
+            (option) =>
+              option
+                .setName("caja")
+                .setDescription(
+                  "Elegí el tipo de caja del que querés ver la información.",
+                )
+                .setRequired(true)
+                .addChoices(
+                  {
+                    name:
+                      "Mr Lucky Común",
+                    value:
+                      "Mr Lucky Común",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Raro",
+                    value:
+                      "Mr Lucky Raro",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Épico",
+                    value:
+                      "Mr Lucky Épico",
+                  },
+                  {
+                    name:
+                      "MR LUCKY ADMIN",
+                    value:
+                      "MR LUCKY ADMIN",
+                  },
+                ),
+          ),
+    )
+
+    .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("dar")
+          .setDescription(
+            "Dale una caja Mr Lucky a un usuario autorizado.",
+          )
+          .addUserOption(
+            (option) =>
+              option
+                .setName("usuario")
+                .setDescription(
+                  "Elegí al usuario al que le vas a dar la caja.",
+                )
+                .setRequired(true),
+          )
+          .addStringOption(
+            (option) =>
+              option
+                .setName("caja")
+                .setDescription(
+                  "Elegí el tipo de Mr Lucky que querés regalar.",
+                )
+                .setRequired(true)
+                .addChoices(
+                  {
+                    name:
+                      "Mr Lucky Común",
+                    value:
+                      "Mr Lucky Común",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Raro",
+                    value:
+                      "Mr Lucky Raro",
+                  },
+                  {
+                    name:
+                      "Mr Lucky Épico",
+                    value:
+                      "Mr Lucky Épico",
+                  },
+                  {
+                    name:
+                      "MR LUCKY ADMIN",
+                    value:
+                      "MR LUCKY ADMIN",
+                  },
+                ),
+          ),
+    );
+
+/* ========================================================================== */
+/*                         SLASH COMMAND /COLLECT                             */
+/* ========================================================================== */
+
+/**
+ * Este export permite que tu loader registre /collect como comando
+ * independiente.
+ *
+ * Si tu sistema de registro actualmente solamente toma `data` de cada
+ * archivo, después habrá que agregar `collectData` al loader.
+ */
+export const collectData =
+  new SlashCommandBuilder()
+    .setName("collect")
+    .setDescription(
+      "Reclamá las Luckybox correspondientes a tus roles.",
+    );
+
+/* ========================================================================== */
+/*                         EXECUTE /COLLECT                                   */
+/* ========================================================================== */
+
+export async function executeCollect(
+  interaction: ChatInputCommandInteraction,
+): Promise<void> {
+  if (
+    !interaction.guildId ||
+    !interaction.guild
+  ) {
+    await interaction.reply({
+      content:
+        "❌ Este comando solamente se puede usar en servidores.",
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  await interaction.deferReply({
+    flags:
+      MessageFlags.Ephemeral,
+  });
+
+  await handleCollect(
+    interaction.guild,
+    interaction.user,
+    (options) =>
+      interaction.editReply(
+        options,
+      ),
+  );
+}
+
+/* ========================================================================== */
 /*                         SLASH EXECUTE                                      */
 /* ========================================================================== */
 
@@ -2745,6 +2620,36 @@ export async function execute(
   const subcommand =
     interaction.options.getSubcommand();
 
+  /* ======================================================================== */
+  /*                              COLLECT                                     */
+  /* ======================================================================== */
+
+  if (
+    subcommand === "collect"
+  ) {
+    await interaction.deferReply({
+      flags:
+        MessageFlags.Ephemeral,
+    });
+
+    await handleCollect(
+      interaction.guild,
+      interaction.user,
+      (options) =>
+        interaction.editReply(
+          options,
+        ),
+    );
+
+    return;
+  }
+
+  /*
+   * IMPORTANTE:
+   *
+   * `caja` solamente existe en abrir/info/dar.
+   * Por eso se obtiene DESPUÉS de comprobar collect.
+   */
   const cajaNombre =
     interaction.options.getString(
       "caja",
@@ -2754,12 +2659,10 @@ export async function execute(
   if (
     subcommand === "info"
   ) {
-    await interaction.deferReply(
-      {
-        flags:
-          MessageFlags.Ephemeral,
-      },
-    );
+    await interaction.deferReply({
+      flags:
+        MessageFlags.Ephemeral,
+    });
 
     await handleInfo(
       (options) =>
@@ -2781,12 +2684,10 @@ export async function execute(
         true,
       );
 
-    await interaction.deferReply(
-      {
-        flags:
-          MessageFlags.Ephemeral,
-      },
-    );
+    await interaction.deferReply({
+      flags:
+        MessageFlags.Ephemeral,
+    });
 
     await handleDar(
       (options) =>
@@ -2802,12 +2703,10 @@ export async function execute(
     return;
   }
 
-  await interaction.deferReply(
-    {
-      flags:
-        MessageFlags.Ephemeral,
-    },
-  );
+  await interaction.deferReply({
+    flags:
+      MessageFlags.Ephemeral,
+  });
 
   const channel =
     interaction.channel;
@@ -2872,7 +2771,7 @@ export async function run(
     ).toLowerCase();
 
   /* ======================================================================== */
-  /*                              -collect                                    */
+  /*                              COLLECT                                     */
   /* ======================================================================== */
 
   if (
@@ -2880,7 +2779,12 @@ export async function run(
     "collect"
   ) {
     await handleCollect(
-      message,
+      message.guild,
+      message.author,
+      (options) =>
+        message.reply(
+          options,
+        ),
     );
 
     return;
@@ -2906,7 +2810,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-collect`.",
+      "❌ Uso incorrecto. Tenés que usar `-luckybox collect`, `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-collect`.",
     );
 
     return;
@@ -2981,9 +2885,7 @@ export async function run(
 
     const cajaNombreRestante =
       args
-        .slice(
-          offset,
-        )
+        .slice(offset)
         .filter(
           (arg) =>
             !/^<@!?\d+>$/.test(
@@ -3040,7 +2942,7 @@ export async function run(
     !cajaNombreRestante
   ) {
     await message.reply(
-      `❌ Uso correcto: \`-luckybox info [caja]\`.\nLas cajas disponibles son: ${opcionesValidas}.`,
+      `❌ Uso correcto: \`-luckybox ${sub} [caja]\`.\nLas cajas disponibles son: ${opcionesValidas}.`,
     );
 
     return;
@@ -3073,29 +2975,6 @@ export async function run(
     return;
   }
 
-  if (
-    !cajaNombreRestante
-  ) {
-    await message.reply(
-      "❌ Uso correcto: `-luckybox abrir [caja]`.",
-    );
-
-    return;
-  }
-
-  const cajaNombreAbrir =
-    getCajaNombre(
-      cajaNombreRestante,
-    );
-
-  if (!cajaNombreAbrir) {
-    await message.reply(
-      `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
-    );
-
-    return;
-  }
-
   const channel =
     message.channel;
 
@@ -3121,6 +3000,6 @@ export async function run(
       ),
     message.guild,
     message.author,
-    cajaNombreAbrir,
+    cajaNombre,
   );
 }
