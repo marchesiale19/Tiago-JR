@@ -40,13 +40,13 @@ const server = http.createServer((_req, res) => {
       "Cache-Control": "no-cache",
     });
 
-    res.end("Bot is running successfully!\n");
+    res.end("Bot funcionando correctamente!\n");
   } catch (err) {
     console.error("❌ Error respondiendo al health check:", err);
 
     try {
       res.writeHead(500);
-      res.end("Internal Server Error\n");
+      res.end("Error interno del servidor\n");
     } catch {
       // Ignorado: la respuesta pudo haberse cerrado.
     }
@@ -58,7 +58,7 @@ server.on("error", (err) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ HTTP health server listening on port ${PORT}`);
+  console.log(`✅ Servidor HTTP de health check escuchando en el puerto ${PORT}`);
 });
 
 /* ============================================================
@@ -71,7 +71,7 @@ const __dirname = dirname(__filename);
 const token = process.env["DISCORD_BOT_TOKEN"];
 
 if (!token) {
-  console.error("❌ DISCORD_BOT_TOKEN environment variable is required.");
+  console.error("❌ Falta configurar la variable DISCORD_BOT_TOKEN.");
 }
 
 /* ============================================================
@@ -483,7 +483,7 @@ async function handleApprove(
       );
 
     await applicant.send(
-      "Buenas noticias, tu postulación ha sido preseleccionada y has avanzado a la siguiente fase del proceso. Un miembro del staff se pondrá en contacto contigo a la brevedad.",
+      "¡Buenas noticias! Tu postulación fue preseleccionada y avanzaste a la siguiente etapa del proceso. Un miembro del staff se va a poner en contacto con vos a la brevedad.",
     );
   } catch (err) {
     logger.info(
@@ -528,7 +528,7 @@ async function handleRejectionModalSubmit(
   ) {
     await interaction.reply({
       content:
-        "No tienes permiso para revisar postulaciones.",
+        "No tenés permiso para revisar postulaciones.",
       ephemeral: true,
     });
 
@@ -717,7 +717,7 @@ async function handlePostulationDecision(
     )
   ) {
     await interaction.reply({
-      content: "No tienes permiso.",
+      content: "No tenés permiso.",
       ephemeral: true,
     });
 
@@ -780,7 +780,7 @@ client.on(
             );
 
           await interaction.reply({
-            content: `❌ Fuiste rechazado recientemente. Debes esperar ${daysLeft} días para volver a postularte.`,
+            content: `❌ Fuiste rechazado recientemente. Tenés que esperar ${daysLeft} días para volver a postularte.`,
             ephemeral: true,
           });
 
@@ -813,7 +813,7 @@ client.on(
         if (tieneRolActivo) {
           await interaction.reply({
             content:
-              "❌ Ya posees el rol de 'Postulados'. No puedes postularte nuevamente.",
+              "❌ Ya tenés el rol de 'Postulados'. No podés postularte nuevamente.",
             ephemeral: true,
           });
 
@@ -838,7 +838,7 @@ client.on(
       ) {
         await interaction.reply({
           content:
-            "❌ Tu cuenta es muy nueva para postularte. Debes tener al menos 7 días de antigüedad.",
+            "❌ Tu cuenta es muy nueva para postularte. Tenés que tener al menos 7 días de antigüedad.",
           ephemeral: true,
         });
 
@@ -1075,7 +1075,7 @@ client.on(
           );
 
           await interaction.editReply(
-            "✅ Has aceptado la supervisión. La partida ha comenzado.",
+            "✅ Aceptaste la supervisión. La partida empezó.",
           );
         } catch (err: any) {
           logger.error(
@@ -1088,7 +1088,7 @@ client.on(
           ) {
             await interaction
               .editReply(
-                `❌ ${err?.message ?? "Error al aceptar la supervisión."}`,
+                `❌ ${err?.message ?? "Hubo un error al aceptar la supervisión."}`,
               )
               .catch(() => {});
           }
@@ -1144,7 +1144,7 @@ client.on(
           );
 
           await interaction.editReply(
-            "✅ Has tomado el control de la partida como supervisor de reemplazo.",
+            "✅ Tomaste el control de la partida como supervisor de reemplazo.",
           );
         } catch (err: any) {
           logger.error(
@@ -1157,7 +1157,7 @@ client.on(
           ) {
             await interaction
               .editReply(
-                `❌ ${err?.message ?? "Error al aceptar el reemplazo."}`,
+                `❌ ${err?.message ?? "Hubo un error al aceptar el reemplazo."}`,
               )
               .catch(() => {});
           }
@@ -1213,7 +1213,7 @@ client.on(
               await interaction
                 .reply({
                   content:
-                    "❌ Error al abrir el cuestionario.",
+                    "❌ Hubo un error al abrir el cuestionario.",
                   ephemeral: true,
                 })
                 .catch(() => {});
@@ -1256,7 +1256,7 @@ client.on(
           );
 
           await interaction.editReply(
-            "🎮 ¡Quedas en el canal para la próxima partida!",
+            "🎮 ¡Te quedás en el canal para la próxima partida!",
           );
         } catch (err) {
           logger.error(
@@ -1269,7 +1269,7 @@ client.on(
           ) {
             await interaction
               .editReply(
-                "❌ Error al procesar la acción.",
+                "❌ Hubo un error al procesar la acción.",
               )
               .catch(() => {});
           }
@@ -1310,7 +1310,7 @@ client.on(
           );
 
           await interaction.editReply(
-            "🚪 Has salido del canal de voz.",
+            "🚪 Saliste del canal de voz.",
           );
         } catch (err) {
           logger.error(
@@ -1323,7 +1323,7 @@ client.on(
           ) {
             await interaction
               .editReply(
-                "❌ Error al procesar la salida.",
+                "❌ Hubo un error al procesar la salida.",
               )
               .catch(() => {});
           }
@@ -1358,7 +1358,7 @@ client.on(
           ) {
             await interaction.reply({
               content:
-                "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+                "❌ No tenés los permisos necesarios para interactuar con esta alerta.",
               ephemeral: true,
             });
           }
@@ -1492,7 +1492,7 @@ client.on(
           ) {
             await interaction.reply({
               content:
-                "❌ No tienes los permisos necesarios para interactuar con esta alerta.",
+                "❌ No tenés los permisos necesarios para interactuar con esta alerta.",
               ephemeral: true,
             });
           }
@@ -1546,7 +1546,7 @@ client.on(
           if (!targetMember) {
             await interaction.reply({
               content:
-                "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté aquí.",
+                "❌ No se pudo encontrar al usuario en el servidor. Es posible que ya no esté acá.",
               ephemeral: true,
             });
 
@@ -1572,7 +1572,7 @@ client.on(
             ) {
               await interaction.reply({
                 content:
-                  "❌ **Error de Jerarquía:** No puedes sancionar a un usuario con un rol igual o superior al tuyo.",
+                  "❌ **Error de Jerarquía:** No podés sancionar a un usuario con un rol igual o superior al tuyo.",
                 ephemeral: true,
               });
 
@@ -1606,7 +1606,7 @@ client.on(
             );
 
           await interaction.reply({
-            content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que deseas aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción es inmediata al confirmar.`,
+            content: `⚠️ **CONFIRMACIÓN DE SEGURIDAD** ⚠️\n¿Estás seguro de que querés aplicar un timeout de 10 minutos a <@${targetUserId}>?\nEsta acción se aplica inmediatamente al confirmar.`,
             components: [
               confirmRow,
             ],
@@ -1650,7 +1650,7 @@ client.on(
               ) {
                 await interaction.message
                   .edit({
-                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@${targetUserId}> ha recibido un timeout de 10 minutos por **${moderatorName}**.`,
+                    content: `✅ **TIMEOUT EJECUTADO**\nEl usuario <@${targetUserId}> recibió un timeout de 10 minutos por **${moderatorName}**.`,
                     components: [],
                   })
                   .catch(() =>
@@ -1667,7 +1667,7 @@ client.on(
             } else {
               await interaction.update({
                 content:
-                  "❌ El usuario ya no está en el servidor, no se pudo aplicar la sanción.",
+                  "❌ El usuario ya no está en el servidor, así que no se pudo aplicar la sanción.",
                 components: [],
               });
             }
@@ -1832,7 +1832,7 @@ client.on(
               await interaction
                 .reply({
                   content:
-                    "❌ Error al registrar tu respuesta.",
+                    "❌ Hubo un error al registrar tu respuesta.",
                   ephemeral: true,
                 })
                 .catch(() => {});
@@ -1927,6 +1927,207 @@ client.on(
     if (!commandName) return;
 
     /* --------------------------------------------------------
+     * LUCKYBOX COLLECT
+     * -------------------------------------------------------- */
+
+    if (commandName === "collect") {
+      const luckyboxCommand =
+        commands.get("luckybox") as any;
+
+      if (!luckyboxCommand) {
+        console.error(
+          "❌ No se encontró el comando luckybox.",
+        );
+
+        return;
+      }
+
+      try {
+        const subcommand =
+          args[0]?.toLowerCase();
+
+        if (args.length > 0 && subcommand !== "collect") {
+          await message.reply(
+            "❌ Uso incorrecto. Tenés que usar: `-collect`.",
+          );
+
+          return;
+        }
+
+        const member =
+          message.member;
+
+        const fakeInteraction =
+          {
+            commandName:
+              "luckybox",
+
+            user:
+              message.author,
+
+            client:
+              message.client,
+
+            guild:
+              message.guild,
+
+            guildId:
+              message.guild?.id,
+
+            member:
+              member,
+
+            channel:
+              message.channel,
+
+            options: {
+              getSubcommand: () =>
+                "collect",
+
+              getString: (
+                _name: string,
+              ) => null,
+
+              getInteger: (
+                _name: string,
+              ) => null,
+
+              getBoolean: (
+                _name: string,
+              ) => false,
+
+              getUser: () =>
+                message.mentions.users.first() ||
+                null,
+
+              getMember: () =>
+                message.mentions.members?.first() ||
+                null,
+
+              getChannel: () =>
+                message.mentions.channels.first() ||
+                null,
+            },
+
+            replied: false,
+
+            deferred: false,
+
+            isChatInputCommand:
+              () => true,
+
+            isCommand:
+              () => true,
+
+            async reply(
+              options: any,
+            ) {
+              this.replied =
+                true;
+
+              const content =
+                typeof options ===
+                "string"
+                  ? options
+                  : options.content;
+
+              return message.reply({
+                content,
+                embeds:
+                  options.embeds ||
+                  [],
+                components:
+                  options.components ||
+                  [],
+              });
+            },
+
+            async followUp(
+              options: any,
+            ) {
+              const content =
+                typeof options ===
+                "string"
+                  ? options
+                  : options.content;
+
+              return message.channel.send({
+                content,
+                embeds:
+                  options.embeds ||
+                  [],
+                components:
+                  options.components ||
+                  [],
+              });
+            },
+
+            async deferReply(
+              options: any,
+            ) {
+              this.deferred =
+                true;
+
+              return message.channel.send({
+                content:
+                  "⏳ Procesando...",
+                flags:
+                  options?.flags,
+              });
+            },
+
+            async editReply(
+              options: any,
+            ) {
+              this.replied =
+                true;
+
+              const content =
+                typeof options ===
+                "string"
+                  ? options
+                  : options.content;
+
+              return message.reply({
+                content,
+                embeds:
+                  options.embeds ||
+                  [],
+                components:
+                  options.components ||
+                  [],
+              });
+            },
+          };
+
+        await luckyboxCommand.execute(
+          fakeInteraction as any,
+        );
+      } catch (err) {
+        console.error(
+          "❌ ERROR EN -collect:",
+          err,
+        );
+
+        logger.error(
+          {
+            err,
+            commandName: "collect",
+          },
+          "Error executing luckybox collect via prefix",
+        );
+
+        await message
+          .reply(
+            `Hubo un error al ejecutar \`-collect\`: \`${err}\``,
+          )
+          .catch(() => {});
+      }
+
+      return;
+    }
+
+    /* --------------------------------------------------------
      * ABRIR
      * -------------------------------------------------------- */
 
@@ -1941,7 +2142,7 @@ client.on(
         sub !== "postulaciones"
       ) {
         await message.reply(
-          "❌ Uso incorrecto. Debes usar: `-abrir temporada` o `-abrir postulaciones`.",
+          "❌ Uso incorrecto. Tenés que usar: `-abrir temporada` o `-abrir postulaciones`.",
         );
 
         return;
