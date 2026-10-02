@@ -1221,7 +1221,7 @@ async function handleLuckyboxDrop(
     ) {
       await sendReply({
         content:
-          "No tenés un rol autorizado para gestionar las luckyboxes",
+          "❌ No tenés un rol autorizado para gestionar las luckyboxes",
         flags:
           MessageFlags.Ephemeral,
       });
