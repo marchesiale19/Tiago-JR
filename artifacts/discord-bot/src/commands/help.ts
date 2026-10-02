@@ -130,7 +130,7 @@ function getCategories(
       content: [
         "-luckybox abrir — Abre una Lucky Box.",
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
-        "-piedrapapeltijera — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
+        "-ppt — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
         "-tateti — Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
       ].join("\n"),
     },
