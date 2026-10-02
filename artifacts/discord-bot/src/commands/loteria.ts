@@ -32,8 +32,9 @@ function tienePermisoLoteria(
 ): boolean {
   if (!member) return false;
 
-  return LOTERIA_AUTHORIZED_ROLES.some((roleId) =>
-    member.roles.cache.has(roleId),
+  return LOTERIA_AUTHORIZED_ROLES.some(
+    (roleId) =>
+      member.roles.cache.has(roleId),
   );
 }
 
@@ -41,7 +42,9 @@ function tienePermisoLoteria(
  * UTILIDADES
  * ============================================================ */
 
-function mezclar(array: T[]): T[] {
+function mezclar<T>(
+  array: T[],
+): T[] {
   const resultado = [...array];
 
   // Fisher-Yates:
@@ -66,7 +69,7 @@ function mezclar(array: T[]): T[] {
 
 function esperar(
   ms: number,
-): Promise {
+): Promise<void> {
   return new Promise((resolve) =>
     setTimeout(resolve, ms),
   );
@@ -80,7 +83,7 @@ async function anotar(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise {
+): Promise<void> {
   const guild =
     interactionOrMessage.guild;
 
@@ -158,10 +161,12 @@ async function anotar(
     const embed =
       new EmbedBuilder()
         .setColor(Colors.Orange)
-        .setTitle("🎟️ Participantes de la Lotería")
+        .setTitle(
+          "🎟️ Participantes de la Lotería",
+        )
         .setDescription(
           cantidad > 0
-            ? `Se actualizaron correctamente los participantes de la lotería.\n\n**\({cantidad} participante\){cantidad === 1 ? "" : "s"} encontrado${cantidad === 1 ? "" : "s"}.**`
+            ? `Se actualizaron correctamente los participantes de la lotería.\n\n**${cantidad} participante${cantidad === 1 ? "" : "s"} encontrado${cantidad === 1 ? "" : "s"}.**`
             : "No hay ningún participante con el rol de la lotería.",
         )
         .setTimestamp();
@@ -176,7 +181,8 @@ async function anotar(
           .join("\n");
 
       embed.addFields({
-        name: "Participantes registrados",
+        name:
+          "Participantes registrados",
         value:
           lista.length <= 1024
             ? lista
@@ -232,7 +238,7 @@ async function mostrarParticipantes(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise {
+): Promise<void> {
   if (participantes.length === 0) {
     const embed =
       new EmbedBuilder()
@@ -273,7 +279,7 @@ async function mostrarParticipantes(
             userId,
           );
 
-        return `\({index + 1}.\){
+        return `${index + 1}. ${
           member
             ? `${member}`
             : `<@${userId}>`
@@ -293,7 +299,7 @@ async function mostrarParticipantes(
         "🎟️ Participantes de la Lotería",
       )
       .setDescription(
-        `Actualmente hay **\({participantes.length} participante\){participantes.length === 1 ? "" : "s"}** anotado${participantes.length === 1 ? "" : "s"}.`,
+        `Actualmente hay **${participantes.length} participante${participantes.length === 1 ? "" : "s"}** anotado${participantes.length === 1 ? "" : "s"}.`,
       )
       .setTimestamp();
 
@@ -356,7 +362,7 @@ async function girar(
   interactionOrMessage:
     | ChatInputCommandInteraction
     | Message,
-): Promise {
+): Promise<void> {
   const guild =
     interactionOrMessage.guild;
 
@@ -444,7 +450,7 @@ async function girar(
 
   const enviar = async (
     contenido: string,
-  ) => {
+  ): Promise<void> => {
     if (
       interactionOrMessage.isChatInputCommand?.()
     ) {
@@ -542,7 +548,8 @@ async function girar(
         inline: true,
       })
       .setFooter({
-        text: "Lotería • Sorteo finalizado",
+        text:
+          "Lotería • Sorteo finalizado",
       })
       .setTimestamp();
 
@@ -571,7 +578,8 @@ async function girar(
 
 export const data = {
   name: "loteria",
-  description: "Sistema de gestión y sorteo de lotería",
+  description:
+    "Sistema de gestión y sorteo de lotería",
 };
 
 /* ============================================================
@@ -580,7 +588,7 @@ export const data = {
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
-): Promise {
+): Promise<void> {
   switch (
     interaction.options.getSubcommand()
   ) {
@@ -614,7 +622,7 @@ export async function execute(
 export async function run(
   message: Message,
   args: string[],
-): Promise {
+): Promise<void> {
   const subcomando =
     args[0]?.toLowerCase();
 
