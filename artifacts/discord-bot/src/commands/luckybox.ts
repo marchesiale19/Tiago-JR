@@ -1330,7 +1330,7 @@ async function handleLuckyboxDrop(
 
 export async function handleLuckyboxDropButton(
   interaction: ButtonInteraction,
-): Promise<void> {
+): Promise {
   const dropId =
     interaction.customId.slice(
       `${LUCKYBOX_DROP_BUTTON_PREFIX}:`
@@ -1344,7 +1344,6 @@ export async function handleLuckyboxDropButton(
       flags:
         MessageFlags.Ephemeral,
     });
-
     return;
   }
 
@@ -1358,7 +1357,6 @@ export async function handleLuckyboxDropButton(
       flags:
         MessageFlags.Ephemeral,
     });
-
     return;
   }
 
@@ -1367,11 +1365,6 @@ export async function handleLuckyboxDropButton(
       dropId,
     );
 
-  /*
-   * Si el bot se reinició después de crear el drop,
-   * el estado en memoria se perdió. En ese caso no
-   * entregamos la caja accidentalmente.
-   */
   if (!drop) {
     await interaction.reply({
       content:
@@ -1379,7 +1372,6 @@ export async function handleLuckyboxDropButton(
       flags:
         MessageFlags.Ephemeral,
     });
-
     return;
   }
 
@@ -1393,7 +1385,6 @@ export async function handleLuckyboxDropButton(
       flags:
         MessageFlags.Ephemeral,
     });
-
     return;
   }
 
@@ -1404,80 +1395,19 @@ export async function handleLuckyboxDropButton(
       flags:
         MessageFlags.Ephemeral,
     });
-
     return;
   }
 
-  /*
-   * Lock inmediato.
-   *
-   * JavaScript ejecuta este bloque de forma secuencial
-   * dentro de la instancia del proceso, por lo que una vez
-   * que este valor cambia a true, los siguientes handlers
-   * ya no pueden ganar este mismo drop.
-   */
+  // Marcamos como reclamado de inmediato en memoria
   drop.claimed = true;
   drop.claimedBy =
     interaction.user.id;
 
+  // Diferimos la actualización para evitar el timeout de Discord
   await interaction.deferUpdate();
 
-  const message =
-    interaction.message;
-
-/*
-   * Actualizamos visualmente el mensaje primero.
-   */
   try {
-    const claimedEmbed =
-      createLuckyboxClaimedEmbed(
-        drop.cajaNombre,
-        interaction.user,
-      );
-
-    const disabledRow =
-      createLuckyboxDropButton(
-        drop.dropId,
-        true,
-      );
-
-    await message.edit({
-      embeds: [
-        claimedEmbed,
-      ],
-      components: [
-        disabledRow,
-      ],
-    });
-  } catch (err) {
-    drop.claimed = false;
-    drop.claimedBy = undefined;
-
-    logger.error(
-      {
-        err,
-        guildId: interaction.guildId,
-        userId: interaction.user.id,
-        dropId,
-        cajaNombre: drop.cajaNombre,
-      },
-      "No se pudo actualizar el mensaje del Luckybox drop.",
-    );
-
-    // ¡Importante responderle al usuario si falla aquí también!
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: "❌ Hubo un error al procesar el reclamo de la caja.",
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-    return;
-  }
-
-  /*
-   * Entregamos la Luckybox al usuario.
-   */
-  try {
+    // 1. Añadimos el item al inventario de UnbelievaBoat
     await addInventoryItem(
       interaction.guildId,
       interaction.user.id,
@@ -1492,20 +1422,45 @@ export async function handleLuckyboxDropButton(
         cajaNombre: drop.cajaNombre,
         itemId: drop.itemId,
         dropId: drop.dropId,
-        messageId: drop.messageId,
       },
       "Luckybox drop reclamada y entregada correctamente.",
     );
 
     activeLuckyboxDrops.delete(drop.dropId);
 
-    // ✅ RESPUESTA FINAL OBLIGATORIA PARA EVITAR EL ERROR DE DISCORD
+    // 2. Actualizamos el mensaje visualmente indicando quién la reclamó
+    const claimedEmbed =
+      createLuckyboxClaimedEmbed(
+        drop.cajaNombre,
+        interaction.user,
+      );
+
+    const disabledRow =
+      createLuckyboxDropButton(
+        drop.dropId,
+        true,
+      );
+
+    await interaction.editReply({
+      embeds: [
+        claimedEmbed,
+      ],
+      components: [
+        disabledRow,
+      ],
+    });
+
+    // 3. Enviamos un mensaje oculto (ephemeral) de confirmación al usuario
     await interaction.followUp({
-      content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}**.`,
-      flags: MessageFlags.Ephemeral, // Si prefieres que sea visible para todos, quita esta línea.
+      content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}`} y se añadió a tu inventario de UnbelievaBoat.`,
+      flags: MessageFlags.Ephemeral,
     });
 
   } catch (err) {
+    // Si falla la API de UnbelievaBoat o la edición, revertimos el estado
+    drop.claimed = false;
+    drop.claimedBy = undefined;
+
     logger.error(
       {
         err,
@@ -1515,42 +1470,16 @@ export async function handleLuckyboxDropButton(
         itemId: drop.itemId,
         dropId: drop.dropId,
       },
-      "Falló la entrega de la Luckybox reclamada.",
+      "Falló la entrega de la Luckybox reclamada mediante el drop.",
     );
 
-    drop.claimed = false;
-    drop.claimedBy = undefined;
-
     try {
-      const availableEmbed = createLuckyboxDropEmbed(drop.cajaNombre);
-      const availableRow = createLuckyboxDropButton(drop.dropId, false);
-
-      await message.edit({
-        embeds: [availableEmbed],
-        components: [availableRow],
-      });
-    } catch (restoreError) {
-      logger.error(
-        {
-          restoreError,
-          dropId: drop.dropId,
-          messageId: drop.messageId,
-        },
-        "No se pudo restaurar el Luckybox drop",
-      );
-    }
-
-    // Informar al usuario que la API de UnbelievaBoat falló
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: "❌ Hubo un error al añadir la caja a tu inventario. Inténtalo de nuevo.",
-        flags: MessageFlags.Ephemeral,
-      });
-    } else {
       await interaction.followUp({
-        content: "❌ Hubo un error al añadir la caja a tu inventario. Inténtalo de nuevo.",
+        content: "❌ Hubo un error al añadir la caja a tu inventario mediante UnbelievaBoat. Inténtalo de nuevo.",
         flags: MessageFlags.Ephemeral,
       });
+    } catch (followUpErr) {
+      logger.error({ followUpErr }, "No se pudo enviar el mensaje de error por followUp.");
     }
   }
 }
