@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
+import { handleBombMessageListener } from "./commands/bomb";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
@@ -935,6 +936,48 @@ client.on(
               .reply({
                 content:
                   "❌ Hubo un error al procesar el reclamo de la Luckybox.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * BOMB DROP
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "bomb_drop_claim:",
+        )
+      ) {
+        try {
+          const {
+            handleBombDropButton,
+          } = await import(
+            "./commands/bomb"
+          );
+
+          await handleBombDropButton(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling Bomb drop claim button",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al activar la bomba.",
                 ephemeral: true,
               })
               .catch(() => {});
