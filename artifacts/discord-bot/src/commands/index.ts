@@ -22,6 +22,7 @@ import * as luckybox from "./luckybox";
 import * as tateti from "./tateti";
 import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
+import * as bomb from "./bomb";
 
 // nuevo flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -105,6 +106,11 @@ commands.set(
 commands.set(
   luckybox.data.name,
   luckybox,
+);
+
+commands.set(
+  bomb.data.name,
+  bomb,
 );
 
 commands.set(
