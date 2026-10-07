@@ -39,11 +39,6 @@ const unb = new UnbClient(
 /*                          ROLES AUTORIZADOS                                 */
 /* ========================================================================== */
 
-/*
- * Usamos exactamente los mismos roles autorizados
- * que Luckybox Drop.
- */
-
 const BOMB_DROP_AUTHORIZED_ROLES:
   readonly string[] = [
     "1539368076326473868", // Developer Tiago Jr
@@ -270,37 +265,7 @@ function getRandomTaunt(
 }
 
 /* ========================================================================== */
-/*                         SORTEAR BOMBA                                      */
-/* ========================================================================== */
-
-function pickBombType(): BombType {
-  const random =
-    Math.random() * 100;
-
-  let accumulated = 0;
-
-  const bombTypes:
-    BombType[] = [
-      "comun",
-      "raro",
-      "epico",
-      "admin",
-    ];
-
-  for (const type of bombTypes) {
-    accumulated +=
-      BOMB_CONFIG[type].chance;
-
-    if (random < accumulated) {
-      return type;
-    }
-  }
-
-  return "comun";
-}
-
-/* ========================================================================== */
-/*                       SORTEAR CASTIGO                                      */
+/*                         SORTEAR CASTIGO                                    */
 /* ========================================================================== */
 
 function pickBombReward(
@@ -364,7 +329,7 @@ function createBombDropEmbed(
     BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
-  .setColor(0xFFA500)
+    .setColor(0xFFA500)
     .setTitle(
       `💣 ¡Se ha soltado una ${config.name}!`,
     )
@@ -599,121 +564,34 @@ async function handleBombDrop(
 }
 
 /* ========================================================================== */
-/*                        HANDLE BOTÓN                                        */
+/*                     PROCESAR BOMBA DESPUÉS DEL ACK                        */
 /* ========================================================================== */
 
-export async function handleBombDropButton(
+/*
+ * Esta función NO se encarga de responder inicialmente
+ * la interacción de Discord.
+ *
+ * Para cuando entra acá, la interacción YA fue reconocida
+ * mediante deferUpdate().
+ */
+async function processBombClaim(
   interaction: ButtonInteraction,
+  drop: ActiveBombDrop,
 ): Promise<void> {
-  const prefixLength =
-    `${BOMB_DROP_BUTTON_PREFIX}:`
-      .length;
-
-  const dropId =
-    interaction.customId.slice(
-      prefixLength,
-    );
-
-  if (!dropId) {
-    await interaction.reply({
-      content:
-        "❌ Este botón de bomba no es válido.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  if (
-    !interaction.guildId ||
-    !interaction.guild
-  ) {
-    await interaction.reply({
-      content:
-        "❌ Este botón solamente puede utilizarse dentro de un servidor.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  const drop =
-    activeBombDrops.get(
-      dropId,
-    );
-
-  if (!drop) {
-    await interaction.reply({
-      content:
-        "❌ Esta bomba ya no está disponible. Es posible que el bot haya sido reiniciado.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  if (
-    drop.guildId !==
-    interaction.guildId
-  ) {
-    await interaction.reply({
-      content:
-        "❌ Esta bomba pertenece a otro servidor.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  if (drop.claimed) {
-    await interaction.reply({
-      content:
-        "❌ Esta bomba ya fue activada por otro usuario.",
-      flags:
-        MessageFlags.Ephemeral,
-    });
-
-    return;
-  }
-
-  /*
-   * MUY IMPORTANTE:
-   *
-   * La marcamos como reclamada ANTES de llamar a la API.
-   * Así dos personas que hagan click prácticamente
-   * al mismo tiempo no pueden procesar la misma bomba.
-   */
-
-  drop.claimed = true;
-  drop.claimedBy =
-    interaction.user.id;
-
-  await interaction.deferUpdate();
-
   try {
-    /*
-     * Sorteamos cuánto dinero pierde.
-     */
     const amount =
       pickBombReward(
         drop.bombType,
       );
 
     /*
-     * amount ya es negativo:
+     * Esta operación puede tardar.
      *
-     * -20_000
-     * -25_000
-     * -150_000
-     * etc.
+     * NO importa para el timeout de la interacción porque
+     * deferUpdate() ya fue enviado anteriormente.
      */
-
     await unb.editUserBalance(
-      interaction.guildId,
+      interaction.guildId!,
       interaction.user.id,
       {
         cash: amount,
@@ -737,15 +615,12 @@ export async function handleBombDropButton(
     );
 
     /*
-     * Eliminamos el drop de los activos.
+     * La operación de UnbelievaBoat terminó correctamente.
      */
     activeBombDrops.delete(
       drop.dropId,
     );
 
-    /*
-     * Actualizamos el embed.
-     */
     const activatedEmbed =
       createBombActivatedEmbed(
         drop.bombType,
@@ -753,15 +628,16 @@ export async function handleBombDropButton(
         amount,
       );
 
-    /*
-     * Botón deshabilitado.
-     */
     const disabledRow =
       createBombDropButton(
         drop.dropId,
         true,
       );
 
+    /*
+     * Como ya hicimos deferUpdate(), ahora podemos
+     * editar la respuesta original de la interacción.
+     */
     await interaction.editReply({
       embeds: [
         activatedEmbed,
@@ -772,29 +648,21 @@ export async function handleBombDropButton(
     });
 
     /*
-     * Mensaje de burla FUERA del embed.
+     * Mensaje de burla fuera del embed.
      */
-    await interaction.channel?.send(
-      getRandomTaunt(
-        interaction.user,
-      ),
-    );
-
-    /*
-     * POR AHORA solamente dejamos preparado
-     * el sistema base.
-     *
-     * En el siguiente paso agregaremos:
-     *
-     * "si me dices papi te devuelvo tu plata"
-     *
-     * y:
-     *
-     * "¿querés otra oportunidad?"
-     */
+    if (
+      interaction.channel &&
+      "send" in interaction.channel
+    ) {
+      await interaction.channel.send(
+        getRandomTaunt(
+          interaction.user,
+        ),
+      );
+    }
   } catch (err) {
     /*
-     * Si la API falla, permitimos volver a reclamar.
+     * Si UnbelievaBoat falla, liberamos el drop.
      */
     drop.claimed = false;
     drop.claimedBy =
@@ -815,6 +683,13 @@ export async function handleBombDropButton(
       "Falló la aplicación del castigo del Bomb Drop.",
     );
 
+    /*
+     * La interacción ya fue reconocida con deferUpdate(),
+     * por lo que acá NO corresponde usar reply().
+     *
+     * Usamos followUp() porque la interacción ya tiene
+     * una respuesta inicial.
+     */
     try {
       await interaction.followUp({
         content:
@@ -831,6 +706,239 @@ export async function handleBombDropButton(
       );
     }
   }
+}
+
+/* ========================================================================== */
+/*                        HANDLE BOTÓN                                        */
+/* ========================================================================== */
+
+export async function handleBombDropButton(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  /*
+   * ========================================================================
+   * PASO 1 — ACK INMEDIATO
+   * ========================================================================
+   *
+   * Esto es lo más importante.
+   *
+   * Discord exige que una interacción sea reconocida dentro de ~3 segundos.
+   *
+   * NO hacemos:
+   * - llamadas HTTP
+   * - consultas externas
+   * - operaciones lentas
+   * - editUserBalance()
+   *
+   * antes de este punto.
+   */
+
+  try {
+    await interaction.deferUpdate();
+  } catch (err) {
+    /*
+     * Si no pudimos hacer el ACK, no tiene sentido
+     * continuar procesando la interacción.
+     */
+    logger.error(
+      {
+        err,
+        customId:
+          interaction.customId,
+        userId:
+          interaction.user.id,
+      },
+      "No se pudo hacer deferUpdate() del Bomb Drop.",
+    );
+
+    return;
+  }
+
+  /*
+   * A PARTIR DE ACÁ Discord ya recibió la confirmación
+   * de que el botón fue procesado.
+   */
+
+  const prefix =
+    `${BOMB_DROP_BUTTON_PREFIX}:`;
+
+  if (
+    !interaction.customId.startsWith(
+      prefix,
+    )
+  ) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Este botón de bomba no es válido.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+        },
+        "No se pudo informar sobre un botón de bomba inválido.",
+      );
+    }
+
+    return;
+  }
+
+  const dropId =
+    interaction.customId.slice(
+      prefix.length,
+    );
+
+  if (!dropId) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Este botón de bomba no es válido.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+        },
+        "No se pudo informar sobre un dropId inválido.",
+      );
+    }
+
+    return;
+  }
+
+  if (
+    !interaction.guildId ||
+    !interaction.guild
+  ) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Este botón solamente puede utilizarse dentro de un servidor.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+        },
+        "No se pudo informar sobre interacción fuera de servidor.",
+      );
+    }
+
+    return;
+  }
+
+  const drop =
+    activeBombDrops.get(
+      dropId,
+    );
+
+  if (!drop) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Esta bomba ya no está disponible. Es posible que el bot haya sido reiniciado.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          dropId,
+        },
+        "No se pudo informar que el Bomb Drop no existe.",
+      );
+    }
+
+    return;
+  }
+
+  if (
+    drop.guildId !==
+    interaction.guildId
+  ) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Esta bomba pertenece a otro servidor.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          dropId,
+        },
+        "No se pudo informar sobre un Bomb Drop de otro servidor.",
+      );
+    }
+
+    return;
+  }
+
+  /*
+   * ========================================================================
+   * CONTROL DE CARRERA
+   * ========================================================================
+   *
+   * JavaScript ejecuta el código síncrono de cada handler sin
+   * interrupciones entre estas operaciones.
+   *
+   * Por eso:
+   *
+   * if (!drop.claimed) {
+   *   drop.claimed = true;
+   * }
+   *
+   * funciona como lock mientras no haya un await entre ambas
+   * operaciones.
+   */
+
+  if (drop.claimed) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Esta bomba ya fue activada por otro usuario.",
+        flags:
+          MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        {
+          err,
+          dropId,
+        },
+        "No se pudo informar que el Bomb Drop ya fue reclamado.",
+      );
+    }
+
+    return;
+  }
+
+  /*
+   * BLOQUEAMOS inmediatamente el drop.
+   *
+   * Esto ocurre ANTES de cualquier await posterior.
+   */
+  drop.claimed = true;
+  drop.claimedBy =
+    interaction.user.id;
+
+  /*
+   * Ahora sí podemos hacer todo el trabajo lento.
+   */
+  await processBombClaim(
+    interaction,
+    drop,
+  );
 }
 
 /* ========================================================================== */
