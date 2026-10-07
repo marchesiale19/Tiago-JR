@@ -387,7 +387,7 @@ function createBombActivatedEmbed(
     BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
-    .setColor(0xffffff)
+    .setColor(0xff0000)
     .setTitle(
       "💣 ¡Bomba activada!",
     )
