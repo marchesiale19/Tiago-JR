@@ -943,6 +943,48 @@ client.on(
 
         return;
       }
+
+      /* ------------------------------------------------------
+       * BOMB DROP
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "bomb_drop_claim:",
+        )
+      ) {
+        try {
+          const {
+            handleBombDropButton,
+          } = await import(
+            "./commands/bomb"
+          );
+
+          await handleBombDropButton(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling Bomb drop claim button",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al procesar el reclamo de la bomba.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
       
       /* ------------------------------------------------------
        * POSTULACIONES
