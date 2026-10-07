@@ -2018,6 +2018,30 @@ client.on(
         : commandName;
 
     /* --------------------------------------------------------
+     * CLEAR
+     * -------------------------------------------------------- */
+
+    if (commandName === "clear") {
+      const clearCommand = commands.get("clear") as any || await import("./commands/clear").catch(() => null);
+
+      try {
+        if (typeof clearCommand?.run === "function") {
+          await clearCommand.run(message, args);
+        } else {
+          // Si lo manejas mediante un objeto de comandos por prefijo independiente:
+          // Asegúrate de invocar la función run del módulo importado de clear.
+          await import("./commands/clear").then((mod) => mod.run(message, args));
+        }
+      } catch (err) {
+        console.error("❌ ERROR EN -clear:", err);
+        logger.error({ err, commandName: "clear" }, "Error executing clear via prefix");
+        await message.reply(`Hubo un error al ejecutar \`-clear\`: \`${err}\``).catch(() => {});
+      }
+
+      return;
+    }
+    
+    /* --------------------------------------------------------
      * LUCKYBOX COLLECT
      * -------------------------------------------------------- */
 
@@ -2218,6 +2242,7 @@ client.on(
       return;
     }
 
+    
     /* --------------------------------------------------------
      * ABRIR
      * -------------------------------------------------------- */
