@@ -366,7 +366,7 @@ function createBombDropButton(
       .setLabel("Reclamar")
       .setEmoji("💣")
       .setStyle(
-        ButtonStyle.Danger,
+        ButtonStyle.Primary,
       )
       .setDisabled(disabled);
 
