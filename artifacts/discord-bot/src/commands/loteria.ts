@@ -510,7 +510,7 @@ async function girar(
     if (
       cantidadRestante > 1
     ) {
-      await esperar(2200);
+      await esperar(10000);
     }
   }
 
