@@ -478,7 +478,7 @@ async function handleBombDrop(
     ) {
       await sendReply({
         content:
-          "❌ No tenés un rol autorizado para gestionar los Bomb Drops.",
+          "❌ No tenés un rango autorizado para gestionar los Bomb Drops.",
         flags:
           MessageFlags.Ephemeral,
       });
