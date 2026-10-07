@@ -45,6 +45,9 @@ import * as ver from "./ver";
 // sistema de lotería
 import * as loteria from "./loteria";
 
+// sistema de clear
+import * as clear from "./clear"; 
+
 export interface BotCommand {
   data: {
     name: string;
