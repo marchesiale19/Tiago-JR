@@ -403,10 +403,10 @@ function createBombActivatedEmbed(
       },
       {
         name: "💸 Dinero perdido",
-        value:
-          `**${formatMoney(
-            Math.abs(amount),
-          )} Frijoles**`,
+       value:
+  `**${formatMoney(
+    Math.abs(amount),
+  )} <:MonedaServer:1524674026188967956>**`,
         inline: true,
       },
       {
