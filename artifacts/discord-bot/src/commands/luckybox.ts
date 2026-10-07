@@ -80,6 +80,8 @@ const ROL_OMG_BRO_ID =
 const ROL_TOP_CASINO_ID =
   "1546068235072442398";
 
+const ROL_REQUERIDO_ABRIR_ID = "1543094224403308639";
+
 /* ========================================================================== */
 /*                                  TIPOS                                     */
 /* ========================================================================== */
@@ -1364,6 +1366,21 @@ export async function handleLuckyboxDropButton(
     return;
   }
 
+  const member = await interaction.guild.members
+    .fetch(interaction.user.id)
+    .catch(() => null);
+
+  if (
+    !member ||
+    !member.roles.cache.has(ROL_REQUERIDO_ABRIR_ID)
+  ) {
+    await interaction.reply({
+      content: `❌ Necesitás tener el rol <@&${ROL_REQUERIDO_ABRIR_ID}> para poder reclamar esta luckybox.`,
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
   const drop =
     activeLuckyboxDrops.get(
       dropId,
@@ -2304,6 +2321,21 @@ async function handleAbrir(
     const guildId = guild.id;
     const userId = targetUser.id;
 
+    const member =
+      await guild.members
+        .fetch(userId)
+        .catch(() => null);
+
+    if (
+      !member ||
+      !member.roles.cache.has(ROL_REQUERIDO_ABRIR_ID)
+    ) {
+      await sendReply({
+        content: `❌ Necesitás tener el rol <@&${ROL_REQUERIDO_ABRIR_ID}> para poder abrir una luckybox.`,
+      });
+      return;
+    }
+    
     const items =
       await getUserInventory(
         guildId,
