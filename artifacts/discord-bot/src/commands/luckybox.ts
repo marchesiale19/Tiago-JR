@@ -2387,11 +2387,6 @@ async function handleAbrir(
     const rewardRoleId =
       ROLE_MAP[reward.tipo];
 
-    const member =
-      await guild.members
-        .fetch(userId)
-        .catch(() => null);
-
     if (
       rewardRoleId &&
       member
