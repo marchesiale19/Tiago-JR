@@ -1,31 +1,34 @@
-import { pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  unique,
+} from "drizzle-orm/pg-core";
 
 export const cooldownsTable = pgTable(
-  "cooldowns",
+  "collect_cooldowns",
   {
-    id: text("id").primaryKey(),
+    id: serial("id").primaryKey(),
+
     guildId: text("guild_id").notNull(),
+
     userId: text("user_id").notNull(),
-    command: text("command").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+
+    lastCollect: timestamp("last_collect", {
+      withTimezone: true,
+    }).notNull(),
   },
   (table) => ({
-    guildUserCommandUnique: unique().on(
+    guildUserUnique: unique().on(
       table.guildId,
       table.userId,
-      table.command
     ),
-  })
+  }),
 );
-Después agregá la exportación en tu schema/index.ts:
 
-export * from "./usuarios";
-export * from "./temporadas";
-export * from "./lobbys";
-export * from "./partidas";
-export * from "./reportes";
-export * from "./auditoria";
-export * from "./competitivo";
-export * from "./logros";
-export * from "./reputaciones";
-export * from "./cooldowns";
+export type CollectCooldown =
+  typeof cooldownsTable.$inferSelect;
+
+export type NewCollectCooldown =
+  typeof cooldownsTable.$inferInsert;
