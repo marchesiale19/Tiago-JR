@@ -7,3 +7,4 @@ export * from "./auditoria";
 export * from "./competitivo";
 export * from "./logros";
 export * from "./reputaciones";
+export * from "./cooldowns";
