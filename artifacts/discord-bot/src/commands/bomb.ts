@@ -364,7 +364,7 @@ function createBombDropEmbed(
     BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
-    .setColor(config.color)
+  .setColor(0xFFA500)
     .setTitle(
       `💣 ¡Se ha soltado una ${config.name}!`,
     )
