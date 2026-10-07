@@ -18,6 +18,10 @@ const { Client: UnbClient } = pkg;
 
 import { logger } from "../lib/logger";
 
+import { db } from "@workspace/db";
+import { cooldownsTable } from "@workspace/db/schema";
+import { eq, and } from "drizzle-orm";
+
 import {
   readFile,
   writeFile,
@@ -1769,7 +1773,7 @@ function getCollectRewards(
 }
 
 /* ========================================================================== */
-/*                         HANDLE COLLECT                                     */
+/*                          HANDLE COLLECT (POSTGRES)                         */
 /* ========================================================================== */
 
 async function handleCollect(
@@ -1778,154 +1782,109 @@ async function handleCollect(
   sendReply: ReplyFunction,
 ): Promise<void> {
   try {
-    await loadCollectCooldowns();
-
-    const member =
-      await guild.members
-        .fetch(user.id)
-        .catch(() => null);
+    const member = await guild.members
+      .fetch(user.id)
+      .catch(() => null);
 
     if (!member) {
       await sendReply({
-        content:
-          "❌ No pude verificar tus roles en este servidor.",
+        content: "❌ No pude verificar tus roles en este servidor.",
       });
-
       return;
     }
 
-    const collectRoles =
-      getCollectRolesForMember(
-        member,
-      );
+    const collectRoles = getCollectRolesForMember(member);
 
     if (collectRoles.length === 0) {
-      const embed =
-        new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle(
-            "🚫 Collect no disponible",
-          )
-          .setDescription(
-            `<@${user.id}>, no tenés ningún rol con **Collect Income**.`,
-          )
-          .addFields({
-            name:
-              "🎟️ Roles con Collect",
-            value: [
-              `<@&${COLLECT_ROLES.CAMPEON.roleId}>`,
-              `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
-              `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
-              `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
-            ].join("\n"),
-            inline: false,
-          })
-          .setFooter({
-            text:
-              "Sistema de Collect • Luckybox",
-          })
-          .setTimestamp();
+      const embed = new EmbedBuilder()
+        .setColor(0xed4245)
+        .setTitle("🚫 Collect no disponible")
+        .setDescription(
+          `<@${user.id}>, no tenés ningún rol con **Collect Income**.`,
+        )
+        .addFields({
+          name: "🎟️ Roles con Collect",
+          value: [
+            `<@&${COLLECT_ROLES.CAMPEON.roleId}>`,
+            `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
+            `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
+            `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
+          ].join("\n"),
+          inline: false,
+        })
+        .setFooter({
+          text: "Sistema de Collect • Luckybox",
+        })
+        .setTimestamp();
 
-      await sendReply({
-        embeds: [embed],
-      });
-
+      await sendReply({ embeds: [embed] });
       return;
     }
 
+    // Consultar el cooldown actual en PostgreSQL
+    const existingCooldown = await db.query.cooldownsTable.findFirst({
+      where: and(
+        eq(cooldownsTable.guildId, guild.id),
+        eq(cooldownsTable.userId, user.id),
+      ),
+    });
+
     const now = Date.now();
+    const COLLECT_COOLDOWN_MS = 6 * 24 * 60 * 60 * 1000; // 6 días (ajustá si tu constante se llama distinto)
 
-    const remaining =
-      getRemainingCollectCooldown(
-        guild.id,
-        user.id,
-        now,
-      );
+    if (existingCooldown) {
+      const lastCollectTime = new Date(existingCooldown.lastCollect).getTime();
+      const elapsed = now - lastCollectTime;
+      const remaining = COLLECT_COOLDOWN_MS - elapsed;
 
-    if (remaining > 0) {
-      const key =
-        getCollectCooldownKey(
-          guild.id,
-          user.id,
+      if (remaining > 0) {
+        const nextCollectTimestamp = Math.ceil(
+          (lastCollectTime + COLLECT_COOLDOWN_MS) / 1000,
         );
 
-      const lastCollect =
-        collectCooldownStore[key];
-
-      const nextCollectTimestamp =
-        Math.ceil(
-          (
-            lastCollect +
-            COLLECT_COOLDOWN_MS
-          ) / 1000,
-        );
-
-      const roleText =
-        collectRoles
-          .map(
-            (role) =>
-              `<@&${role.roleId}>`,
-          )
+        const roleText = collectRoles
+          .map((role) => `<@&${role.roleId}>`)
           .join("\n");
 
-      const cooldownEmbed =
-        new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle(
-            "⏳ Todavía no podés hacer otro collect",
-          )
+        const cooldownEmbed = new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle("⏳ Todavía no podés hacer otro collect")
           .setDescription(
             `<@${user.id}>, ya hiciste tu **collect** recientemente.`,
           )
           .addFields(
             {
-              name:
-                "🕐 Tiempo restante",
-              value:
-                `\`\`\`\n${formatCollectRemaining(
-                  remaining,
-                )}\n\`\`\``,
+              name: "🕐 Tiempo restante",
+              value: `\`\`\`\n${formatCollectRemaining(remaining)}\n\`\`\``,
               inline: true,
             },
             {
-              name:
-                "📅 Próximo collect",
-              value:
-                `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
+              name: "📅 Próximo collect",
+              value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
               inline: true,
             },
             {
-              name:
-                "🎖️ Roles detectados",
-              value:
-                roleText,
+              name: "🎖️ Roles detectados",
+              value: roleText,
               inline: false,
             },
           )
           .setFooter({
-            text:
-              "El cooldown es de 6 días por servidor y usuario.",
+            text: "El cooldown es de 6 días por servidor y usuario.",
           })
           .setTimestamp();
 
-      await sendReply({
-        embeds: [cooldownEmbed],
-      });
-
-      return;
+        await sendReply({ embeds: [cooldownEmbed] });
+        return;
+      }
     }
 
-    const rewards =
-      getCollectRewards(
-        collectRoles,
-      );
+    const rewards = getCollectRewards(collectRoles);
 
     if (rewards.length === 0) {
       await sendReply({
-        content:
-          "❌ Tus roles de Collect no tienen recompensas configuradas.",
+        content: "❌ Tus roles de Collect no tienen recompensas configuradas.",
       });
-
       return;
     }
 
@@ -1956,23 +1915,16 @@ async function handleCollect(
           err,
           guildId: guild.id,
           userId: user.id,
-          collectRoles:
-            collectRoles.map(
-              (role) => ({
-                roleId:
-                  role.roleId,
-                roleName:
-                  role.roleName,
-              }),
-            ),
+          collectRoles: collectRoles.map((role) => ({
+            roleId: role.roleId,
+            roleName: role.roleName,
+          })),
           deliveredRewards,
         },
         "Falló una entrega de -collect. Intentando revertir las recompensas ya entregadas.",
       );
 
-      for (
-        const delivered of deliveredRewards
-      ) {
+      for (const delivered of deliveredRewards) {
         try {
           await removeInventoryItem(
             guild.id,
@@ -1984,14 +1936,10 @@ async function handleCollect(
           logger.error(
             {
               rollbackError,
-              guildId:
-                guild.id,
-              userId:
-                user.id,
-              itemId:
-                delivered.itemId,
-              quantity:
-                delivered.quantity,
+              guildId: guild.id,
+              userId: user.id,
+              itemId: delivered.itemId,
+              quantity: delivered.quantity,
             },
             "No se pudo revertir una recompensa parcial de -collect.",
           );
@@ -2001,50 +1949,46 @@ async function handleCollect(
       throw err;
     }
 
-    const collectTimestamp =
-      Date.now();
+    // Guardar o actualizar el cooldown en PostgreSQL
+    const collectDate = new Date();
 
-    collectCooldownStore[
-      getCollectCooldownKey(
-        guild.id,
-        user.id,
-      )
-    ] = collectTimestamp;
-
-    await saveCollectCooldowns();
+    if (existingCooldown) {
+      await db
+        .update(cooldownsTable)
+        .set({ lastCollect: collectDate })
+        .where(
+          and(
+            eq(cooldownsTable.guildId, guild.id),
+            eq(cooldownsTable.userId, user.id),
+          ),
+        );
+    } else {
+      await db.insert(cooldownsTable).values({
+        guildId: guild.id,
+        userId: user.id,
+        lastCollect: collectDate,
+      });
+    }
 
     logger.info(
       {
         guildId: guild.id,
         userId: user.id,
-        collectRoles:
-          collectRoles.map(
-            (role) => ({
-              roleId:
-                role.roleId,
-              roleName:
-                role.roleName,
-            }),
-          ),
-        rewards:
-          deliveredRewards,
+        collectRoles: collectRoles.map((role) => ({
+          roleId: role.roleId,
+          roleName: role.roleName,
+        })),
+        rewards: deliveredRewards,
       },
       "Collect acumulativo ejecutado correctamente.",
     );
 
-    const rewardCounts =
-      new Map<string, number>();
+    const rewardCounts = new Map<string, number>();
 
-    for (
-      const reward of deliveredRewards
-    ) {
+    for (const reward of deliveredRewards) {
       rewardCounts.set(
         reward.cajaNombre,
-        (
-          rewardCounts.get(
-            reward.cajaNombre,
-          ) ?? 0
-        ) + reward.quantity,
+        (rewardCounts.get(reward.cajaNombre) ?? 0) + reward.quantity,
       );
     }
 
@@ -2055,85 +1999,54 @@ async function handleCollect(
       "MR LUCKY ADMIN",
     ];
 
-    const rewardText =
-      rewardOrder
-        .filter(
-          (caja) =>
-            rewardCounts.has(caja),
-        )
-        .map(
-          (caja) =>
-            `• **${caja}** × \`${rewardCounts.get(
-              caja,
-            )}\``,
-        )
-        .join("\n");
+    const rewardText = rewardOrder
+      .filter((caja) => rewardCounts.has(caja))
+      .map((caja) => `• **${caja}** × \`${rewardCounts.get(caja)}\``)
+      .join("\n");
 
-    const rolesText =
-      collectRoles
-        .map(
-          (role) =>
-            `• <@&${role.roleId}>`,
-        )
-        .join("\n");
+    const rolesText = collectRoles
+      .map((role) => `• <@&${role.roleId}>`)
+      .join("\n");
 
-    const nextCollectTimestamp =
-      Math.ceil(
-        (
-          collectTimestamp +
-          COLLECT_COOLDOWN_MS
-        ) / 1000,
-      );
+    const nextCollectTimestamp = Math.ceil(
+      (collectDate.getTime() + COLLECT_COOLDOWN_MS) / 1000,
+    );
 
-    const successEmbed =
-      new EmbedBuilder()
-        .setColor("Orange")
-        .setTitle(
-          "🎁 ¡Collect realizado con éxito!",
-        )
-        .setDescription(
-          `<@${user.id}>, reclamaste correctamente tu Collect.`,
-        )
-        .addFields(
-          {
-            name:
-              "🎖️ Roles detectados",
-            value:
-              rolesText,
-            inline: false,
-          },
-          {
-            name:
-              "📦 Estado",
-            value:
-              "`ENTREGADO`",
-            inline: true,
-          },
-          {
-            name:
-              "🎁 Recompensas obtenidas",
-            value:
-              rewardText ||
-              "No se pudieron determinar las recompensas.",
-            inline: false,
-          },
-          {
-            name:
-              "⏳ Próximo collect",
-            value:
-              `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
-            inline: false,
-          },
-        )
-        .setFooter({
-          text:
-            "Sistema de Collect • Cooldown de 6 días",
-        })
-        .setTimestamp();
+    const successEmbed = new EmbedBuilder()
+      .setColor("Orange")
+      .setTitle("🎁 ¡Collect realizado con éxito!")
+      .setDescription(
+        `<@${user.id}>, reclamaste correctamente tu Collect.`,
+      )
+      .addFields(
+        {
+          name: "🎖️ Roles detectados",
+          value: rolesText,
+          inline: false,
+        },
+        {
+          name: "📦 Estado",
+          value: "`ENTREGADO`",
+          inline: true,
+        },
+        {
+          name: "🎁 Recompensas obtenidas",
+          value:
+            rewardText || "No se pudieron determinar las recompensas.",
+          inline: false,
+        },
+        {
+          name: "⏳ Próximo collect",
+          value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`,
+          inline: false,
+        },
+      )
+      .setFooter({
+        text: "Sistema de Collect • Cooldown de 6 días",
+      })
+      .setTimestamp();
 
-    await sendReply({
-      embeds: [successEmbed],
-    });
+    await sendReply({ embeds: [successEmbed] });
   } catch (err: any) {
     logger.error(
       {
@@ -2147,23 +2060,18 @@ async function handleCollect(
     await sendReply({
       embeds: [
         new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle(
-            "❌ No se pudo completar tu collect",
-          )
+          .setColor(0xed4245)
+          .setTitle("❌ No se pudo completar tu collect")
           .setDescription(
             `<@${user.id}>, ocurrió un problema mientras intentaba entregarte las recompensas.`,
           )
           .addFields({
-            name:
-              "📋 Estado",
-            value:
-              "`NO COMPLETADO`",
+            name: "📋 Estado",
+            value: "`NO COMPLETADO`",
             inline: false,
           })
           .setFooter({
-            text:
-              "No se consumió el cooldown porque el collect no terminó correctamente.",
+            text: "No se consumió el cooldown porque el collect no terminó correctamente.",
           })
           .setTimestamp(),
       ],
