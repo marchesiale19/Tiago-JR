@@ -389,7 +389,7 @@ function createBombActivatedEmbed(
   return new EmbedBuilder()
     .setColor(0xff0000)
     .setTitle(
-      "💣 ¡Bomba activada!",
+      "💥  ¡Bomba activada!",
     )
     .setDescription(
       `<@${user.id}> activó la **${config.name}**.`,
