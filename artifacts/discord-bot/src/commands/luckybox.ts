@@ -546,26 +546,11 @@ export const ADMIN_LUCKYBOX_REWARDS = [
 /*                           PICK REWARD                                      */
 /* ========================================================================== */
 
-let forceNextAdminBaxReward = true;
-
 export function pickReward(
   cajaNombre: string,
 ): LuckyboxReward {
-  const nombreLower = cajaNombre.toLowerCase();
-
-  // 🐀 CORRUPCIÓN TEMPORAL: próximo Admin = Esclavo de Bax
-  if (
-    forceNextAdminBaxReward &&
-    nombreLower.includes("admin")
-  ) {
-    forceNextAdminBaxReward = false;
-
-    return ADMIN_LUCKYBOX_REWARDS.find(
-      (reward) => reward.tipo === "rol_esclavo_bax",
-    )!;
-  }
-
   const rand = Math.random() * 100;
+  const nombreLower = cajaNombre.toLowerCase();
 
   let rewards: readonly LuckyboxReward[];
   let probabilities: readonly number[];
