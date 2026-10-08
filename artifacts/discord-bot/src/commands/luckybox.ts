@@ -262,6 +262,499 @@ const LUCKYBOX_DROP_AUTHORIZED_ROLES:
   ];
 
 /* ========================================================================== */
+/*                     LÍMITES DE LUCKYBOX DROP                              */
+/* ========================================================================== */
+
+const LUCKYBOX_DROP_LIMITS = {
+  "Mr Lucky Común": {
+    max: 6,
+    period: "day",
+  },
+  "Mr Lucky Raro": {
+    max: 3,
+    period: "day",
+  },
+  "Mr Lucky Épico": {
+    max: 2,
+    period: "day",
+  },
+  "MR LUCKY ADMIN": {
+    max: 2,
+    period: "weekend",
+  },
+} as const;
+
+type LuckyboxDropLimitKey =
+  keyof typeof LUCKYBOX_DROP_LIMITS;
+
+interface LuckyboxDropUsage {
+  common: number;
+  rare: number;
+  epic: number;
+  admin: number;
+  date: string;
+  weekendKey: string;
+}
+
+const LUCKYBOX_DROP_LIMIT_FILE =
+  path.join(
+    process.cwd(),
+    "data",
+    "luckybox-drop-usage.json",
+  );
+
+let luckyboxDropUsage:
+  Record<string, LuckyboxDropUsage> = {};
+
+let luckyboxDropUsageLoaded = false;
+
+let luckyboxDropUsageLoadPromise:
+  Promise<void> | null = null;
+
+let luckyboxDropUsageWriteQueue:
+  Promise<void> = Promise.resolve();
+
+/* ========================================================================== */
+/*                  PERSISTENCIA DE LÍMITES DE DROP                           */
+/* ========================================================================== */
+
+async function loadLuckyboxDropUsage(): Promise<void> {
+  if (luckyboxDropUsageLoaded) {
+    return;
+  }
+
+  if (luckyboxDropUsageLoadPromise) {
+    return luckyboxDropUsageLoadPromise;
+  }
+
+  luckyboxDropUsageLoadPromise =
+    (async () => {
+      try {
+        const raw =
+          await readFile(
+            LUCKYBOX_DROP_LIMIT_FILE,
+            "utf8",
+          );
+
+        const parsed = JSON.parse(raw);
+
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          !Array.isArray(parsed)
+        ) {
+          luckyboxDropUsage =
+            parsed as Record<
+              string,
+              LuckyboxDropUsage
+            >;
+        } else {
+          luckyboxDropUsage = {};
+        }
+      } catch (err: any) {
+        if (err?.code !== "ENOENT") {
+          logger.warn(
+            {
+              err,
+              file:
+                LUCKYBOX_DROP_LIMIT_FILE,
+            },
+            "No se pudo leer el archivo de límites de Luckybox Drop. Se iniciará uno nuevo.",
+          );
+        }
+
+        luckyboxDropUsage = {};
+      } finally {
+        luckyboxDropUsageLoaded = true;
+        luckyboxDropUsageLoadPromise = null;
+      }
+    })();
+
+  return luckyboxDropUsageLoadPromise;
+}
+
+async function saveLuckyboxDropUsage(): Promise<void> {
+  luckyboxDropUsageWriteQueue =
+    luckyboxDropUsageWriteQueue.then(
+      async () => {
+        const directory =
+          path.dirname(
+            LUCKYBOX_DROP_LIMIT_FILE,
+          );
+
+        await mkdir(directory, {
+          recursive: true,
+        });
+
+        const temporaryFile =
+          `${LUCKYBOX_DROP_LIMIT_FILE}.tmp`;
+
+        await writeFile(
+          temporaryFile,
+          JSON.stringify(
+            luckyboxDropUsage,
+            null,
+            2,
+          ),
+          "utf8",
+        );
+
+        await rename(
+          temporaryFile,
+          LUCKYBOX_DROP_LIMIT_FILE,
+        );
+      },
+    ).catch((err) => {
+      logger.error(
+        {
+          err,
+          file:
+            LUCKYBOX_DROP_LIMIT_FILE,
+        },
+        "No se pudo guardar el uso de Luckybox Drop.",
+      );
+    });
+
+  return luckyboxDropUsageWriteQueue;
+}
+
+/* ========================================================================== */
+/*                         FECHAS DE DROP                                     */
+/* ========================================================================== */
+
+function getDateKey(
+  date = new Date(),
+): string {
+  return [
+    date.getFullYear(),
+    String(
+      date.getMonth() + 1,
+    ).padStart(2, "0"),
+    String(
+      date.getDate(),
+    ).padStart(2, "0"),
+  ].join("-");
+}
+
+/*
+ * Devuelve una clave que representa el fin de semana actual.
+ *
+ * Sábado y domingo pertenecen al mismo weekendKey.
+ */
+function getWeekendKey(
+  date = new Date(),
+): string {
+  const day =
+    date.getDay();
+
+  const weekendDate =
+    new Date(date);
+
+  /*
+   * Si es domingo, retrocedemos un día hasta sábado.
+   * Si es sábado, se mantiene.
+   */
+  if (day === 0) {
+    weekendDate.setDate(
+      weekendDate.getDate() - 1,
+    );
+  }
+
+  return getDateKey(
+    weekendDate,
+  );
+}
+
+function isWeekend(
+  date = new Date(),
+): boolean {
+  const day =
+    date.getDay();
+
+  return (
+    day === 0 ||
+    day === 6
+  );
+}
+
+/* ========================================================================== */
+/*                     OBTENER USO DEL SERVIDOR                              */
+/* ========================================================================== */
+
+function getDropUsage(
+  guildId: string,
+  now = new Date(),
+): LuckyboxDropUsage {
+  const dateKey =
+    getDateKey(now);
+
+  const weekendKey =
+    getWeekendKey(now);
+
+  const existing =
+    luckyboxDropUsage[guildId];
+
+  if (!existing) {
+    const usage: LuckyboxDropUsage = {
+      common: 0,
+      rare: 0,
+      epic: 0,
+      admin: 0,
+      date: dateKey,
+      weekendKey,
+    };
+
+    luckyboxDropUsage[guildId] =
+      usage;
+
+    return usage;
+  }
+
+  /*
+   * Los límites comunes/raros/épicos se reinician
+   * automáticamente al cambiar el día.
+   */
+  if (
+    existing.date !== dateKey
+  ) {
+    existing.common = 0;
+    existing.rare = 0;
+    existing.epic = 0;
+    existing.date = dateKey;
+  }
+
+  /*
+   * El límite Admin se reinicia al comenzar
+   * un nuevo fin de semana.
+   */
+  if (
+    existing.weekendKey !==
+    weekendKey
+  ) {
+    existing.admin = 0;
+    existing.weekendKey =
+      weekendKey;
+  }
+
+  return existing;
+}
+
+/* ========================================================================== */
+/*                     VALIDAR LÍMITE DE DROP                                 */
+/* ========================================================================== */
+
+function getDropUsageKey(
+  cajaNombre: string,
+): "common" | "rare" | "epic" | "admin" {
+  const normalized =
+    normalizeName(cajaNombre);
+
+  if (
+    normalized.includes("comun")
+  ) {
+    return "common";
+  }
+
+  if (
+    normalized.includes("raro")
+  ) {
+    return "rare";
+  }
+
+  if (
+    normalized.includes("epico")
+  ) {
+    return "epic";
+  }
+
+  return "admin";
+}
+
+async function checkLuckyboxDropLimit(
+  guildId: string,
+  cajaNombre: string,
+): Promise<{
+  allowed: boolean;
+  remaining: number;
+  limit: number;
+  reason?: string;
+}> {
+  await loadLuckyboxDropUsage();
+
+  const now =
+    new Date();
+
+  const usage =
+    getDropUsage(
+      guildId,
+      now,
+    );
+
+  const usageKey =
+    getDropUsageKey(
+      cajaNombre,
+    );
+
+  /*
+   * ADMIN
+   */
+  if (
+    usageKey === "admin"
+  ) {
+    if (
+      !isWeekend(now)
+    ) {
+      return {
+        allowed: false,
+        remaining: 0,
+        limit: 2,
+        reason:
+          "Las **Mr Lucky Admin** solamente pueden soltarse los sábados y domingos.",
+      };
+    }
+
+    const remaining =
+      Math.max(
+        0,
+        2 - usage.admin,
+      );
+
+    if (
+      remaining <= 0
+    ) {
+      return {
+        allowed: false,
+        remaining: 0,
+        limit: 2,
+        reason:
+          "Ya se alcanzó el límite de **2 Mr Lucky Admin** para este fin de semana.",
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining,
+      limit: 2,
+    };
+  }
+
+  /*
+   * COMÚN
+   */
+  if (
+    usageKey === "common"
+  ) {
+    const remaining =
+      Math.max(
+        0,
+        6 - usage.common,
+      );
+
+    if (
+      remaining <= 0
+    ) {
+      return {
+        allowed: false,
+        remaining: 0,
+        limit: 6,
+        reason:
+          "Ya se alcanzó el límite de **6 Mr Lucky Común** para hoy.",
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining,
+      limit: 6,
+    };
+  }
+
+  /*
+   * RARO
+   */
+  if (
+    usageKey === "rare"
+  ) {
+    const remaining =
+      Math.max(
+        0,
+        3 - usage.rare,
+      );
+
+    if (
+      remaining <= 0
+    ) {
+      return {
+        allowed: false,
+        remaining: 0,
+        limit: 3,
+        reason:
+          "Ya se alcanzó el límite de **3 Mr Lucky Raro** para hoy.",
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining,
+      limit: 3,
+    };
+  }
+
+  /*
+   * ÉPICO
+   */
+  const remaining =
+    Math.max(
+      0,
+      2 - usage.epic,
+    );
+
+  if (
+    remaining <= 0
+  ) {
+    return {
+      allowed: false,
+      remaining: 0,
+      limit: 2,
+      reason:
+        "Ya se alcanzó el límite de **2 Mr Lucky Épico** para hoy.",
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining,
+    limit: 2,
+  };
+}
+
+/* ========================================================================== */
+/*                    REGISTRAR DROP UTILIZADO                                */
+/* ========================================================================== */
+
+async function registerLuckyboxDrop(
+  guildId: string,
+  cajaNombre: string,
+): Promise<void> {
+  await loadLuckyboxDropUsage();
+
+  const usage =
+    getDropUsage(
+      guildId,
+      new Date(),
+    );
+
+  const usageKey =
+    getDropUsageKey(
+      cajaNombre,
+    );
+
+  usage[usageKey]++;
+
+  await saveLuckyboxDropUsage();
+}
+
+/* ========================================================================== */
 /*                         CONFIGURACIÓN DROP                                 */
 /* ========================================================================== */
 
@@ -1235,6 +1728,27 @@ async function handleLuckyboxDrop(
       return;
     }
 
+        /* ---------------------------------------------------------------------- */
+    /*                    VERIFICAR LÍMITE DE DROP                            */
+    /* ---------------------------------------------------------------------- */
+
+    const dropLimit =
+      await checkLuckyboxDropLimit(
+        guild.id,
+        cajaNombre,
+      );
+
+    if (!dropLimit.allowed) {
+      await sendReply({
+        content:
+          `❌ **No podés soltar esta caja ahora.**\n\n${dropLimit.reason}`,
+        flags:
+          MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
     const itemId =
       getLuckyboxItemId(
         cajaNombre,
@@ -1285,6 +1799,10 @@ async function handleLuckyboxDrop(
         itemId,
         claimed: false,
       },
+    );
+        await registerLuckyboxDrop(
+      guild.id,
+      cajaNombre,
     );
 
     await sendReply({
