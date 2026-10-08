@@ -11,7 +11,15 @@ import {
   GuildMember,
   Message,
 } from "discord.js";
-import { getSimulatedLevel, MY_DISCORD_ID } from "./roleOverride";
+
+import {
+  getSimulatedLevel,
+  MY_DISCORD_ID,
+} from "./roleOverride";
+
+/* =========================================================
+ * ROLES
+ * ======================================================= */
 
 const ROLE_STAFF = "1454679144230289510";
 
@@ -65,12 +73,35 @@ const LOTTERY_MANAGEMENT_ROLES = [
   "1522807097920720967", // Manager
 ];
 
+/*
+ * Roles que pueden utilizar/ver:
+ * -clear
+ */
+const CLEAR_COMMAND_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+];
+
+/* =========================================================
+ * TIPOS Y NIVEL DE ACCESO
+ * ======================================================= */
+
 type AccessLevel = "user" | "staff" | "owner";
 
 function getMemberAccessLevel(
   member: GuildMember | null | undefined,
   userId?: string,
 ): AccessLevel {
+  /*
+   * Nivel simulado para el usuario configurado
+   * en roleOverride.
+   */
   if (userId === MY_DISCORD_ID) {
     const simLevel = getSimulatedLevel();
 
@@ -89,6 +120,9 @@ function getMemberAccessLevel(
 
   const roleIds = roleCache.map((role) => role.id);
 
+  /*
+   * Tier 1 = Owner.
+   */
   if (
     roleIds.some((id) =>
       TIER_1_ROLES.includes(id),
@@ -97,6 +131,9 @@ function getMemberAccessLevel(
     return "owner";
   }
 
+  /*
+   * Tier 2 + rol Staff = Staff.
+   */
   if (
     roleIds.some(
       (id) =>
@@ -109,6 +146,10 @@ function getMemberAccessLevel(
 
   return "user";
 }
+
+/* =========================================================
+ * PERMISOS ESPECÍFICOS
+ * ======================================================= */
 
 /*
  * Comprueba si el usuario puede ver:
@@ -139,6 +180,24 @@ function canManageLottery(
   );
 }
 
+/*
+ * Comprueba si el usuario puede ver:
+ * -clear
+ */
+function canUseClear(
+  member: GuildMember | null | undefined,
+): boolean {
+  if (!member) return false;
+
+  return member.roles.cache.some((role) =>
+    CLEAR_COMMAND_ROLES.includes(role.id),
+  );
+}
+
+/* =========================================================
+ * CATEGORÍAS DEL HELP
+ * ======================================================= */
+
 interface CategoryData {
   label: string;
   description: string;
@@ -156,6 +215,9 @@ function getCategories(
    * los usuarios independientemente de su rango.
    */
   const categories: CategoryData[] = [
+    /* -----------------------------------------------------
+     * PARTIDAS RANKED
+     * --------------------------------------------------- */
     {
       label: "Partidas Ranked",
       description:
@@ -170,6 +232,9 @@ function getCategories(
       ].join("\n"),
     },
 
+    /* -----------------------------------------------------
+     * ESTADÍSTICAS
+     * --------------------------------------------------- */
     {
       label: "Estadísticas",
       description:
@@ -183,6 +248,9 @@ function getCategories(
       ].join("\n"),
     },
 
+    /* -----------------------------------------------------
+     * CASINO
+     * --------------------------------------------------- */
     {
       label: "Casino",
       description: "Sistema de economía.",
@@ -208,15 +276,9 @@ function getCategories(
       ].join("\n"),
     },
 
-    /*
+    /* -----------------------------------------------------
      * LOTERÍA
-     *
-     * La categoría es visible para todos porque
-     * -notas es un comando público.
-     *
-     * -anotar y -girar solamente aparecen para
-     * Developer Tiago Jr y Manager.
-     */
+     * --------------------------------------------------- */
     {
       label: "Lotería",
       description:
@@ -224,22 +286,24 @@ function getCategories(
       emoji: "🎟️",
       title: "Lotería",
       content: [
+        /*
+         * -anotar y -girar solamente aparecen para
+         * Developer Tiago Jr y Manager.
+         */
         ...(canManageLottery(member)
           ? [
               "-anotar — Registra a los participantes actuales de la lotería.",
               "-girar — Realiza el sorteo de la lotería.",
             ]
           : []),
+
         "-notas — Muestra los participantes actuales de la lotería.",
       ].join("\n"),
     },
 
-    /*
+    /* -----------------------------------------------------
      * REPUTACIÓN
-     *
-     * Esta categoría está fuera de cualquier comprobación
-     * de access, por lo que TODOS los usuarios pueden verla.
-     */
+     * --------------------------------------------------- */
     {
       label: "Reputación",
       description:
@@ -261,6 +325,9 @@ function getCategories(
     access === "staff" ||
     access === "owner"
   ) {
+    /* -----------------------------------------------------
+     * SUPERVISIÓN
+     * --------------------------------------------------- */
     categories.push({
       label: "Supervisión",
       description:
@@ -276,6 +343,9 @@ function getCategories(
       ].join("\n"),
     });
 
+    /* -----------------------------------------------------
+     * ADMINISTRACIÓN
+     * --------------------------------------------------- */
     categories.push({
       label: "Administración",
       description:
@@ -284,6 +354,23 @@ function getCategories(
       title: "Administración",
       content: [
         "-sanciones — Consulta la información de una sanción.",
+
+        /*
+         * -clear solamente aparece para los roles
+         * autorizados específicamente.
+         */
+        ...(canUseClear(member)
+          ? [
+              "-clear <cantidad> — Elimina una cantidad de mensajes.",
+              "-clear @usuario <cantidad> — Elimina mensajes de un usuario.",
+              "-clear #canal <cantidad> — Elimina mensajes de un canal.",
+              "-clear #canal @usuario <cantidad> — Elimina mensajes de un usuario en un canal.",
+            ]
+          : []),
+
+        /*
+         * Este comando solamente aparece para Owner.
+         */
         ...(access === "owner"
           ? [
               "-leaderboard sync — Sincroniza y actualiza la tabla de clasificación del casino con los datos más recientes.",
@@ -292,6 +379,9 @@ function getCategories(
       ].join("\n"),
     });
 
+    /* -----------------------------------------------------
+     * TEMPORADA
+     * --------------------------------------------------- */
     categories.push({
       label: "Temporada",
       description:
@@ -305,14 +395,16 @@ function getCategories(
               "-cerrar temporada — Cierra la temporada activa.",
             ]
           : []),
+
         "-temporada info — Muestra la información de una temporada.",
       ].join("\n"),
     });
   }
 
-  /*
-   * Postulaciones
-   */
+  /* -------------------------------------------------------
+   * POSTULACIONES
+   * ----------------------------------------------------- */
+
   const postRows = [
     "-postular — Inicia el proceso de postulación al staff.",
   ];
@@ -336,11 +428,19 @@ function getCategories(
   return categories;
 }
 
+/* =========================================================
+ * COMANDO /HELP
+ * ======================================================= */
+
 export const data = new SlashCommandBuilder()
   .setName("help")
   .setDescription(
     "Muestra el centro de ayuda interactivo.",
   );
+
+/* =========================================================
+ * MENÚ DEL HELP
+ * ======================================================= */
 
 async function sendHelpMenu(
   authorId: string,
@@ -367,7 +467,8 @@ async function sendHelpMenu(
 
   /*
    * Pasamos también el miembro para comprobar
-   * los roles específicos de Lucky Box y Lotería.
+   * los roles específicos de Lucky Box, Lotería
+   * y -clear.
    */
   const categories = getCategories(
     access,
@@ -375,6 +476,10 @@ async function sendHelpMenu(
   );
 
   const initialCat = categories[0];
+
+  /* -------------------------------------------------------
+   * CONSTRUCCIÓN DEL EMBED
+   * ----------------------------------------------------- */
 
   const buildEmbed = (
     category: CategoryData,
@@ -398,6 +503,10 @@ async function sendHelpMenu(
       })
       .setTimestamp();
   };
+
+  /* -------------------------------------------------------
+   * COMPONENTES
+   * ----------------------------------------------------- */
 
   const buildComponents = () => {
     const selectMenu =
@@ -442,6 +551,10 @@ async function sendHelpMenu(
     ];
   };
 
+  /* -------------------------------------------------------
+   * ENVÍO DEL MENÚ
+   * ----------------------------------------------------- */
+
   let response: any;
 
   if (editMethod) {
@@ -458,6 +571,10 @@ async function sendHelpMenu(
         buildComponents() as any,
     });
   }
+
+  /* -------------------------------------------------------
+   * COLLECTOR
+   * ----------------------------------------------------- */
 
   const collector =
     response.createMessageComponentCollector({
@@ -483,9 +600,10 @@ async function sendHelpMenu(
         return;
       }
 
-      /*
-       * Selector de categorías
-       */
+      /* ---------------------------------------------------
+       * SELECTOR DE CATEGORÍAS
+       * ------------------------------------------------- */
+
       if (i.isStringSelectMenu()) {
         const select =
           i as StringSelectMenuInteraction;
@@ -514,13 +632,17 @@ async function sendHelpMenu(
         return;
       }
 
-      /*
-       * Botones
-       */
+      /* ---------------------------------------------------
+       * BOTONES
+       * ------------------------------------------------- */
+
       if (i.isButton()) {
         const button =
           i as ButtonInteraction;
 
+        /*
+         * Botón Inicio
+         */
         if (
           button.customId ===
           "help_home"
@@ -536,6 +658,9 @@ async function sendHelpMenu(
           return;
         }
 
+        /*
+         * Botón Cerrar
+         */
         if (
           button.customId ===
           "help_close"
@@ -559,10 +684,10 @@ async function sendHelpMenu(
     },
   );
 
-  /*
-   * Cuando expira el menú, eliminamos
-   * los componentes interactivos.
-   */
+  /* -------------------------------------------------------
+   * FIN DEL COLLECTOR
+   * ----------------------------------------------------- */
+
   collector.on("end", () => {
     if (editMethod) {
       editMethod({
@@ -577,6 +702,10 @@ async function sendHelpMenu(
     }
   });
 }
+
+/* =========================================================
+ * EJECUCIÓN
+ * ======================================================= */
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
