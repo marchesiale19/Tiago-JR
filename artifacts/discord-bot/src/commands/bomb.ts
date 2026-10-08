@@ -483,6 +483,7 @@ function formatMoney(amount: number): string {
   return amount.toLocaleString("es-AR");
 }
 
+
 /* ========================================================================== */
 /*                         EMBED INFO DE BOMBA                                */
 /* ========================================================================== */
@@ -505,26 +506,26 @@ function createBombInfoEmbed(
 
   const limitDescription =
     bombType === "admin"
-      ? "**Límite:** 2 por fin de semana\n**Disponibilidad:** sábados y domingos"
-      : `**Límite:** ${BOMB_LIMITS[bombType]} por día`;
+      ? "📅 **Límite:** 2 por fin de semana\n🔓 **Disponibilidad:** sábados y domingos"
+      : `📅 **Límite:** ${BOMB_LIMITS[bombType]} por día`;
 
   return new EmbedBuilder()
-    .setColor(0xFFA500)
-    .setTitle(`💣 Información — ${config.name}`)
+    .setColor("Orange")
+    .setTitle(`📊 Información de Recompensas: ${config.name}`)
     .setDescription(
       [
-        `Conocé los castigos posibles de la **${config.name}** antes de reclamar un Bomb Drop.`,
+        `Información sobre los castigos de la **${config.name}**.`,
         "",
-        `**Probabilidad de aparición:** ${config.chance}%`,
+        `🎲 **Probabilidad de aparición:** ${config.chance}%`,
         limitDescription,
       ].join("\n"),
     )
     .addFields({
-      name: "💸 Castigos posibles",
+      name: "⚠️ Castigos",
       value: punishmentList,
     })
     .setFooter({
-      text: "Sistema de Bomb Drop • Las probabilidades corresponden a cada castigo.",
+      text: "Sistema de Bombas • Informaciones Oficiales",
     })
     .setTimestamp();
 }
