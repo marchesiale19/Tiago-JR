@@ -1299,9 +1299,12 @@ function findLuckyboxInInventory(
       itemId === expectedId;
 
     const matchesName =
-      itemName === targetName ||
-      itemName.includes(targetName) ||
-      targetName.includes(itemName);
+  itemName.length > 0 &&
+  (
+    itemName === targetName ||
+    itemName.includes(targetName) ||
+    targetName.includes(itemName)
+  );
 
     return matchesId || matchesName;
   });
