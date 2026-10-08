@@ -285,6 +285,7 @@ function getCategories(
         "-luckybox abrir — Abre una Lucky Box.",
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
+        "-bomb info — Muestra información detallada sobre las Bombas.",
 
         /*
          * Este comando solamente aparece si el usuario
