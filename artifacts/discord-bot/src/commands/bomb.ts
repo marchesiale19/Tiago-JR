@@ -1,4 +1,3 @@
-
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -45,6 +44,14 @@ const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
 
 const BOMB_COIN_EMOJI =
   "<:MonedaServer:1524674026188967956>";
+
+/* ========================================================================== */
+/*                         LOGS GLOBALES DE BOMB DROPS                        */
+/* ========================================================================== */
+
+const BOMB_LOG_SOURCE_GUILD_ID = "1437644356977823884";
+const BOMB_LOG_DESTINATION_GUILD_ID = "1541513034139435081";
+const BOMB_LOG_CHANNEL_ID = "1557861035677843576";
 
 /* ========================================================================== */
 /*                          ROLES AUTORIZADOS                                 */
@@ -557,6 +564,123 @@ function createBombDropEmbed(
     .setTimestamp();
 }
 
+
+/* ========================================================================== */
+/*                         LOGS DE BOMB DROPS                                 */
+/* ========================================================================== */
+
+async function sendBombDropLog(
+  guild: Guild,
+  moderatorUser: User,
+  bombType: BombType,
+  dropMessage: Message,
+): Promise<void> {
+  // Solo registrar los drops del servidor de origen.
+  if (guild.id !== BOMB_LOG_SOURCE_GUILD_ID) {
+    return;
+  }
+
+  try {
+    const logChannel = await guild.client.channels
+      .fetch(BOMB_LOG_CHANNEL_ID);
+
+    if (
+      !logChannel ||
+      !logChannel.isTextBased() ||
+      !("send" in logChannel) ||
+      !("guild" in logChannel) ||
+      logChannel.guild.id !== BOMB_LOG_DESTINATION_GUILD_ID
+    ) {
+      logger.error(
+        {
+          sourceGuildId: guild.id,
+          destinationGuildId: BOMB_LOG_DESTINATION_GUILD_ID,
+          channelId: BOMB_LOG_CHANNEL_ID,
+        },
+        "El canal de logs de Bomb Drops no es válido.",
+      );
+
+      return;
+    }
+
+    const config = BOMB_CONFIG[bombType];
+
+    const embed = new EmbedBuilder()
+      .setColor(config.color)
+      .setTitle("💣 Registro de Bomb Drop")
+      .setDescription(
+        "Se ha creado un nuevo Bomb Drop en el servidor de origen.",
+      )
+      .addFields(
+        {
+          name: "👤 Responsable",
+          value:
+            `<@${moderatorUser.id}>\n` +
+            `\`${moderatorUser.id}\``,
+          inline: true,
+        },
+        {
+          name: "💣 Tipo de bomba",
+          value: `**${config.name}**`,
+          inline: true,
+        },
+        {
+          name: "🏠 Servidor de origen",
+          value:
+            `${guild.name}\n` +
+            `\`${guild.id}\``,
+          inline: false,
+        },
+        {
+          name: "📍 Canal del drop",
+          value:
+            `<#${dropMessage.channelId}>\n` +
+            `\`${dropMessage.channelId}\``,
+          inline: true,
+        },
+        {
+          name: "🔗 Mensaje del drop",
+          value: `[Abrir Bomb Drop](${dropMessage.url})`,
+          inline: true,
+        },
+      )
+      .setFooter({
+        text: "Sistema de Bomb Drops • Registro de actividad",
+      })
+      .setTimestamp(dropMessage.createdAt);
+
+    await logChannel.send({
+      embeds: [embed],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+
+    logger.info(
+      {
+        sourceGuildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+        dropChannelId: dropMessage.channelId,
+        dropMessageId: dropMessage.id,
+        logChannelId: BOMB_LOG_CHANNEL_ID,
+      },
+      "Log de Bomb Drop enviado correctamente.",
+    );
+  } catch (error) {
+    logger.error(
+      {
+        error,
+        sourceGuildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+        logChannelId: BOMB_LOG_CHANNEL_ID,
+      },
+      "No se pudo enviar el log de Bomb Drop.",
+    );
+  }
+}
+
 /* ========================================================================== */
 /*                       BOTÓN DROP                                           */
 /* ========================================================================== */
@@ -695,6 +819,12 @@ async function handleBombDrop(
       bombType,
       claimed: false,
     });
+    await sendBombDropLog(
+  guild,
+  moderatorUser,
+  bombType,
+  dropMessage,
+);
 
     await sendReply({
       content:
