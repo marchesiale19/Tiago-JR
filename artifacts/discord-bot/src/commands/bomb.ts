@@ -1,3 +1,4 @@
+
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -12,6 +13,15 @@ import {
   type Message,
   type User,
 } from "discord.js";
+
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import pkg from "unb-api";
 const { Client: UnbClient } = pkg;
@@ -31,19 +41,19 @@ if (!UNBELIEVABOAT_API_KEY) {
   );
 }
 
-const unb = new UnbClient(
-  UNBELIEVABOAT_API_KEY,
-);
+const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
+
+const BOMB_COIN_EMOJI =
+  "<:MonedaServer:1524674026188967956>";
 
 /* ========================================================================== */
 /*                          ROLES AUTORIZADOS                                 */
 /* ========================================================================== */
 
-const BOMB_DROP_AUTHORIZED_ROLES:
-  readonly string[] = [
-    "1539368076326473868", // Developer Tiago Jr
-    "1522807097920720967", // Manager
-  ];
+const BOMB_DROP_AUTHORIZED_ROLES: readonly string[] = [
+  "1539368076326473868", // Developer Tiago Jr
+  "1522807097920720967", // Manager
+];
 
 /* ========================================================================== */
 /*                              TIPOS                                         */
@@ -71,23 +81,14 @@ interface BombConfig {
 /*                       CONFIGURACIÓN DE BOMBAS                              */
 /* ========================================================================== */
 
-const BOMB_CONFIG: Record<
-  BombType,
-  BombConfig
-> = {
+const BOMB_CONFIG: Record<BombType, BombConfig> = {
   comun: {
     name: "Bomba Común",
     color: 0x808080,
     chance: 65,
     rewards: [
-      {
-        amount: -20_000,
-        chance: 70,
-      },
-      {
-        amount: -25_000,
-        chance: 30,
-      },
+      { amount: -20_000, chance: 70 },
+      { amount: -25_000, chance: 30 },
     ],
   },
 
@@ -96,14 +97,8 @@ const BOMB_CONFIG: Record<
     color: 0x3498db,
     chance: 25,
     rewards: [
-      {
-        amount: -150_000,
-        chance: 65,
-      },
-      {
-        amount: -250_000,
-        chance: 35,
-      },
+      { amount: -150_000, chance: 65 },
+      { amount: -250_000, chance: 35 },
     ],
   },
 
@@ -112,14 +107,8 @@ const BOMB_CONFIG: Record<
     color: 0x9b59b6,
     chance: 9,
     rewards: [
-      {
-        amount: -600_000,
-        chance: 70,
-      },
-      {
-        amount: -1_000_000,
-        chance: 30,
-      },
+      { amount: -600_000, chance: 70 },
+      { amount: -1_000_000, chance: 30 },
     ],
   },
 
@@ -128,31 +117,223 @@ const BOMB_CONFIG: Record<
     color: 0xff0000,
     chance: 1,
     rewards: [
-      {
-        amount: -1_000_000,
-        chance: 70,
-      },
-      {
-        amount: -5_000_000,
-        chance: 25,
-      },
-      {
-        amount: -10_000_000,
-        chance: 5,
-      },
+      { amount: -1_000_000, chance: 70 },
+      { amount: -5_000_000, chance: 25 },
+      { amount: -10_000_000, chance: 5 },
     ],
   },
 };
 
 /* ========================================================================== */
-/*                          BOTÓN / DROP                                     */
+/*                       LÍMITES DE BOMB DROPS                                */
 /* ========================================================================== */
 
-const BOMB_DROP_BUTTON_PREFIX =
-  "bomb_drop_claim";
+const BOMB_LIMITS: Record<BombType, number> = {
+  comun: 6,
+  raro: 3,
+  epico: 2,
+  admin: 2,
+};
+
+const BOMB_TIME_ZONE = "America/Sao_Paulo";
+
+interface BombLimitStore {
+  daily: Record<string, number>;
+  weekends: Record<string, number>;
+}
+
+interface BombLimitReservation {
+  key: string;
+  type: BombType;
+  weekend: boolean;
+}
+
+const BOMB_LIMITS_FILE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "bomb-limits.json",
+);
+
+function loadBombLimits(): BombLimitStore {
+  try {
+    if (existsSync(BOMB_LIMITS_FILE)) {
+      const content = readFileSync(
+        BOMB_LIMITS_FILE,
+        "utf8",
+      );
+
+      const parsed = JSON.parse(
+        content,
+      ) as Partial<BombLimitStore>;
+
+      return {
+        daily: parsed.daily ?? {},
+        weekends: parsed.weekends ?? {},
+      };
+    }
+  } catch (error) {
+    logger.error(
+      { error },
+      "No se pudieron cargar los límites de Bomb Drops.",
+    );
+  }
+
+  return {
+    daily: {},
+    weekends: {},
+  };
+}
+
+let bombLimitStore = loadBombLimits();
+
+function saveBombLimits(): void {
+  writeFileSync(
+    BOMB_LIMITS_FILE,
+    JSON.stringify(bombLimitStore, null, 2),
+    "utf8",
+  );
+}
+
+function getBrazilDateInfo(): {
+  dateKey: string;
+  weekday: number;
+} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BOMB_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(new Date());
+
+  const getPart = (type: string): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const year = getPart("year");
+  const month = getPart("month");
+  const day = getPart("day");
+  const weekdayName = getPart("weekday");
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  return {
+    dateKey: `${year}-${month}-${day}`,
+    weekday: weekdayMap[weekdayName] ?? -1,
+  };
+}
+
+/**
+ * Devuelve la fecha del sábado correspondiente al fin de semana.
+ * Sábado y domingo comparten el mismo cupo de Bombas Admin.
+ */
+function getWeekendKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  const date = new Date(
+    Date.UTC(year!, month! - 1, day!),
+  );
+
+  if (date.getUTCDay() === 0) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function reserveBombDrop(
+  guildId: string,
+  bombType: BombType,
+): {
+  allowed: boolean;
+  reason?: string;
+  reservation?: BombLimitReservation;
+} {
+  const { dateKey, weekday } = getBrazilDateInfo();
+
+  if (
+    bombType === "admin" &&
+    weekday !== 0 &&
+    weekday !== 6
+  ) {
+    return {
+      allowed: false,
+      reason:
+        "🔒 Las **Bombas Admin** solamente se pueden lanzar los sábados y domingos, según el horario de Brasil.",
+    };
+  }
+
+  const weekend = bombType === "admin";
+
+  const periodKey = weekend
+    ? getWeekendKey(dateKey)
+    : dateKey;
+
+  const key = weekend
+    ? `${guildId}:admin:${periodKey}`
+    : `${guildId}:${bombType}:${periodKey}`;
+
+  const store = weekend
+    ? bombLimitStore.weekends
+    : bombLimitStore.daily;
+
+  const currentCount = store[key] ?? 0;
+  const limit = BOMB_LIMITS[bombType];
+
+  if (currentCount >= limit) {
+    return {
+      allowed: false,
+      reason: weekend
+        ? `⛔ Ya se alcanzó el límite de **${limit} Bombas Admin por fin de semana**. El cupo se renueva el próximo sábado.`
+        : `⛔ Se agotó el cupo de **${limit} ${BOMB_CONFIG[bombType].name} por día**. Probá nuevamente mañana.`,
+    };
+  }
+
+  store[key] = currentCount + 1;
+  saveBombLimits();
+
+  return {
+    allowed: true,
+    reservation: {
+      key,
+      type: bombType,
+      weekend,
+    },
+  };
+}
+
+function releaseBombDropReservation(
+  reservation: BombLimitReservation,
+): void {
+  const store = reservation.weekend
+    ? bombLimitStore.weekends
+    : bombLimitStore.daily;
+
+  const currentCount = store[reservation.key] ?? 0;
+
+  if (currentCount <= 1) {
+    delete store[reservation.key];
+  } else {
+    store[reservation.key] = currentCount - 1;
+  }
+
+  saveBombLimits();
+}
 
 /* ========================================================================== */
-/*                     DROPS ACTIVOS EN MEMORIA                              */
+/*                          BOTÓN / DROP                                      */
+/* ========================================================================== */
+
+const BOMB_DROP_BUTTON_PREFIX = "bomb_drop_claim";
+
+/* ========================================================================== */
+/*                     DROPS ACTIVOS EN MEMORIA                               */
 /* ========================================================================== */
 
 interface ActiveBombDrop {
@@ -166,8 +347,7 @@ interface ActiveBombDrop {
   claimedBy?: string;
 }
 
-const activeBombDrops =
-  new Map<string, ActiveBombDrop>();
+const activeBombDrops = new Map<string, ActiveBombDrop>();
 
 /* ========================================================================== */
 /*                              BURLAS                                        */
@@ -247,52 +427,34 @@ const BOMB_TAUNTS: readonly string[] = [
   "@usuario te gustan las sorpresas? Checa tu balance",
 ];
 
-function getRandomTaunt(
-  user: User,
-): string {
-  const index = Math.floor(
-    Math.random() *
-      BOMB_TAUNTS.length,
-  );
+function getRandomTaunt(user: User): string {
+  const index = Math.floor(Math.random() * BOMB_TAUNTS.length);
 
   return (
     BOMB_TAUNTS[index] ??
     "@usuario, qué manera de regalarse."
-  ).replaceAll(
-    "@usuario",
-    `<@${user.id}>`,
-  );
+  ).replaceAll("@usuario", `<@${user.id}>`);
 }
 
 /* ========================================================================== */
 /*                         SORTEAR CASTIGO                                    */
 /* ========================================================================== */
 
-function pickBombReward(
-  bombType: BombType,
-): number {
-  const rewards =
-    BOMB_CONFIG[bombType].rewards;
-
-  const random =
-    Math.random() * 100;
+function pickBombReward(bombType: BombType): number {
+  const rewards = BOMB_CONFIG[bombType].rewards;
+  const random = Math.random() * 100;
 
   let accumulated = 0;
 
   for (const reward of rewards) {
-    accumulated +=
-      reward.chance;
+    accumulated += reward.chance;
 
     if (random < accumulated) {
       return reward.amount;
     }
   }
 
-  return (
-    rewards[
-      rewards.length - 1
-    ]?.amount ?? -20_000
-  );
+  return rewards[rewards.length - 1]?.amount ?? -20_000;
 }
 
 /* ========================================================================== */
@@ -303,19 +465,68 @@ function hasBombDropPermission(
   member: {
     roles: {
       cache: {
-        has: (
-          roleId: string,
-        ) => boolean;
+        has: (roleId: string) => boolean;
       };
     };
   },
 ): boolean {
-  return BOMB_DROP_AUTHORIZED_ROLES.some(
-    (roleId) =>
-      member.roles.cache.has(
-        roleId,
-      ),
+  return BOMB_DROP_AUTHORIZED_ROLES.some((roleId) =>
+    member.roles.cache.has(roleId),
   );
+}
+
+/* ========================================================================== */
+/*                         FORMATEAR DINERO                                   */
+/* ========================================================================== */
+
+function formatMoney(amount: number): string {
+  return amount.toLocaleString("es-AR");
+}
+
+/* ========================================================================== */
+/*                         EMBED INFO DE BOMBA                                */
+/* ========================================================================== */
+
+function createBombInfoEmbed(
+  bombType: BombType,
+): EmbedBuilder {
+  const config = BOMB_CONFIG[bombType];
+
+  const punishmentList = config.rewards
+    .map((reward) => {
+      const amount = formatMoney(Math.abs(reward.amount));
+
+      return [
+        `💸 **-${amount} ${BOMB_COIN_EMOJI}**`,
+        `└ Probabilidad: **${reward.chance}%**`,
+      ].join("\n");
+    })
+    .join("\n\n");
+
+  const limitDescription =
+    bombType === "admin"
+      ? "**Límite:** 2 por fin de semana\n**Disponibilidad:** sábados y domingos"
+      : `**Límite:** ${BOMB_LIMITS[bombType]} por día`;
+
+  return new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle(`💣 Información — ${config.name}`)
+    .setDescription(
+      [
+        `Conocé los castigos posibles de la **${config.name}** antes de reclamar un Bomb Drop.`,
+        "",
+        `**Probabilidad de aparición:** ${config.chance}%`,
+        limitDescription,
+      ].join("\n"),
+    )
+    .addFields({
+      name: "💸 Castigos posibles",
+      value: punishmentList,
+    })
+    .setFooter({
+      text: "Sistema de Bomb Drop • Las probabilidades corresponden a cada castigo.",
+    })
+    .setTimestamp();
 }
 
 /* ========================================================================== */
@@ -325,27 +536,22 @@ function hasBombDropPermission(
 function createBombDropEmbed(
   bombType: BombType,
 ): EmbedBuilder {
-  const config =
-    BOMB_CONFIG[bombType];
+  const config = BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
-    .setColor(0xFFA500)
-    .setTitle(
-      `💣 ¡Se ha soltado una ${config.name}!`,
-    )
+    .setColor(config.color)
+    .setTitle(`💣 ¡Se ha soltado una ${config.name}!`)
     .setDescription(
       "¡El primero en presionar **Reclamar** activará la bomba!\n\n" +
-      "💀 **Advertencia:** este drop NO tiene premio.",
+        "💀 **Advertencia:** este drop NO tiene premio.",
     )
     .addFields({
       name: "💣 Bomba",
-      value:
-        `**${config.name}**`,
+      value: `**${config.name}**`,
       inline: true,
     })
     .setFooter({
-      text:
-        "Sistema de Bomb Drop • Buena suerte... la vas a necesitar.",
+      text: "Sistema de Bomb Drop • Buena suerte... la vas a necesitar.",
     })
     .setTimestamp();
 }
@@ -358,17 +564,12 @@ function createBombDropButton(
   dropId: string,
   disabled = false,
 ): ActionRowBuilder<ButtonBuilder> {
-  const button =
-    new ButtonBuilder()
-      .setCustomId(
-        `${BOMB_DROP_BUTTON_PREFIX}:${dropId}`,
-      )
-      .setLabel("Reclamar")
-      .setEmoji("💣")
-      .setStyle(
-        ButtonStyle.Primary,
-      )
-      .setDisabled(disabled);
+  const button = new ButtonBuilder()
+    .setCustomId(`${BOMB_DROP_BUTTON_PREFIX}:${dropId}`)
+    .setLabel("Reclamar")
+    .setEmoji("💣")
+    .setStyle(ButtonStyle.Primary)
+    .setDisabled(disabled);
 
   return new ActionRowBuilder<ButtonBuilder>()
     .addComponents(button);
@@ -383,56 +584,36 @@ function createBombActivatedEmbed(
   user: User,
   amount: number,
 ): EmbedBuilder {
-  const config =
-    BOMB_CONFIG[bombType];
+  const config = BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
     .setColor(0xff0000)
-    .setTitle(
-      "💥  ¡Bomba activada!",
-    )
+    .setTitle("💥 ¡Bomba activada!")
     .setDescription(
       `<@${user.id}> activó la **${config.name}**.`,
     )
     .addFields(
       {
         name: "👤 Usuario",
-        value:
-          `<@${user.id}>`,
+        value: `<@${user.id}>`,
         inline: true,
       },
       {
         name: "💸 Dinero perdido",
-       value:
-  `**${formatMoney(
-    Math.abs(amount),
-  )} <:MonedaServer:1524674026188967956>**`,
+        value:
+          `**-${formatMoney(Math.abs(amount))} ${BOMB_COIN_EMOJI}**`,
         inline: true,
       },
       {
         name: "💣 Estado",
-        value:
-          "`ACTIVADA`",
+        value: "`ACTIVADA`",
         inline: false,
       },
     )
     .setFooter({
-      text:
-        "Sistema de Bomb Drop • Gracias por participar.",
+      text: "Sistema de Bomb Drop • Gracias por participar.",
     })
     .setTimestamp();
-}
-
-/* ========================================================================== */
-/*                           FORMATEAR DINERO                                 */
-/* ========================================================================== */
-
-function formatMoney(
-  amount: number,
-): string {
-  return amount.toLocaleString(
-    "es-AR",
-  );
 }
 
 /* ========================================================================== */
@@ -440,156 +621,137 @@ function formatMoney(
 /* ========================================================================== */
 
 async function handleBombDrop(
-  sendReply: (
-    options: any,
-  ) => Promise<any>,
+  sendReply: (options: any) => Promise<any>,
   guild: Guild,
   moderatorUser: User,
   bombType: BombType,
   targetChannel: {
-    send: (
-      options: any,
-    ) => Promise<any>;
+    send: (options: any) => Promise<any>;
   },
 ): Promise<void> {
+  let reservation: BombLimitReservation | undefined;
+  let dropCreated = false;
+
   try {
-    const member =
-      await guild.members
-        .fetch(
-          moderatorUser.id,
-        )
-        .catch(() => null);
+    const member = await guild.members
+      .fetch(moderatorUser.id)
+      .catch(() => null);
 
     if (!member) {
       await sendReply({
         content:
           "❌ No pude verificar tus roles en este servidor.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
 
       return;
     }
 
-    if (
-      !hasBombDropPermission(
-        member,
-      )
-    ) {
+    if (!hasBombDropPermission(member)) {
       await sendReply({
         content:
           "❌ No tenés un rango autorizado para gestionar los Bomb Drops.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
 
       return;
     }
 
-    const dropId =
-      `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 10)}`;
+    const limitResult = reserveBombDrop(
+      guild.id,
+      bombType,
+    );
 
-    const embed =
-      createBombDropEmbed(
-        bombType,
-      );
-
-    const row =
-      createBombDropButton(
-        dropId,
-      );
-
-    const dropMessage =
-      await targetChannel.send({
-        embeds: [embed],
-        components: [row],
+    if (!limitResult.allowed) {
+      await sendReply({
+        content: limitResult.reason,
+        flags: MessageFlags.Ephemeral,
       });
 
-    activeBombDrops.set(
+      return;
+    }
+
+    reservation = limitResult.reservation;
+
+    const dropId =
+      `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const embed = createBombDropEmbed(bombType);
+    const row = createBombDropButton(dropId);
+
+    const dropMessage = await targetChannel.send({
+      embeds: [embed],
+      components: [row],
+    });
+
+    dropCreated = true;
+
+    activeBombDrops.set(dropId, {
       dropId,
-      {
-        dropId,
-        guildId: guild.id,
-        channelId:
-          dropMessage.channelId,
-        messageId:
-          dropMessage.id,
-        bombType,
-        claimed: false,
-      },
-    );
+      guildId: guild.id,
+      channelId: dropMessage.channelId,
+      messageId: dropMessage.id,
+      bombType,
+      claimed: false,
+    });
 
     await sendReply({
       content:
         `💣 La **${BOMB_CONFIG[bombType].name}** fue soltada correctamente en <#${dropMessage.channelId}>.`,
-      flags:
-        MessageFlags.Ephemeral,
+      flags: MessageFlags.Ephemeral,
     });
 
     logger.info(
       {
         guildId: guild.id,
-        moderatorUserId:
-          moderatorUser.id,
+        moderatorUserId: moderatorUser.id,
         bombType,
         dropId,
-        messageId:
-          dropMessage.id,
-        channelId:
-          dropMessage.channelId,
+        messageId: dropMessage.id,
+        channelId: dropMessage.channelId,
       },
       "Bomb Drop creado correctamente.",
     );
   } catch (err) {
+    if (reservation && !dropCreated) {
+      try {
+        releaseBombDropReservation(reservation);
+      } catch (releaseError) {
+        logger.error(
+          { releaseError, reservation },
+          "No se pudo liberar el cupo reservado de Bomb Drop.",
+        );
+      }
+    }
+
     logger.error(
       {
         err,
         guildId: guild.id,
-        moderatorUserId:
-          moderatorUser.id,
+        moderatorUserId: moderatorUser.id,
         bombType,
       },
       "Error creando Bomb Drop.",
     );
 
     await sendReply({
-      content:
-        "❌ No se pudo crear el Bomb Drop.",
-      flags:
-        MessageFlags.Ephemeral,
+      content: "❌ No se pudo crear el Bomb Drop.",
+      flags: MessageFlags.Ephemeral,
     });
   }
 }
 
 /* ========================================================================== */
-/*                     PROCESAR BOMBA DESPUÉS DEL ACK                        */
+/*                     PROCESAR BOMBA DESPUÉS DEL ACK                         */
 /* ========================================================================== */
 
-/*
- * Esta función NO se encarga de responder inicialmente
- * la interacción de Discord.
- *
- * Para cuando entra acá, la interacción YA fue reconocida
- * mediante deferUpdate().
- */
 async function processBombClaim(
   interaction: ButtonInteraction,
   drop: ActiveBombDrop,
 ): Promise<void> {
   try {
-    const amount =
-      pickBombReward(
-        drop.bombType,
-      );
+    const amount = pickBombReward(drop.bombType);
 
-    /*
-     * Esta operación puede tardar.
-     *
-     * NO importa para el timeout de la interacción porque
-     * deferUpdate() ya fue enviado anteriormente.
-     */
     await unb.editUserBalance(
       interaction.guildId!,
       interaction.user.id,
@@ -601,107 +763,65 @@ async function processBombClaim(
 
     logger.info(
       {
-        guildId:
-          interaction.guildId,
-        userId:
-          interaction.user.id,
-        bombType:
-          drop.bombType,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        bombType: drop.bombType,
         amount,
-        dropId:
-          drop.dropId,
+        dropId: drop.dropId,
       },
       "Bomb Drop reclamado correctamente.",
     );
 
-    /*
-     * La operación de UnbelievaBoat terminó correctamente.
-     */
-    activeBombDrops.delete(
-      drop.dropId,
+    activeBombDrops.delete(drop.dropId);
+
+    const activatedEmbed = createBombActivatedEmbed(
+      drop.bombType,
+      interaction.user,
+      amount,
     );
 
-    const activatedEmbed =
-      createBombActivatedEmbed(
-        drop.bombType,
-        interaction.user,
-        amount,
-      );
+    const disabledRow = createBombDropButton(
+      drop.dropId,
+      true,
+    );
 
-    const disabledRow =
-      createBombDropButton(
-        drop.dropId,
-        true,
-      );
-
-    /*
-     * Como ya hicimos deferUpdate(), ahora podemos
-     * editar la respuesta original de la interacción.
-     */
     await interaction.editReply({
-      embeds: [
-        activatedEmbed,
-      ],
-      components: [
-        disabledRow,
-      ],
+      embeds: [activatedEmbed],
+      components: [disabledRow],
     });
 
-    /*
-     * Mensaje de burla fuera del embed.
-     */
     if (
       interaction.channel &&
       "send" in interaction.channel
     ) {
       await interaction.channel.send(
-        getRandomTaunt(
-          interaction.user,
-        ),
+        getRandomTaunt(interaction.user),
       );
     }
   } catch (err) {
-    /*
-     * Si UnbelievaBoat falla, liberamos el drop.
-     */
     drop.claimed = false;
-    drop.claimedBy =
-      undefined;
+    drop.claimedBy = undefined;
 
     logger.error(
       {
         err,
-        guildId:
-          interaction.guildId,
-        userId:
-          interaction.user.id,
-        bombType:
-          drop.bombType,
-        dropId:
-          drop.dropId,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        bombType: drop.bombType,
+        dropId: drop.dropId,
       },
       "Falló la aplicación del castigo del Bomb Drop.",
     );
 
-    /*
-     * La interacción ya fue reconocida con deferUpdate(),
-     * por lo que acá NO corresponde usar reply().
-     *
-     * Usamos followUp() porque la interacción ya tiene
-     * una respuesta inicial.
-     */
     try {
       await interaction.followUp({
         content:
           "❌ No se pudo procesar la bomba mediante UnbelievaBoat. No se te descontó dinero.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (followUpErr) {
       logger.error(
-        {
-          followUpErr,
-        },
+        { followUpErr },
         "No se pudo enviar el error del Bomb Drop.",
       );
     }
@@ -715,38 +835,14 @@ async function processBombClaim(
 export async function handleBombDropButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
-  /*
-   * ========================================================================
-   * PASO 1 — ACK INMEDIATO
-   * ========================================================================
-   *
-   * Esto es lo más importante.
-   *
-   * Discord exige que una interacción sea reconocida dentro de ~3 segundos.
-   *
-   * NO hacemos:
-   * - llamadas HTTP
-   * - consultas externas
-   * - operaciones lentas
-   * - editUserBalance()
-   *
-   * antes de este punto.
-   */
-
   try {
     await interaction.deferUpdate();
   } catch (err) {
-    /*
-     * Si no pudimos hacer el ACK, no tiene sentido
-     * continuar procesando la interacción.
-     */
     logger.error(
       {
         err,
-        customId:
-          interaction.customId,
-        userId:
-          interaction.user.id,
+        customId: interaction.customId,
+        userId: interaction.user.id,
       },
       "No se pudo hacer deferUpdate() del Bomb Drop.",
     );
@@ -754,31 +850,17 @@ export async function handleBombDropButton(
     return;
   }
 
-  /*
-   * A PARTIR DE ACÁ Discord ya recibió la confirmación
-   * de que el botón fue procesado.
-   */
+  const prefix = `${BOMB_DROP_BUTTON_PREFIX}:`;
 
-  const prefix =
-    `${BOMB_DROP_BUTTON_PREFIX}:`;
-
-  if (
-    !interaction.customId.startsWith(
-      prefix,
-    )
-  ) {
+  if (!interaction.customId.startsWith(prefix)) {
     try {
       await interaction.followUp({
-        content:
-          "❌ Este botón de bomba no es válido.",
-        flags:
-          MessageFlags.Ephemeral,
+        content: "❌ Este botón de bomba no es válido.",
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-        },
+        { err },
         "No se pudo informar sobre un botón de bomba inválido.",
       );
     }
@@ -786,24 +868,17 @@ export async function handleBombDropButton(
     return;
   }
 
-  const dropId =
-    interaction.customId.slice(
-      prefix.length,
-    );
+  const dropId = interaction.customId.slice(prefix.length);
 
   if (!dropId) {
     try {
       await interaction.followUp({
-        content:
-          "❌ Este botón de bomba no es válido.",
-        flags:
-          MessageFlags.Ephemeral,
+        content: "❌ Este botón de bomba no es válido.",
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-        },
+        { err },
         "No se pudo informar sobre un dropId inválido.",
       );
     }
@@ -811,22 +886,16 @@ export async function handleBombDropButton(
     return;
   }
 
-  if (
-    !interaction.guildId ||
-    !interaction.guild
-  ) {
+  if (!interaction.guildId || !interaction.guild) {
     try {
       await interaction.followUp({
         content:
           "❌ Este botón solamente puede utilizarse dentro de un servidor.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-        },
+        { err },
         "No se pudo informar sobre interacción fuera de servidor.",
       );
     }
@@ -834,25 +903,18 @@ export async function handleBombDropButton(
     return;
   }
 
-  const drop =
-    activeBombDrops.get(
-      dropId,
-    );
+  const drop = activeBombDrops.get(dropId);
 
   if (!drop) {
     try {
       await interaction.followUp({
         content:
           "❌ Esta bomba ya no está disponible. Es posible que el bot haya sido reiniciado.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-          dropId,
-        },
+        { err, dropId },
         "No se pudo informar que el Bomb Drop no existe.",
       );
     }
@@ -860,23 +922,15 @@ export async function handleBombDropButton(
     return;
   }
 
-  if (
-    drop.guildId !==
-    interaction.guildId
-  ) {
+  if (drop.guildId !== interaction.guildId) {
     try {
       await interaction.followUp({
-        content:
-          "❌ Esta bomba pertenece a otro servidor.",
-        flags:
-          MessageFlags.Ephemeral,
+        content: "❌ Esta bomba pertenece a otro servidor.",
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-          dropId,
-        },
+        { err, dropId },
         "No se pudo informar sobre un Bomb Drop de otro servidor.",
       );
     }
@@ -884,38 +938,16 @@ export async function handleBombDropButton(
     return;
   }
 
-  /*
-   * ========================================================================
-   * CONTROL DE CARRERA
-   * ========================================================================
-   *
-   * JavaScript ejecuta el código síncrono de cada handler sin
-   * interrupciones entre estas operaciones.
-   *
-   * Por eso:
-   *
-   * if (!drop.claimed) {
-   *   drop.claimed = true;
-   * }
-   *
-   * funciona como lock mientras no haya un await entre ambas
-   * operaciones.
-   */
-
   if (drop.claimed) {
     try {
       await interaction.followUp({
         content:
           "❌ Esta bomba ya fue activada por otro usuario.",
-        flags:
-          MessageFlags.Ephemeral,
+        flags: MessageFlags.Ephemeral,
       });
     } catch (err) {
       logger.error(
-        {
-          err,
-          dropId,
-        },
+        { err, dropId },
         "No se pudo informar que el Bomb Drop ya fue reclamado.",
       );
     }
@@ -923,47 +955,26 @@ export async function handleBombDropButton(
     return;
   }
 
-  /*
-   * BLOQUEAMOS inmediatamente el drop.
-   *
-   * Esto ocurre ANTES de cualquier await posterior.
-   */
   drop.claimed = true;
-  drop.claimedBy =
-    interaction.user.id;
+  drop.claimedBy = interaction.user.id;
 
-  /*
-   * Ahora sí podemos hacer todo el trabajo lento.
-   */
-  await processBombClaim(
-    interaction,
-    drop,
-  );
+  await processBombClaim(interaction, drop);
 }
 
 /* ========================================================================== */
 /*                         NORMALIZAR BOMBA                                   */
 /* ========================================================================== */
 
-function normalizeBombName(
-  value: string,
-): string {
+function normalizeBombName(value: string): string {
   return value
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    );
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
-function getBombType(
-  value: string,
-): BombType | null {
-  switch (
-    normalizeBombName(value)
-  ) {
+function getBombType(value: string): BombType | null {
+  switch (normalizeBombName(value)) {
     case "comun":
       return "comun";
 
@@ -985,67 +996,56 @@ function getBombType(
 /*                          SLASH COMMAND                                     */
 /* ========================================================================== */
 
-export const data =
-  new SlashCommandBuilder()
-    .setName("bomb")
-    .setDescription(
-      "Gestioná los Bomb Drops.",
-    )
-    .addSubcommand(
-      (subcommand) =>
-        subcommand
-          .setName("drop")
-          .setDescription(
-            "Soltá una bomba para que alguien la reclame.",
-          )
-          .addStringOption(
-            (option) =>
-              option
-                .setName("bomba")
-                .setDescription(
-                  "Elegí el tipo de bomba.",
-                )
-                .setRequired(true)
-                .addChoices(
-                  {
-                    name:
-                      "💣 Bomba Común",
-                    value:
-                      "comun",
-                  },
-                  {
-                    name:
-                      "💣 Bomba Rara",
-                    value:
-                      "raro",
-                  },
-                  {
-                    name:
-                      "💣 Bomba Épica",
-                    value:
-                      "epico",
-                  },
-                  {
-                    name:
-                      "💣 Bomba Admin",
-                    value:
-                      "admin",
-                  },
-                ),
-          )
-          .addChannelOption(
-            (option) =>
-              option
-                .setName("canal")
-                .setDescription(
-                  "Canal donde se soltará la bomba.",
-                )
-                .addChannelTypes(
-                  ChannelType.GuildText,
-                )
-                .setRequired(false),
+export const data = new SlashCommandBuilder()
+  .setName("bomb")
+  .setDescription("Gestioná los Bomb Drops.")
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("drop")
+      .setDescription(
+        "Soltá una bomba para que alguien la reclame.",
+      )
+      .addStringOption((option) =>
+        option
+          .setName("bomba")
+          .setDescription("Elegí el tipo de bomba.")
+          .setRequired(true)
+          .addChoices(
+            { name: "💣 Bomba Común", value: "comun" },
+            { name: "💣 Bomba Rara", value: "raro" },
+            { name: "💣 Bomba Épica", value: "epico" },
+            { name: "💣 Bomba Admin", value: "admin" },
           ),
-    );
+      )
+      .addChannelOption((option) =>
+        option
+          .setName("canal")
+          .setDescription("Canal donde se soltará la bomba.")
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(false),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("info")
+      .setDescription(
+        "Consultá los castigos y probabilidades de una bomba.",
+      )
+      .addStringOption((option) =>
+        option
+          .setName("rareza")
+          .setDescription(
+            "Rareza de la bomba que querés consultar.",
+          )
+          .setRequired(true)
+          .addChoices(
+            { name: "💣 Común", value: "comun" },
+            { name: "💣 Rara", value: "raro" },
+            { name: "💣 Épica", value: "epico" },
+            { name: "💣 Admin", value: "admin" },
+          ),
+      ),
+  );
 
 /* ========================================================================== */
 /*                           EXECUTE                                          */
@@ -1054,57 +1054,65 @@ export const data =
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (
-    !interaction.guildId ||
-    !interaction.guild
-  ) {
+  if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
       content:
         "❌ Este comando solamente se puede usar en servidores.",
-      flags:
-        MessageFlags.Ephemeral,
+      flags: MessageFlags.Ephemeral,
     });
 
     return;
   }
 
-  const subcommand =
-    interaction.options.getSubcommand();
+  const subcommand = interaction.options.getSubcommand();
 
-  if (
-    subcommand !== "drop"
-  ) {
-    return;
-  }
-
-  const bombValue =
-    interaction.options.getString(
-      "bomba",
+  if (subcommand === "info") {
+    const bombValue = interaction.options.getString(
+      "rareza",
       true,
     );
 
-  const bombType =
-    getBombType(bombValue);
+    const bombType = getBombType(bombValue);
 
-  if (!bombType) {
+    if (!bombType) {
+      await interaction.reply({
+        content: "❌ Tipo de bomba inválido.",
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
     await interaction.reply({
-      content:
-        "❌ Tipo de bomba inválido.",
-      flags:
-        MessageFlags.Ephemeral,
+      embeds: [createBombInfoEmbed(bombType)],
+      flags: MessageFlags.Ephemeral,
     });
 
     return;
   }
 
-  const selectedChannel =
-    interaction.options.getChannel(
-      "canal",
-    );
+  if (subcommand !== "drop") {
+    return;
+  }
 
-  const targetChannel =
-    selectedChannel ??
-    interaction.channel;
+  const bombValue = interaction.options.getString(
+    "bomba",
+    true,
+  );
+
+  const bombType = getBombType(bombValue);
+
+  if (!bombType) {
+    await interaction.reply({
+      content: "❌ Tipo de bomba inválido.",
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  const selectedChannel = interaction.options.getChannel("canal");
+  const targetChannel = selectedChannel ?? interaction.channel;
 
   if (
     !targetChannel ||
@@ -1114,23 +1122,18 @@ export async function execute(
     await interaction.reply({
       content:
         "❌ No se pudo obtener un canal de texto válido.",
-      flags:
-        MessageFlags.Ephemeral,
+      flags: MessageFlags.Ephemeral,
     });
 
     return;
   }
 
   await interaction.deferReply({
-    flags:
-      MessageFlags.Ephemeral,
+    flags: MessageFlags.Ephemeral,
   });
 
   await handleBombDrop(
-    (options) =>
-      interaction.editReply(
-        options,
-      ),
+    (options) => interaction.editReply(options),
     interaction.guild,
     interaction.user,
     bombType,
@@ -1146,10 +1149,7 @@ export async function run(
   message: Message,
   args: string[],
 ): Promise<void> {
-  if (
-    !message.guildId ||
-    !message.guild
-  ) {
+  if (!message.guildId || !message.guild) {
     await message.reply(
       "❌ Este comando solamente se puede usar en servidores.",
     );
@@ -1157,35 +1157,42 @@ export async function run(
     return;
   }
 
-  const subcommand =
-    (
-      args[0] ?? ""
-    ).toLowerCase();
+  const subcommand = (args[0] ?? "").toLowerCase();
 
-  if (
-    subcommand !== "drop"
-  ) {
+  if (subcommand === "info") {
+    const bombValue = args.slice(1).join(" ").trim();
+    const bombType = getBombType(bombValue);
+
+    if (!bombType) {
+      await message.reply(
+        "❌ Uso correcto: `-bomb info <común|raro|épico|admin>`.",
+      );
+
+      return;
+    }
+
+    await message.reply({
+      embeds: [createBombInfoEmbed(bombType)],
+    });
+
+    return;
+  }
+
+  if (subcommand !== "drop") {
     await message.reply(
-      "❌ Uso correcto: `-bomb drop [bomba] [#canal opcional]`.",
+      "❌ Usos disponibles: `-bomb drop <rareza> [#canal]` o `-bomb info <rareza>`.",
     );
 
     return;
   }
 
-  const mentionedChannel =
-    message.mentions.channels.first();
+  const mentionedChannel = message.mentions.channels.first();
 
-  const bombArguments =
-    args
-      .slice(1)
-      .filter(
-        (arg) =>
-          !/^<#\d+>$/.test(
-            arg,
-          ),
-      )
-      .join(" ")
-      .trim();
+  const bombArguments = args
+    .slice(1)
+    .filter((arg) => !/^<#\d+>$/.test(arg))
+    .join(" ")
+    .trim();
 
   if (!bombArguments) {
     await message.reply(
@@ -1195,10 +1202,7 @@ export async function run(
     return;
   }
 
-  const bombType =
-    getBombType(
-      bombArguments,
-    );
+  const bombType = getBombType(bombArguments);
 
   if (!bombType) {
     await message.reply(
@@ -1208,9 +1212,7 @@ export async function run(
     return;
   }
 
-  const targetChannel =
-    mentionedChannel ??
-    message.channel;
+  const targetChannel = mentionedChannel ?? message.channel;
 
   if (
     !targetChannel ||
@@ -1225,8 +1227,22 @@ export async function run(
   }
 
   await handleBombDrop(
-    (options) =>
-      message.reply(options),
+    async (options) => {
+      if (options.flags === MessageFlags.Ephemeral) {
+        try {
+          return await message.author.send({
+            content: options.content,
+          });
+        } catch {
+          return await message.reply({
+            content:
+              `⚠️ No pude enviarte un mensaje privado. ${options.content ?? ""}`,
+          });
+        }
+      }
+
+      return message.reply(options);
+    },
     message.guild,
     message.author,
     bombType,
