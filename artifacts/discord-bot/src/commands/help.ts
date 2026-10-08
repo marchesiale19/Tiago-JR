@@ -361,10 +361,7 @@ function getCategories(
          */
         ...(canUseClear(member)
           ? [
-              "-clear <cantidad> — Elimina una cantidad de mensajes.",
-              "-clear @usuario <cantidad> — Elimina mensajes de un usuario.",
-              "-clear #canal <cantidad> — Elimina mensajes de un canal.",
-              "-clear #canal @usuario <cantidad> — Elimina mensajes de un usuario en un canal.",
+              "-clear — Elimina una cantidad de mensajes.",
             ]
           : []),
 
