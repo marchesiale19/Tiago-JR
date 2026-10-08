@@ -88,6 +88,16 @@ const CLEAR_COMMAND_ROLES = [
   "1509760475653472287", // Administrador [PB]
 ];
 
+/*
+ * Roles que pueden utilizar/ver:
+ * -luckybox drop
+ * -bomb drop
+ */
+const DROP_COMMAND_ROLES = [
+  "1522807097920720967", // Manager
+  "1539368076326473868", // Developer Tiago Jr
+];
+
 /* =========================================================
  * TIPOS Y NIVEL DE ACCESO
  * ======================================================= */
@@ -194,6 +204,21 @@ function canUseClear(
   );
 }
 
+/*
+ * Comprueba si el usuario puede ver:
+ * -luckybox drop
+ * -bomb drop
+ */
+function canUseDropCommands(
+  member: GuildMember | null | undefined,
+): boolean {
+  if (!member) return false;
+
+  return member.roles.cache.some((role) =>
+    DROP_COMMAND_ROLES.includes(role.id),
+  );
+}
+
 /* =========================================================
  * CATEGORÍAS DEL HELP
  * ======================================================= */
@@ -268,6 +293,18 @@ function getCategories(
         ...(canGiveLuckybox(member)
           ? [
               "-luckybox dar — Dale una caja a un usuario.",
+            ]
+          : []),
+
+        /*
+         * Estos comandos solamente aparecen para:
+         * - Manager
+         * - Developer Tiago Jr
+         */
+        ...(canUseDropCommands(member)
+          ? [
+              "-luckybox drop — Dropea un Lucky en un canal.",
+              "-bomb drop — Dropea una bomba en un canal.",
             ]
           : []),
 
@@ -464,8 +501,8 @@ async function sendHelpMenu(
 
   /*
    * Pasamos también el miembro para comprobar
-   * los roles específicos de Lucky Box, Lotería
-   * y -clear.
+   * los roles específicos de Lucky Box, Lotería,
+   * -clear y los comandos drop.
    */
   const categories = getCategories(
     access,
