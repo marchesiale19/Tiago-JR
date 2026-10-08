@@ -509,7 +509,7 @@ function createBombInfoEmbed(
       : `**Límite:** ${BOMB_LIMITS[bombType]} por día`;
 
   return new EmbedBuilder()
-    .setColor(Orange)
+    .setColor(0xFFA500)
     .setTitle(`💣 Información — ${config.name}`)
     .setDescription(
       [
