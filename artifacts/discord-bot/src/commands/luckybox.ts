@@ -49,6 +49,15 @@ const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
 const LUCKYBOX_LOG_CHANNEL_ID =
   "1555430585403703396";
 
+const LUCKYBOX_DROP_LOG_SOURCE_GUILD_ID =
+  "1437644356977823884";
+
+const LUCKYBOX_DROP_LOG_TARGET_GUILD_ID =
+  "1541513034139435081";
+
+const LUCKYBOX_DROP_LOG_CHANNEL_ID =
+  "1557861151428313150";
+
 /* ========================================================================== */
 /*                              IDS DE ROLES                                  */
 /* ========================================================================== */
@@ -1059,10 +1068,10 @@ export function pickReward(
       3.0,
       1.8,
       0.2,
-      1.0,
-      2.0,
-      3.0,
       4.0,
+      3.0,
+      2.0,
+      1.0,
       5.0,
     ];
   } else if (
@@ -1298,90 +1307,114 @@ function findLuckyboxInInventory(
   });
 }
 
+
 /* ========================================================================== */
-/*                         LOGS DE LUCKYBOX                                   */
+/*                       LOGS DE LUCKYBOX DROP                                */
 /* ========================================================================== */
 
-async function sendLuckyboxLog(
+async function sendLuckyboxDropLog(
   guild: Guild,
   moderatorUser: User,
-  targetUser: User,
   cajaNombre: string,
+  dropMessage: Message,
 ): Promise<void> {
-  try {
-    const channel =
-      await guild.client.channels.fetch(
-        LUCKYBOX_LOG_CHANNEL_ID,
-      );
+  // Registrar únicamente los drops del servidor de origen.
+  if (
+    guild.id !==
+    LUCKYBOX_DROP_LOG_SOURCE_GUILD_ID
+  ) {
+    return;
+  }
 
-    if (!channel || !channel.isTextBased()) {
+  try {
+   const channel =
+  await guild.client.channels.fetch(
+    LUCKYBOX_DROP_LOG_CHANNEL_ID,
+  );
+
+if (
+  !channel ||
+  !channel.isTextBased() ||
+  !("send" in channel) ||
+  !("guildId" in channel) ||
+  channel.guildId !==
+    LUCKYBOX_DROP_LOG_TARGET_GUILD_ID
+) {
       logger.warn(
         {
           channelId:
-            LUCKYBOX_LOG_CHANNEL_ID,
+            LUCKYBOX_DROP_LOG_CHANNEL_ID,
+          targetGuildId:
+            LUCKYBOX_DROP_LOG_TARGET_GUILD_ID,
         },
-        "No se pudo encontrar un canal de logs válido para Luckybox.",
+        "No se encontró un canal válido para los logs de Luckybox Drop.",
       );
 
       return;
     }
 
     const logEmbed = new EmbedBuilder()
-      .setColor("Orange")
-      .setTitle(
-        "🎁 Registro de entrega de Luckybox",
-      )
+      .setColor(0xFFA500)
+      .setTitle("🎁 Registro de Luckybox Drop")
       .setDescription(
-        `<@${moderatorUser.id}> le dio un **${cajaNombre}** a <@${targetUser.id}>.`,
+        `**${moderatorUser.username}** soltó una **${cajaNombre}**.`,
       )
       .addFields(
         {
-          name: "👤 Usuario Emisor",
+          name: "👤 Responsable",
           value:
-            `<@${moderatorUser.id}>\nID: \`${moderatorUser.id}\``,
+            `<@${moderatorUser.id}>\n` +
+            `ID: \`${moderatorUser.id}\``,
           inline: true,
         },
         {
-          name: "🎯 Usuario Objetivo",
-          value:
-            `<@${targetUser.id}>\nID: \`${targetUser.id}\``,
-          inline: true,
-        },
-        {
-          name: "📦 Tipo de Caja",
+          name: "📦 Luckybox",
           value: `**${cajaNombre}**`,
+          inline: true,
+        },
+        {
+          name: "🌐 Servidor de origen",
+          value:
+            `**${guild.name}**\n` +
+            `ID: \`${guild.id}\``,
           inline: false,
         },
         {
-          name: "🌐 Servidor de Origen",
+          name: "📍 Canal del drop",
           value:
-            `**${guild.name}**\nID: \`${guild.id}\``,
-          inline: false,
+            `<#${dropMessage.channelId}>\n` +
+            `ID: \`${dropMessage.channelId}\``,
+          inline: true,
+        },
+        {
+          name: "🔗 Mensaje del drop",
+          value:
+            `[Ver Luckybox soltada](${dropMessage.url})`,
+          inline: true,
         },
       )
       .setFooter({
-        text:
-          "Sistema de Luckybox • Registro de auditoría",
+        text: "Sistema de Luckybox • Auditoría de drops",
       })
       .setTimestamp();
 
     await channel.send({
       embeds: [logEmbed],
     });
+
   } catch (err) {
     logger.error(
       {
         err,
-        channelId:
-          LUCKYBOX_LOG_CHANNEL_ID,
-        guildId: guild.id,
-        moderatorUserId:
-          moderatorUser.id,
-        targetUserId:
-          targetUser.id,
+        sourceGuildId: guild.id,
+        moderatorUserId: moderatorUser.id,
         cajaNombre,
+        dropMessageId: dropMessage.id,
+        dropChannelId: dropMessage.channelId,
+        logChannelId:
+          LUCKYBOX_DROP_LOG_CHANNEL_ID,
       },
-      "No se pudo enviar el log de auditoría de Luckybox.",
+      "No se pudo enviar el log de Luckybox Drop.",
     );
   }
 }
@@ -1786,24 +1819,29 @@ async function handleLuckyboxDrop(
         components: [row],
       });
 
-    activeLuckyboxDrops.set(
-      dropId,
-      {
-        dropId,
-        guildId: guild.id,
-        channelId:
-          dropMessage.channelId,
-        messageId:
-          dropMessage.id,
-        cajaNombre,
-        itemId,
-        claimed: false,
-      },
-    );
-        await registerLuckyboxDrop(
-      guild.id,
-      cajaNombre,
-    );
+  
+activeLuckyboxDrops.set(dropId, {
+  dropId,
+  guildId: guild.id,
+  channelId: dropMessage.channelId,
+  messageId: dropMessage.id,
+  cajaNombre,
+  itemId,
+  claimed: false,
+});
+
+await registerLuckyboxDrop(
+  guild.id,
+  cajaNombre,
+);
+
+// Registrar el drop en el servidor central de logs.
+await sendLuckyboxDropLog(
+  guild,
+  moderatorUser,
+  cajaNombre,
+  dropMessage,
+);
 
     await sendReply({
       content:
