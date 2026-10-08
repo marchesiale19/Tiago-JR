@@ -1375,7 +1375,7 @@ export async function handleLuckyboxDropButton(
     !member.roles.cache.has(ROL_REQUERIDO_ABRIR_ID)
   ) {
     await interaction.reply({
-      content: `❌ Necesitás tener el rol <@&${ROL_REQUERIDO_ABRIR_ID}> para poder reclamar esta luckybox.`,
+      content: `❌ Necesitás tener el rol de Casino para poder reclamar esta luckybox.`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -2331,7 +2331,7 @@ async function handleAbrir(
       !member.roles.cache.has(ROL_REQUERIDO_ABRIR_ID)
     ) {
       await sendReply({
-        content: `❌ Necesitás tener el rol <@&${ROL_REQUERIDO_ABRIR_ID}> para poder abrir una luckybox.`,
+        content: `❌ Necesitás tener el rol de Casino para poder abrir una luckybox.`,
       });
       return;
     }
