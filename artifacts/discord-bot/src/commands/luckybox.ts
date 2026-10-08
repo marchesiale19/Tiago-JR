@@ -511,10 +511,16 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "0.2%",
   },
   {
-    texto: `Rol <@&${ROL_ESCLAVO_BAX_ID}>`,
+    texto: `Rol <@&${ROL_OMG_BRO_ID}>`,
     valor: 0,
-    tipo: "rol_esclavo_bax",
-    probabilidad: "1.0%",
+    tipo: "rol_omg_bro",
+    probabilidad: "4.0%",
+  },
+  {
+     texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
+    valor: 0,
+    tipo: "rol_esclavo_rayi",
+    probabilidad: "3.0%",
   },
   {
     texto: `Rol <@&${ROL_ESCLAVO_SANTIAGO_ID}>`,
@@ -523,16 +529,10 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "2.0%",
   },
   {
-    texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
+    texto: `Rol <@&${ROL_ESCLAVO_BAX_ID}>`,
     valor: 0,
-    tipo: "rol_esclavo_rayi",
-    probabilidad: "3.0%",
-  },
-  {
-    texto: `Rol <@&${ROL_OMG_BRO_ID}>`,
-    valor: 0,
-    tipo: "rol_omg_bro",
-    probabilidad: "4.0%",
+    tipo: "rol_esclavo_bax",
+    probabilidad: "1.0%",
   },
   {
     texto: "-100,000 Frijoles",
