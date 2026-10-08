@@ -1357,26 +1357,16 @@ export async function run(
     return;
   }
 
+ 
   await handleBombDrop(
     async (options) => {
-      if (options.flags === MessageFlags.Ephemeral) {
-        try {
-          return await message.author.send({
-            content: options.content,
-          });
-        } catch {
-          return await message.reply({
-            content:
-              `⚠️ No pude enviarte un mensaje privado. ${options.content ?? ""}`,
-          });
-        }
-      }
-
-      return message.reply(options);
+      return message.reply({
+        content: options.content,
+      });
     },
     message.guild,
     message.author,
     bombType,
     targetChannel,
-  );
+  );  
 }
