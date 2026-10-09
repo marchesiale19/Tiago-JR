@@ -24,6 +24,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
+import { setupServerLogs } from "./services/serverLogs";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
 
@@ -113,7 +114,17 @@ client.once(Events.ClientReady, (readyClient) => {
       "Error inicializando NameFilterService",
     );
   }
-
+// 🟢 Inicialización del sistema de Server Logs cruzados
+  try {
+    setupServerLogs(client);
+    console.log("✅ ServerLogsService inicializado.");
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error inicializando ServerLogsService",
+    );
+  }
+  
   import("./database/init")
     .then(({ initDatabase }) => initDatabase(readyClient))
     .catch((err) =>
