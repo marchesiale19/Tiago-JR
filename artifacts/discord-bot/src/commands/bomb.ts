@@ -272,7 +272,7 @@ function reserveBombDrop(
     return {
       allowed: false,
       reason:
-        "🔒 Las **Bombas Admin** solamente se pueden lanzar los sábados y domingos, según el horario de Brasil.",
+        "🔒 Las **Bombas Admin** solamente se pueden lanzar los sábados y domingos.",
     };
   }
 
