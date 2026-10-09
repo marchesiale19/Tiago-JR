@@ -49,6 +49,101 @@ const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
 const LUCKYBOX_LOG_CHANNEL_ID =
   "1555430585403703396";
 
+/* ========================================================================== */
+/*                         LOGS DE LUCKYBOX DAR                               */
+/* ========================================================================== */
+
+async function sendLuckyboxLog(
+  guild: Guild,
+  moderatorUser: User,
+  targetUser: User,
+  cajaNombre: string,
+): Promise<void> {
+  try {
+    const channel =
+      await guild.client.channels.fetch(
+        LUCKYBOX_LOG_CHANNEL_ID,
+      );
+
+    if (
+      !channel ||
+      !channel.isTextBased() ||
+      !("send" in channel)
+    ) {
+      logger.warn(
+        {
+          channelId: LUCKYBOX_LOG_CHANNEL_ID,
+          guildId: guild.id,
+        },
+        "No se encontró un canal válido para los logs de Luckybox.",
+      );
+
+      return;
+    }
+
+    const itemId =
+      getLuckyboxItemId(cajaNombre);
+
+    const logEmbed =
+      new EmbedBuilder()
+        .setColor(0x57F287)
+        .setTitle("🎁 Registro de Luckybox entregada")
+        .setDescription(
+          `**${moderatorUser.username}** le entregó una **${cajaNombre}** a **${targetUser.username}**.`,
+        )
+        .addFields(
+          {
+            name: "👤 Responsable",
+            value:
+              `<@${moderatorUser.id}>\n` +
+              `ID: \`${moderatorUser.id}\``,
+            inline: true,
+          },
+          {
+            name: "🎯 Destinatario",
+            value:
+              `<@${targetUser.id}>\n` +
+              `ID: \`${targetUser.id}\``,
+            inline: true,
+          },
+          {
+            name: "📦 Luckybox",
+            value:
+              `**${cajaNombre}**\n` +
+              `ID: \`${itemId ?? "Desconocido"}\``,
+            inline: false,
+          },
+          {
+            name: "🌐 Servidor",
+            value:
+              `**${guild.name}**\n` +
+              `ID: \`${guild.id}\``,
+            inline: false,
+          },
+        )
+        .setFooter({
+          text: "Sistema de Luckybox • Auditoría de entregas",
+        })
+        .setTimestamp();
+
+    await channel.send({
+      embeds: [logEmbed],
+    });
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        guildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        targetUserId: targetUser.id,
+        cajaNombre,
+        logChannelId: LUCKYBOX_LOG_CHANNEL_ID,
+      },
+      "No se pudo enviar el log de Luckybox.",
+    );
+  }
+}
+
 const LUCKYBOX_DROP_LOG_SOURCE_GUILD_ID =
   "1437644356977823884";
 
