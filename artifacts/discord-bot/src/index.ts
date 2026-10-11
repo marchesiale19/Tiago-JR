@@ -494,7 +494,7 @@ async function handleApprove(
       );
 
     await applicant.send(
-      "¡Buenas noticias! Tu postulación fue preseleccionada y avanzaste a la siguiente etapa del proceso. Un miembro del staff se va a poner en contacto con vos a la brevedad.",
+      "¡Buenas noticias! Tu postulación fue preseleccionada y avanzaste a la siguiente etapa del proceso. Por favor, entra a <#1510589941413838878> lobby para continuar a la segunda etapa.",
     );
   } catch (err) {
     logger.info(
