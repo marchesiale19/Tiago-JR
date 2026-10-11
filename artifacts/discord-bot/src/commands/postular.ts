@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
   );
 (data as any).category = "Postulaciones";
 
-const ADMIN_CHANNEL_ID = "1534891104380649554";
+const ADMIN_CHANNEL_ID = "1553260721377382430";
 
 // Roles autorizados para interactuar con los botones de Aceptar/Rechazar
 const ROLES_ADMIN_POSTULACIONES = [
