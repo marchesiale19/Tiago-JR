@@ -2028,6 +2028,26 @@ client.on(
         ? "piedrapapeltijera"
         : commandName;
 
+/* --------------------------------------------------------
+     * DARROL / QUITARROL
+     * -------------------------------------------------------- */
+
+    if (commandName === "darrol" || commandName === "quitarrol") {
+      try {
+        const rolesModule = commands.get("roles") as any || await import("./commands/roles").catch(() => null);
+
+        if (rolesModule && typeof rolesModule.run === "function") {
+          await rolesModule.run(message, args, commandName);
+        }
+      } catch (err) {
+        console.error("❌ ERROR EN COMANDO DE ROLES POR PREFIJO:", err);
+        logger.error({ err, commandName }, "Error executing roles command via prefix");
+        await message.reply(`Hubo un error al ejecutar \`-${commandName}\`: \`${err}\``).catch(() => {});
+      }
+
+      return;
+    }
+    
     /* --------------------------------------------------------
      * CLEAR
      * -------------------------------------------------------- */
