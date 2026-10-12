@@ -20,7 +20,7 @@ const AUTHORIZED_CLEAR_ROLES = [
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
   "1452784726413672643", // Moderador
-  "1509760381525164123" // Moderador [PB]
+  "1509760381525164123", // Moderador [PB]
   "1539368076326473868", // Developer Tiago Jr
 ];
 
