@@ -4,6 +4,7 @@ import {
   type AutocompleteInteraction,
 } from "discord.js";
 
+import * as rolesCommand from "./roles";
 import * as postular from "./postular";
 import {
   data as helpData,
@@ -80,6 +81,11 @@ commands.set(
 commands.set(
   sanciones.data.name,
   sanciones,
+);
+
+commands.set(
+  rolesCommand.data.name,
+  rolesCommand,
 );
 
 /* ============================================================
