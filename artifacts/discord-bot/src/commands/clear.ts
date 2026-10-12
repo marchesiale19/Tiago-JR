@@ -18,6 +18,9 @@ const AUTHORIZED_CLEAR_ROLES = [
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+  "1452784726413672643", // Moderador
+  "1509760381525164123" // Moderador [PB]
   "1539368076326473868", // Developer Tiago Jr
 ];
 
@@ -62,7 +65,7 @@ export async function run(
         "  `-clear <cantidad>`\n" +
         "  `-clear @usuario <cantidad>`\n" +
         "  `-clear #canal <cantidad>`\n" +
-        "  `-clear #canal @usuario <cantidad>`",
+        "  `-clear @usuario #canal <cantidad>`",
     );
     return;
   }
@@ -149,14 +152,14 @@ export async function run(
     // Borrado masivo
     const deleted = await targetChannel.bulkDelete(messagesToDelete, true);
 
-    const confirmationMsg = await targetChannel.send(
-      `✅ Se borraron correctamente **${deleted.size}** mensaje${deleted.size === 1 ? "" : "s"}${targetUser ? ` de <@${targetUser.id}>` : ""}.`,
-    );
+    const confirmationMsg = await message.channel.send(
+  `✅ Se borraron correctamente **${deleted.size}** mensaje${deleted.size === 1 ? "" : "s"}${targetUser ? ` de <@${targetUser.id}>` : ""}${targetChannel.id !== message.channel.id ? ` en <#${targetChannel.id}>` : ""}.`,
+);
 
-    // Auto-eliminar el mensaje de confirmación después de 4 segundos para que no ensucie el chat
-    setTimeout(() => {
-      confirmationMsg.delete().catch(() => {});
-    }, 4000);
+// Auto-eliminar la confirmación después de 4 segundos
+setTimeout(() => {
+  confirmationMsg.delete().catch(() => {});
+}, 4000);
 
     logger.info(
       {
