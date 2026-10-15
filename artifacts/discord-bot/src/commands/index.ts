@@ -2,6 +2,7 @@ import {
   Collection,
   type ChatInputCommandInteraction,
   type AutocompleteInteraction,
+  type Message,
 } from "discord.js";
 
 import * as rolesCommand from "./roles";
@@ -49,6 +50,7 @@ import * as loteria from "./loteria";
 // sistema de clear
 import * as clear from "./clear"; 
 
+
 export interface BotCommand {
   data: {
     name: string;
@@ -57,6 +59,12 @@ export interface BotCommand {
 
   execute: (
     interaction: ChatInputCommandInteraction,
+  ) => Promise<void>;
+
+  run?: (
+    message: Message,
+    args: string[],
+    commandName?: string,
   ) => Promise<void>;
 
   autocomplete?: (
@@ -84,8 +92,12 @@ commands.set(
 );
 
 commands.set(
-  rolesCommand.data.name,
-  rolesCommand,
+  rolesCommand.data.data.name,
+  {
+    data: rolesCommand.data.data,
+    execute: rolesCommand.data.execute,
+    run: rolesCommand.data.run,
+  },
 );
 
 /* ============================================================
