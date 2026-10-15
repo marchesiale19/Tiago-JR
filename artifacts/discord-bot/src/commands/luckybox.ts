@@ -1103,8 +1103,14 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     texto: `Rol <@&${ROL_OMG_BRO_ID}>`,
     valor: 0,
     tipo: "rol_omg_bro",
-    probabilidad: "4.0%",
+    probabilidad: "5.0%",
   },
+  {
+  texto: `Rol <@&${ROL_ESCLAVO_SADY_ID}>`,
+  valor: 0,
+  tipo: "rol_esclavo_sady",
+  probabilidad: "4.0%",
+},
   {
      texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
     valor: 0,
@@ -1146,21 +1152,22 @@ export function pickReward(
 
   if (nombreLower.includes("admin")) {
     rewards = ADMIN_LUCKYBOX_REWARDS;
-    probabilities = [
-      25.0,
-      20.0,
-      15.0,
-      10.0,
-      5.0,
-      3.0,
-      1.8,
-      0.2,
-      4.0,
-      3.0,
-      2.0,
-      1.0,
-      5.0,
-    ];
+  probabilities = [
+  25.0,
+  20.0,
+  15.0,
+  10.0,
+  5.0,
+  3.0,
+  1.8,
+  0.2,
+  5.0,
+  4.0,
+  3.0,
+  2.0,
+  1.0,
+  5.0,
+];
   } else if (
     nombreLower.includes("épico") ||
     nombreLower.includes("epico")
