@@ -2032,22 +2032,43 @@ client.on(
      * DARROL / QUITARROL
      * -------------------------------------------------------- */
 
-    if (commandName === "darrol" || commandName === "quitarrol") {
-      try {
-        const rolesModule = commands.get("roles") as any || await import("./commands/roles").catch(() => null);
+if (
+  commandName === "darrol" ||
+  commandName === "quitarrol" ||
+  (
+    (commandName === "dar" || commandName === "quitar") &&
+    args[0]?.toLowerCase() === "rol"
+  )
+) {
+  try {
+    const rolesModule = commands.get("rol") as any;
 
-        if (rolesModule && typeof rolesModule.run === "function") {
-          await rolesModule.run(message, args, commandName);
-        }
-      } catch (err) {
-        console.error("❌ ERROR EN COMANDO DE ROLES POR PREFIJO:", err);
-        logger.error({ err, commandName }, "Error executing roles command via prefix");
-        await message.reply(`Hubo un error al ejecutar \`-${commandName}\`: \`${err}\``).catch(() => {});
-      }
-
-      return;
+    if (typeof rolesModule?.run === "function") {
+      await rolesModule.run(message, args, commandName);
+    } else {
+      await message.reply(
+        "❌ No se pudo cargar el comando de roles."
+      );
     }
-    
+  } catch (err) {
+    console.error(
+      "❌ ERROR EN COMANDO DE ROLES POR PREFIJO:",
+      err,
+    );
+
+    logger.error(
+      { err, commandName },
+      "Error executing roles command via prefix",
+    );
+
+    await message.reply(
+      `Hubo un error al ejecutar el comando de roles: \`${err}\``,
+    ).catch(() => {});
+  }
+
+  return;
+}
+
     /* --------------------------------------------------------
      * CLEAR
      * -------------------------------------------------------- */
