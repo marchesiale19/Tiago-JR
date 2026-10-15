@@ -37,7 +37,7 @@ const AUTHORIZED_ROLE_IDS = [
 export const data = {
   // Configuramos /roles con sus dos subcomandos.
   data: new SlashCommandBuilder()
-    .setName("roles")
+    .setName("rol")
     .setDescription("Administra los roles de los usuarios del servidor")
 
     // Subcomando para asignarle un rol a un usuario.
@@ -129,42 +129,46 @@ export const data = {
   /*                       EJECUCIÓN CON COMANDOS DE PREFIJO                  */
   /* ------------------------------------------------------------------------ */
 
-  async run(message: Message, args: string[], commandName: string) {
-    // Este comando solamente se puede usar dentro de un servidor.
-    if (!message.guild || !message.member) {
-      return;
-    }
+ async run(message: Message, args: string[], commandName: string) {
+  if (!message.guild || !message.member) return;
 
-    // Definimos si vamos a dar o quitar el rol.
-    const isGiving = commandName === "darrol";
+  const action = commandName.toLowerCase();
+  const subcommand = args[0]?.toLowerCase();
 
-    // Buscamos las menciones del usuario y del rol.
-    const targetMember = message.mentions.members?.first();
-    const role = message.mentions.roles.first();
+  const isGiving =
+    action === "darrol" ||
+    (action === "dar" && subcommand === "rol");
 
-    // Si falta alguna mención, mostramos cómo se usa.
-    if (!targetMember || !role) {
-      await message.reply(
-        [
-          "❌ Uso incorrecto del comando.",
-          "",
-          "Usá alguno de estos formatos:",
-          "`-darrol @usuario @rol`",
-          "`-quitarrol @usuario @rol`",
-        ].join("\n"),
-      );
-      return;
-    }
+  const isRemoving =
+    action === "quitarrol" ||
+    (action === "quitar" && subcommand === "rol");
 
-    await handleRoleAction(
-      message,
-      message.member,
-      targetMember,
-      role,
-      isGiving,
+  if (!isGiving && !isRemoving) return;
+
+  const targetMember = message.mentions.members?.first();
+  const role = message.mentions.roles.first();
+
+  if (!targetMember || !role) {
+    await message.reply(
+      [
+        "❌ Uso incorrecto del comando.",
+        "",
+        "Usá alguno de estos formatos:",
+        "`-dar rol @usuario @rol`",
+        "`-quitar rol @usuario @rol`",
+      ].join("\n"),
     );
-  },
-};
+    return;
+  }
+
+  await handleRoleAction(
+    message,
+    message.member,
+    targetMember,
+    role,
+    isGiving,
+  );
+},
 
 /* ========================================================================== */
 /*                          LÓGICA PRINCIPAL DE ROLES                         */
