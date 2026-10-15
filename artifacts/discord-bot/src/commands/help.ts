@@ -88,6 +88,19 @@ const CLEAR_COMMAND_ROLES = [
   "1509760475653472287", // Administrador [PB]
 ];
 
+const ROLE_MANAGEMENT_COMMAND_ROLES = [
+  "1539368076326473868", // Developer Tiago Jr
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1455419124732657801", // Equipo Administrativo
+  "1522434536796061816", // Desarrollador
+  "1453211902267228160", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
 /*
  * Roles que pueden utilizar/ver:
  * -luckybox drop
@@ -201,6 +214,16 @@ function canUseClear(
 
   return member.roles.cache.some((role) =>
     CLEAR_COMMAND_ROLES.includes(role.id),
+  );
+}
+
+function canManageRoles(
+  member: GuildMember | null | undefined,
+): boolean {
+  if (!member) return false;
+
+  return member.roles.cache.some((role) =>
+    ROLE_MANAGEMENT_COMMAND_ROLES.includes(role.id),
   );
 }
 
@@ -392,6 +415,14 @@ function getCategories(
       title: "Administración",
       content: [
         "-sanciones — Consulta la información de una sanción.",
+
+/* Estos comandos solamente aparecen para los roles autorizados. */
+...(canManageRoles(member)
+  ? [
+      "-dar rol — Otorga un rol a un usuario.",
+      "-quitar rol — Retira un rol de un usuario.",
+    ]
+  : []),
 
         /*
          * -clear solamente aparece para los roles
