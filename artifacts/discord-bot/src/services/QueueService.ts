@@ -7,7 +7,7 @@ import { sendSupervisionRequest } from "./SupervisorService";
 import { getOrCreateRankedVC, movePlayersToVC } from "./RankedVCService";
 import { eventBus } from "./EventBus";
 import { logger } from "../lib/logger";
-const QUEUE_SIZE = 14;
+const QUEUE_SIZE = 2;
 const AMONG_US_VOICE_CHANNELS = [
   "1452030683588333568",
   "1478541699041984583",
