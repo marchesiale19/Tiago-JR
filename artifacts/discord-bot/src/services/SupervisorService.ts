@@ -126,6 +126,18 @@ export async function handleSupervisionAccept(
     );
   }
 
+const claimed = await lobbyRepository.claimSupervisor(
+  lobbyId,
+  supervisorId,
+  new Date(),
+);
+
+if (!claimed) {
+  throw new Error(
+    "Otro supervisor ya aceptó esta solicitud, o la lobby ya no está esperando supervisión.",
+  );
+}
+  
   if (!lobby.voiceChannelId) {
     throw new Error("El lobby no tiene un canal de voz asignado.");
   }
