@@ -14,12 +14,9 @@ import { logger }           from "../lib/logger";
 
 // roles a supervisar
 export const SUPERVISOR_ROLE_IDS = [
-  "1522437349869617383", // Supervisor
-  "1452784726413672643", // Moderador
-  "1509760381525164123", // Moderador [PB]
-  "1522808445391212674", // Support
-  "1528974868329009162", // Helper
-  "1509760269071679498", // Trial Helper
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1509760475653472287", // Administrador [PB]
 ] as const;
 
 
