@@ -669,37 +669,50 @@ function getDropUsageKey(
 async function checkLuckyboxDropLimit(
   guildId: string,
   cajaNombre: string,
+  userId: string,
 ): Promise<{
   allowed: boolean;
   remaining: number;
   limit: number;
   reason?: string;
 }> {
+  const isBoosterUser = userId === LUCKYBOX_BOOSTER_USER_ID;
+  const usageKey = getDropUsageKey(cajaNombre);
+
+  // Si es Sowi, no hay límite para Común, Raro ni Épico
+  if (isBoosterUser && usageKey !== "admin") {
+    return {
+      allowed: true,
+      remaining: 999,
+      limit: 999,
+    };
+  }
+
   await loadLuckyboxDropUsage();
 
-  const now =
-    new Date();
-
-  const usage =
-    getDropUsage(
-      guildId,
-      now,
-    );
-
-  const usageKey =
-    getDropUsageKey(
-      cajaNombre,
-    );
+  const now = new Date();
+  const usage = getDropUsage(guildId, now);
 
   /*
-   * ADMIN
+   * ADMIN (Límite de 1 semanal para Sowi, o fin de semana para los demás)
    */
-  if (
-    usageKey === "admin"
-  ) {
-    if (
-      !isWeekend(now)
-    ) {
+  if (usageKey === "admin") {
+    if (isBoosterUser) {
+      // Límite de 1 Mr Lucky Admin semanal para Sowi (usando el weekendKey o controlando por semana)
+      const weeklyAdminCount = usage.admin; // O podemos adaptarlo
+      if (weeklyAdminCount >= 1) {
+        return {
+          allowed: false,
+          remaining: 0,
+          limit: 1,
+          reason: "Ya alcanzaste el límite de **1 Mr Lucky Admin** semanal en el chat de boosters.",
+        };
+      }
+      return { allowed: true, remaining: 1 - weeklyAdminCount, limit: 1 };
+    }
+
+    // Regla normal para Managers/Developers (fines de semana)
+    if (!isWeekend(now)) {
       return {
         allowed: false,
         remaining: 0,
@@ -709,15 +722,8 @@ async function checkLuckyboxDropLimit(
       };
     }
 
-    const remaining =
-      Math.max(
-        0,
-        2 - usage.admin,
-      );
-
-    if (
-      remaining <= 0
-    ) {
+    const remaining = Math.max(0, 2 - usage.admin);
+    if (remaining <= 0) {
       return {
         allowed: false,
         remaining: 0,
@@ -727,101 +733,47 @@ async function checkLuckyboxDropLimit(
       };
     }
 
-    return {
-      allowed: true,
-      remaining,
-      limit: 2,
-    };
+    return { allowed: true, remaining, limit: 2 };
   }
 
-  /*
-   * COMÚN
-   */
-  if (
-    usageKey === "common"
-  ) {
-    const remaining =
-      Math.max(
-        0,
-        6 - usage.common,
-      );
-
-    if (
-      remaining <= 0
-    ) {
+  // Resto de límites normales para Común, Raro y Épico (Managers/Developers)
+  if (usageKey === "common") {
+    const remaining = Math.max(0, 6 - usage.common);
+    if (remaining <= 0) {
       return {
         allowed: false,
         remaining: 0,
         limit: 6,
-        reason:
-          "Ya se alcanzó el límite de **6 Mr Lucky Común** para hoy.",
+        reason: "Ya se alcanzó el límite de **6 Mr Lucky Común** para hoy.",
       };
     }
-
-    return {
-      allowed: true,
-      remaining,
-      limit: 6,
-    };
+    return { allowed: true, remaining, limit: 6 };
   }
 
-  /*
-   * RARO
-   */
-  if (
-    usageKey === "rare"
-  ) {
-    const remaining =
-      Math.max(
-        0,
-        3 - usage.rare,
-      );
-
-    if (
-      remaining <= 0
-    ) {
+  if (usageKey === "rare") {
+    const remaining = Math.max(0, 3 - usage.rare);
+    if (remaining <= 0) {
       return {
         allowed: false,
         remaining: 0,
         limit: 3,
-        reason:
-          "Ya se alcanzó el límite de **3 Mr Lucky Raro** para hoy.",
+        reason: "Ya se alcanzó el límite de **3 Mr Lucky Raro** para hoy.",
       };
     }
-
-    return {
-      allowed: true,
-      remaining,
-      limit: 3,
-    };
+    return { allowed: true, remaining, limit: 3 };
   }
 
-  /*
-   * ÉPICO
-   */
-  const remaining =
-    Math.max(
-      0,
-      2 - usage.epic,
-    );
-
-  if (
-    remaining <= 0
-  ) {
+  const remaining = Math.max(0, 2 - usage.epic);
+  if (remaining <= 0) {
     return {
       allowed: false,
       remaining: 0,
       limit: 2,
-      reason:
-        "Ya se alcanzó el límite de **2 Mr Lucky Épico** para hoy.",
+      reason: "Ya se alcanzó el límite de **2 Mr Lucky Épico** para hoy.",
     };
   }
 
-  return {
-    allowed: true,
-    remaining,
-    limit: 2,
-  };
+  return { allowed: true, remaining, limit: 2 };
 }
 
 /* ========================================================================== */
@@ -1884,6 +1836,7 @@ async function handleLuckyboxDrop(
       await checkLuckyboxDropLimit(
         guild.id,
         cajaNombre,
+        moderatorUser.id,
       );
 
     if (!dropLimit.allowed) {
@@ -3755,13 +3708,13 @@ export async function run(
   /*                                  DROP                                    */
   /* ======================================================================== */
 
-  if (sub === "drop") {
+if (sub === "drop") {
     const isBoosterDrop =
       message.author.id ===
       LUCKYBOX_BOOSTER_USER_ID;
 
     if (isBoosterDrop) {
-      // Flujo exclusivo para Sowi
+      // Flujo exclusivo para Sowi (Forzar canal de boosters)
       const cajaArguments = args
         .slice(offset)
         .join(" ")
@@ -3812,9 +3765,16 @@ export async function run(
       return;
     }
 
-    // Flujo normal para Managers/Developers
+    // Flujo obligatorio para Managers / Developers (El canal es OBLIGATORIO)
     const mentionedChannel =
       message.mentions.channels.first();
+
+    if (!mentionedChannel) {
+      await message.reply(
+        "❌ Uso obligatorio de canal: `-luckybox drop [caja] [#canal]`.",
+      );
+      return;
+    }
 
     const cajaArguments = args
       .slice(offset)
@@ -3826,7 +3786,7 @@ export async function run(
 
     if (!cajaArguments) {
       await message.reply(
-        "❌ Uso correcto: `-luckybox drop [caja] [#canal opcional]`.",
+        "❌ Uso correcto: `-luckybox drop [caja] [#canal]`.",
       );
       return;
     }
@@ -3842,8 +3802,7 @@ export async function run(
       return;
     }
 
-    const targetChannel =
-      mentionedChannel ?? message.channel;
+    const targetChannel = mentionedChannel;
 
     if (
       !targetChannel ||
