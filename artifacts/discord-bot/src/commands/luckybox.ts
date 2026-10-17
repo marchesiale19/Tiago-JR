@@ -891,6 +891,19 @@ const activeLuckyboxDrops =
   >();
 
 /* ========================================================================== */
+/*                    DROP ESPECIAL BOOSTERS                                  */
+/* ========================================================================== */
+
+const LUCKYBOX_BOOSTER_USER_ID =
+  "1503876451315880016";
+
+const LUCKYBOX_BOOSTER_CHANNEL_ID =
+  "1453079776951537835";
+
+const LUCKYBOX_BOOSTER_ROLE_ID =
+  "1453071091340808466";
+
+/* ========================================================================== */
 /*                             MAPA DE ROLES                                  */
 /* ========================================================================== */
 
@@ -1708,6 +1721,7 @@ function startAutoSync(
 
 function hasLuckyboxDropPermission(
   member: {
+    id: string;
     roles: {
       cache: {
         has: (
@@ -1717,6 +1731,10 @@ function hasLuckyboxDropPermission(
     };
   },
 ): boolean {
+  if (member.id === LUCKYBOX_BOOSTER_USER_ID) {
+    return true;
+  }
+
   return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
     (roleId) =>
       member.roles.cache.has(
@@ -1858,7 +1876,7 @@ async function handleLuckyboxDrop(
       return;
     }
 
-        /* ---------------------------------------------------------------------- */
+    /* ---------------------------------------------------------------------- */
     /*                    VERIFICAR LÍMITE DE DROP                            */
     /* ---------------------------------------------------------------------- */
 
@@ -1910,35 +1928,48 @@ async function handleLuckyboxDrop(
         dropId,
       );
 
+    const isBoosterDrop =
+      moderatorUser.id === LUCKYBOX_BOOSTER_USER_ID;
+
     const dropMessage =
       await targetChannel.send({
+        content: isBoosterDrop
+          ? `<@&${LUCKYBOX_BOOSTER_ROLE_ID}>`
+          : undefined,
         embeds: [embed],
         components: [row],
+        allowedMentions: isBoosterDrop
+          ? {
+              parse: [],
+              roles: [LUCKYBOX_BOOSTER_ROLE_ID],
+            }
+          : {
+              parse: [],
+            },
       });
 
-  
-activeLuckyboxDrops.set(dropId, {
-  dropId,
-  guildId: guild.id,
-  channelId: dropMessage.channelId,
-  messageId: dropMessage.id,
-  cajaNombre,
-  itemId,
-  claimed: false,
-});
+    activeLuckyboxDrops.set(dropId, {
+      dropId,
+      guildId: guild.id,
+      channelId: dropMessage.channelId,
+      messageId: dropMessage.id,
+      cajaNombre,
+      itemId,
+      claimed: false,
+    });
 
-await registerLuckyboxDrop(
-  guild.id,
-  cajaNombre,
-);
+    await registerLuckyboxDrop(
+      guild.id,
+      cajaNombre,
+    );
 
-// Registrar el drop en el servidor central de logs.
-await sendLuckyboxDropLog(
-  guild,
-  moderatorUser,
-  cajaNombre,
-  dropMessage,
-);
+    // Registrar el drop en el servidor central de logs.
+    await sendLuckyboxDropLog(
+      guild,
+      moderatorUser,
+      cajaNombre,
+      dropMessage,
+    );
 
     await sendReply({
       content:
@@ -2500,7 +2531,7 @@ async function handleCollect(
     });
 
     const now = Date.now();
-    const COLLECT_COOLDOWN_MS = 6 * 24 * 60 * 60 * 1000; // 6 días (ajustá si tu constante se llama distinto)
+    const COLLECT_COOLDOWN_MS = 6 * 24 * 60 * 60 * 1000;
 
     if (existingCooldown) {
       const lastCollectTime = new Date(existingCooldown.lastCollect).getTime();
@@ -3725,33 +3756,83 @@ export async function run(
   /* ======================================================================== */
 
   if (sub === "drop") {
-    const mentionedChannel =
-      message.mentions.channels.first();
+    const isBoosterDrop =
+      message.author.id ===
+      LUCKYBOX_BOOSTER_USER_ID;
 
-    const cajaArguments =
-      args
+    if (isBoosterDrop) {
+      // Flujo exclusivo para Sowi
+      const cajaArguments = args
         .slice(offset)
-        .filter(
-          (arg) =>
-            !/^<#\d+>$/.test(
-              arg,
-            ),
-        )
         .join(" ")
         .trim();
 
-    if (!cajaArguments) {
-      await message.reply(
-        "❌ Uso correcto: `-luckybox drop [caja] [#canal opcional]`.",
+      if (!cajaArguments) {
+        await message.reply(
+          "❌ Uso correcto: `-luckybox drop [rareza]` (Ejemplo: `-luckybox drop comun`).",
+        );
+        return;
+      }
+
+      const cajaNombre =
+        getCajaNombre(cajaArguments);
+
+      if (!cajaNombre) {
+        await message.reply(
+          `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+        );
+        return;
+      }
+
+      const targetChannel =
+        await message.guild.channels
+          .fetch(LUCKYBOX_BOOSTER_CHANNEL_ID)
+          .catch(() => null);
+
+      if (
+        !targetChannel ||
+        !targetChannel.isTextBased() ||
+        !("send" in targetChannel)
+      ) {
+        await message.reply(
+          "❌ No se encontró el canal de boosters.",
+        );
+        return;
+      }
+
+      await handleLuckyboxDrop(
+        (options) =>
+          message.reply(options),
+        message.guild,
+        message.author,
+        cajaNombre,
+        targetChannel,
       );
 
       return;
     }
 
-    const cajaNombre =
-      getCajaNombre(
-        cajaArguments,
+    // Flujo normal para Managers/Developers
+    const mentionedChannel =
+      message.mentions.channels.first();
+
+    const cajaArguments = args
+      .slice(offset)
+      .filter(
+        (arg) => !/^<#\d+>$/.test(arg),
+      )
+      .join(" ")
+      .trim();
+
+    if (!cajaArguments) {
+      await message.reply(
+        "❌ Uso correcto: `-luckybox drop [caja] [#canal opcional]`.",
       );
+      return;
+    }
+
+    const cajaNombre =
+      getCajaNombre(cajaArguments);
 
     if (!cajaNombre) {
       await message.reply(
@@ -3762,8 +3843,7 @@ export async function run(
     }
 
     const targetChannel =
-      mentionedChannel ??
-      message.channel;
+      mentionedChannel ?? message.channel;
 
     if (
       !targetChannel ||
@@ -3778,8 +3858,7 @@ export async function run(
     }
 
     await handleLuckyboxDrop(
-      (options) =>
-        message.reply(options),
+      (options) => message.reply(options),
       message.guild,
       message.author,
       cajaNombre,
@@ -3791,7 +3870,7 @@ export async function run(
 
   /* ======================================================================== */
   /*                                  DAR                                     */
-  /* ======================================================================== */
+  /* ========================================================================== */
 
   if (sub === "dar") {
     const mentionedUser =
