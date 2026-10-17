@@ -189,17 +189,25 @@ async function handleRoleAction(
   }
 
   // Función auxiliar para responder según el tipo de comando.
-  const reply = async (content: string, ephemeral = false) => {
-    if (context.isChatInputCommand()) {
-      if (context.replied || context.deferred) {
-        await context.followUp({ content, ephemeral });
-      } else {
-        await context.reply({ content, ephemeral });
-      }
+
+const isSlashCommand = context instanceof Object &&
+  "isChatInputCommand" in context &&
+  typeof context.isChatInputCommand === "function" &&
+  context.isChatInputCommand();
+
+const reply = async (content: string, ephemeral = false) => {
+  if (isSlashCommand) {
+    const interaction = context as ChatInputCommandInteraction;
+
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content, ephemeral });
     } else {
-      await context.reply({ content });
+      await interaction.reply({ content, ephemeral });
     }
-  };
+  } else {
+    await (context as Message).reply({ content });
+  }
+};
 
   /* ------------------------------------------------------------------------ */
   /* 1. VERIFICAR QUE EL EJECUTOR TENGA UNO DE LOS ROLES AUTORIZADOS          */
@@ -287,9 +295,11 @@ async function handleRoleAction(
       .setColor(EMBED_COLOR)
       .setTimestamp()
       .setFooter({
-        text: `Acción realizada por ${context.isChatInputCommand()
-          ? context.user.tag
-          : context.author.tag}`,
+      text: `Acción realizada por ${
+  isSlashCommand
+    ? (context as ChatInputCommandInteraction).user.tag
+    : (context as Message).author.tag
+}`,
       });
 
     if (isGiving) {
@@ -334,11 +344,15 @@ async function handleRoleAction(
     }
 
     // Mostramos la confirmación en el canal donde se ejecutó el comando.
-    if (context.isChatInputCommand()) {
-      await context.reply({ embeds: [embed] });
-    } else {
-      await context.reply({ embeds: [embed] });
-    }
+   if (isSlashCommand) {
+  await (context as ChatInputCommandInteraction).reply({
+    embeds: [embed],
+  });
+} else {
+  await (context as Message).reply({
+    embeds: [embed],
+  });
+}
 
     // Dejamos registro de la acción en los logs.
     logger.info(
