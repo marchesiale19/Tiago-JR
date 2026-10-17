@@ -1170,28 +1170,47 @@ client.on(
             interaction.client,
           );
 
-          await interaction.editReply(
-            "✅ Aceptaste la supervisión. La partida empezó.",
-          );
-        } catch (err: any) {
-          logger.error(
-            { err, lobbyId },
-            "Error handling supervision accept",
-          );
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } =
+  await import("discord.js");
 
-          if (
-            interaction.deferred
-          ) {
-            await interaction
-              .editReply(
-                `❌ ${err?.message ?? "Hubo un error al aceptar la supervisión."}`,
-              )
-              .catch(() => {});
-          }
-        }
+const originalEmbed = interaction.message.embeds[0];
+const updatedEmbed = originalEmbed
+  ? EmbedBuilder.from(originalEmbed)
+      .setColor(0x2ecc71)
+      .setTitle("✅ Supervisor asignado")
+      .setDescription(
+        `La supervisión fue aceptada por <@${interaction.user.id}>.\n\n` +
+        "La solicitud ya no está disponible para otros supervisores.",
+      )
+  : new EmbedBuilder()
+      .setColor(0x2ecc71)
+      .setTitle("✅ Supervisor asignado")
+      .setDescription(
+        `La supervisión fue aceptada por <@${interaction.user.id}>.`,
+      );
 
-        return;
-      }
+const disabledRows = interaction.message.components.map((row) => {
+  const newRow = ActionRowBuilder.from(row as any);
+
+  newRow.setComponents(
+    row.components.map((component) => {
+      const button = ButtonBuilder.from(component as any);
+      button.setDisabled(true);
+      return button;
+    }),
+  );
+
+  return newRow;
+});
+
+await interaction.message.edit({
+  embeds: [updatedEmbed],
+  components: disabledRows,
+});
+
+await interaction.editReply(
+  "✅ Aceptaste la supervisión. La solicitud quedó cerrada.",
+);
 
       /* ------------------------------------------------------
        * SUPERVISION REPLACE
