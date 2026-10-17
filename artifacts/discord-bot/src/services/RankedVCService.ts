@@ -18,7 +18,6 @@ const RANKED_VC_PREFIX = "「🎙」ranked ";
 const MAX_VC_USERS = 15;
 
 const RANKED_ALLOWED_ROLE_IDS = [
-  "1539368076326473868", // Developer Tiago Jr
   "1451383215603585140",  // Owner
   "1508266687689003039",  // Co-Owner
   "1512634750152478851",  // Jefe Staff
@@ -27,7 +26,6 @@ const RANKED_ALLOWED_ROLE_IDS = [
   "1522434536796061816",  // Desarrollador
   "1453211902267228160",  // Administrador
   "1509760475653472287",  // Administrador [PB]
-  "1522807097920720967",  // Manager
 ] as const;
 
 // Estados considerados activos.
