@@ -1124,7 +1124,7 @@ client.on(
         return;
       }
 
-      /* ------------------------------------------------------
+          /* ------------------------------------------------------
        * SUPERVISION ACCEPT
        * ------------------------------------------------------ */
 
@@ -1133,11 +1133,9 @@ client.on(
           "supervision_accept_",
         )
       ) {
-        const lobbyId =
-          interaction.customId.slice(
-            "supervision_accept_"
-              .length,
-          );
+        const lobbyId = interaction.customId.slice(
+          "supervision_accept_".length,
+        );
 
         const member =
           interaction.member as GuildMember | null;
@@ -1148,16 +1146,12 @@ client.on(
               "❌ Este botón sólo funciona desde el servidor.",
             ephemeral: true,
           });
-
           return;
         }
 
         try {
-          const {
-            handleSupervisionAccept,
-          } = await import(
-            "./services/SupervisorService"
-          );
+          const { handleSupervisionAccept } =
+            await import("./services/SupervisorService");
 
           await interaction.deferReply({
             ephemeral: true,
@@ -1170,47 +1164,87 @@ client.on(
             interaction.client,
           );
 
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder } =
-  await import("discord.js");
+          const originalEmbed =
+            interaction.message.embeds[0];
 
-const originalEmbed = interaction.message.embeds[0];
-const updatedEmbed = originalEmbed
-  ? EmbedBuilder.from(originalEmbed)
-      .setColor(0x2ecc71)
-      .setTitle("✅ Supervisor asignado")
-      .setDescription(
-        `La supervisión fue aceptada por <@${interaction.user.id}>.\n\n` +
-        "La solicitud ya no está disponible para otros supervisores.",
-      )
-  : new EmbedBuilder()
-      .setColor(0x2ecc71)
-      .setTitle("✅ Supervisor asignado")
-      .setDescription(
-        `La supervisión fue aceptada por <@${interaction.user.id}>.`,
-      );
+          const updatedEmbed = originalEmbed
+            ? EmbedBuilder.from(originalEmbed)
+                .setColor(0x2ecc71)
+                .setTitle("✅ Supervisor asignado")
+                .setDescription(
+                  `La supervisión fue aceptada por <@${interaction.user.id}>.\n\n` +
+                    "La solicitud ya no está disponible para otros supervisores.",
+                )
+            : new EmbedBuilder()
+                .setColor(0x2ecc71)
+                .setTitle("✅ Supervisor asignado")
+                .setDescription(
+                  `La supervisión fue aceptada por <@${interaction.user.id}>.`,
+                );
 
-const disabledRows = interaction.message.components.map((row) => {
-  const newRow = ActionRowBuilder.from(row as any);
+          const disabledRows =
+            interaction.message.components.map((row) => {
+              const newRow = ActionRowBuilder.from(
+                row as any,
+              );
 
-  newRow.setComponents(
-    row.components.map((component) => {
-      const button = ButtonBuilder.from(component as any);
-      button.setDisabled(true);
-      return button;
-    }),
-  );
+              newRow.setComponents(
+                row.components.map((component) => {
+                  const button = ButtonBuilder.from(
+                    component as any,
+                  );
 
-  return newRow;
-});
+                  button.setDisabled(true);
+                  return button;
+                }),
+              );
 
-await interaction.message.edit({
-  embeds: [updatedEmbed],
-  components: disabledRows,
-});
+              return newRow;
+            });
 
-await interaction.editReply(
-  "✅ Aceptaste la supervisión. La solicitud quedó cerrada.",
-);
+          await interaction.message.edit({
+            embeds: [updatedEmbed],
+            components: disabledRows,
+          });
+
+          await interaction.editReply(
+            "✅ Aceptaste la supervisión. La solicitud quedó cerrada.",
+          );
+        } catch (err: any) {
+          logger.error(
+            {
+              err,
+              lobbyId,
+              supervisorId: interaction.user.id,
+            },
+            "Error handling supervision accept",
+          );
+
+          const message =
+            `❌ ${
+              err?.message ??
+              "No se pudo aceptar la supervisión."
+            }`;
+
+          if (
+            interaction.deferred ||
+            interaction.replied
+          ) {
+            await interaction
+              .editReply(message)
+              .catch(() => {});
+          } else {
+            await interaction
+              .reply({
+                content: message,
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
 
       /* ------------------------------------------------------
        * SUPERVISION REPLACE
@@ -1221,11 +1255,9 @@ await interaction.editReply(
           "supervision_replace_",
         )
       ) {
-        const lobbyId =
-          interaction.customId.slice(
-            "supervision_replace_"
-              .length,
-          );
+        const lobbyId = interaction.customId.slice(
+          "supervision_replace_".length,
+        );
 
         const member =
           interaction.member as GuildMember | null;
@@ -1236,16 +1268,12 @@ await interaction.editReply(
               "❌ Este botón sólo funciona desde el servidor.",
             ephemeral: true,
           });
-
           return;
         }
 
         try {
-          const {
-            handleSupervisionReplace,
-          } = await import(
-            "./services/SupervisorService"
-          );
+          const { handleSupervisionReplace } =
+            await import("./services/SupervisorService");
 
           await interaction.deferReply({
             ephemeral: true,
@@ -1263,17 +1291,33 @@ await interaction.editReply(
           );
         } catch (err: any) {
           logger.error(
-            { err, lobbyId },
+            {
+              err,
+              lobbyId,
+              supervisorId: interaction.user.id,
+            },
             "Error handling supervision replace",
           );
 
+          const message =
+            `❌ ${
+              err?.message ??
+              "No se pudo reemplazar al supervisor."
+            }`;
+
           if (
-            interaction.deferred
+            interaction.deferred ||
+            interaction.replied
           ) {
             await interaction
-              .editReply(
-                `❌ ${err?.message ?? "Hubo un error al aceptar el reemplazo."}`,
-              )
+              .editReply(message)
+              .catch(() => {});
+          } else {
+            await interaction
+              .reply({
+                content: message,
+                ephemeral: true,
+              })
               .catch(() => {});
           }
         }
