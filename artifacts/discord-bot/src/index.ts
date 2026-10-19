@@ -27,6 +27,7 @@ import { dirname } from "node:path";
 import { setupServerLogs } from "./services/serverLogs";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
+import { setupVoiceRewards } from "./services/VoiceRewardService";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
@@ -104,6 +105,9 @@ client.once(Events.ClientReady, (readyClient) => {
     `✅ Discord conectado como ${readyClient.user.tag}`,
   );
 
+setupVoiceRewards(client);
+console.log("✅ VoiceRewardService inicializado.");
+  
   // 🟢 Inicialización del filtro de nombres para nuevos miembros
   try {
     setupNameFilter(client);
