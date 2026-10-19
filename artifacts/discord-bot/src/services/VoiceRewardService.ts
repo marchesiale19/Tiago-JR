@@ -70,7 +70,6 @@ async function ensureSession(
   const now = new Date();
 
   if (record) {
-    // No reiniciar una sesión que ya está en marcha.
     if (record.sessionStartedAt === null) {
       await db
         .update(voiceRewardsTable)
@@ -94,11 +93,71 @@ async function ensureSession(
 }
 
 /**
+ * Avisa en el chat integrado del canal de voz actual.
+ * Los canales de voz no siempre exponen un método send()
+ * en discord.js; en ese caso se deja constancia en los logs.
+ */
+async function notifyVoiceReward(
+  client: Client,
+  guildId: string,
+  userId: string,
+): Promise<void> {
+  try {
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) return;
+
+    const member = await guild.members.fetch(userId);
+    const voiceChannel = member.voice.channel;
+
+    if (!voiceChannel) {
+      console.warn(
+        `[VoiceRewards] ${userId} ya no está en voz; no se pudo enviar el aviso.`,
+      );
+      return;
+    }
+
+    // El chat integrado de voz depende del tipo de canal
+    // y de las capacidades expuestas por la versión de discord.js.
+    const sendableChannel = voiceChannel as typeof voiceChannel & {
+      send?: (options: {
+        content: string;
+        allowedMentions?: { users: string[] };
+      }) => Promise<unknown>;
+    };
+
+    if (typeof sendableChannel.send !== "function") {
+      console.warn(
+        `[VoiceRewards] El canal ${voiceChannel.id} no expone send(); no se envió el aviso.`,
+      );
+      return;
+    }
+
+    await sendableChannel.send({
+     content:
+  `🎉 **¡Ganaste una recompensa!**\n\n` +
+  `¡<@${userId}>! Recibiste **${REWARD_AMOUNT.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>** ` +
+  `en tu banco del <#1483361912904224799> por completar una hora en canales de voz. ¡Seguí así! 🎧`,
+      allowedMentions: { users: [userId] },
+    });
+
+    console.log(
+      `[VoiceRewards] Aviso enviado al canal de voz para ${userId}.`,
+    );
+  } catch (error) {
+    console.warn(
+      `[VoiceRewards] No se pudo enviar el aviso al canal de voz para ${userId}:`,
+      error,
+    );
+  }
+}
+
+/**
  * Calcula el progreso actual y lo guarda antes de intentar
- * pagar. Los segundos pendientes de pago permanecen en la tabla
- * si la API falla, de modo que el sistema pueda reintentarlo.
+ * pagar. Los segundos pendientes permanecen en la tabla
+ * si la API falla.
  */
 async function accrueTime(
+  client: Client,
   guildId: string,
   userId: string,
   sessionActive: boolean,
@@ -107,7 +166,6 @@ async function accrueTime(
   if (!record) return;
 
   const now = new Date();
-
   let totalSeconds = record.accumulatedSeconds;
 
   if (record.sessionStartedAt !== null) {
@@ -121,7 +179,6 @@ async function accrueTime(
     totalSeconds += elapsedSeconds;
   }
 
-  // Persistir el progreso calculado antes de llamar a la API.
   await db
     .update(voiceRewardsTable)
     .set({
@@ -131,30 +188,30 @@ async function accrueTime(
     })
     .where(eq(voiceRewardsTable.id, record.id));
 
-  await payPendingRewards(guildId, userId);
+  await payPendingRewards(client, guildId, userId);
 }
 
 /**
- * Paga las horas pendientes una por una y registra cada pago
- * completado. Si la API falla, el progreso pendiente se conserva
- * para que pueda reintentarse en la próxima comprobación.
+ * Paga las horas pendientes una por una y registra cada pago.
  */
 async function payPendingRewards(
+  client: Client,
   guildId: string,
   userId: string,
 ): Promise<void> {
   while (true) {
     const record = await getRecord(guildId, userId);
+
     if (!record || record.accumulatedSeconds < REWARD_SECONDS) {
       return;
     }
 
-    // Primero se acredita el banco en UnbelievaBoat.
+    // Acreditar el dinero en el banco de UnbelievaBoat.
     await unb.editUserBalance(guildId, userId, {
       bank: REWARD_AMOUNT,
     });
 
-    // Después se descuenta una hora del saldo pendiente.
+    // Descontar una hora del saldo pendiente.
     const updated = await db
       .update(voiceRewardsTable)
       .set({
@@ -182,10 +239,15 @@ async function payPendingRewards(
     console.log(
       `[VoiceRewards] ${userId} recibió ${REWARD_AMOUNT} en el banco.`,
     );
+
+    // El aviso es independiente del pago: si falla, no se
+    // revierte ni se vuelve a acreditar la recompensa.
+    await notifyVoiceReward(client, guildId, userId);
   }
 }
 
 async function handleVoiceUpdate(
+  client: Client,
   oldState: VoiceState,
   newState: VoiceState,
 ): Promise<void> {
@@ -199,7 +261,7 @@ async function handleVoiceUpdate(
     // Entrada a voz.
     if (!oldState.channelId && newState.channelId) {
       await ensureSession(guildId, userId);
-      await payPendingRewards(guildId, userId);
+      await payPendingRewards(client, guildId, userId);
 
       console.log(
         `[VoiceRewards] ${userId} entró a voz en ${guildId}.`,
@@ -207,10 +269,9 @@ async function handleVoiceUpdate(
       return;
     }
 
-    // Salida de voz: guardar el tiempo final y pagar las horas
-    // completas que hayan quedado pendientes.
+    // Salida de voz.
     if (oldState.channelId && !newState.channelId) {
-      await accrueTime(guildId, userId, false);
+      await accrueTime(client, guildId, userId, false);
 
       console.log(
         `[VoiceRewards] ${userId} salió de voz en ${guildId}.`,
@@ -218,7 +279,7 @@ async function handleVoiceUpdate(
       return;
     }
 
-    // Cambio de canal: la sesión sigue activa y no se reinicia.
+    // Cambio de canal: la sesión continúa.
     if (oldState.channelId && newState.channelId) {
       console.log(
         `[VoiceRewards] ${userId} cambió de canal en ${guildId}.`,
@@ -246,7 +307,7 @@ async function checkUser(
       return;
     }
 
-    await accrueTime(guildId, userId, true);
+    await accrueTime(client, guildId, userId, true);
   });
 }
 
@@ -266,7 +327,6 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
           }
 
           // No contar todo el tiempo que Render estuvo apagado.
-          // Recuperar como máximo un minuto desde el último registro.
           const now = new Date();
           let recoveredSeconds = record.accumulatedSeconds;
 
@@ -295,7 +355,7 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
             })
             .where(eq(voiceRewardsTable.id, record.id));
 
-          await payPendingRewards(guild.id, state.id);
+          await payPendingRewards(client, guild.id, state.id);
         },
       );
     }
@@ -304,7 +364,7 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
 
 export function setupVoiceRewards(client: Client): void {
   client.on(Events.VoiceStateUpdate, (oldState, newState) => {
-    void handleVoiceUpdate(oldState, newState).catch((error) => {
+    void handleVoiceUpdate(client, oldState, newState).catch((error) => {
       console.error(
         "[VoiceRewards] Error procesando estado de voz:",
         error,
@@ -338,8 +398,6 @@ export function setupVoiceRewards(client: Client): void {
     console.log("[VoiceRewards] Contador de voz iniciado.");
   };
 
-  // Compatible tanto si el servicio se configura antes de Ready
-  // como si index.ts lo configura después de que el bot esté listo.
   if (client.isReady()) {
     initialize();
   } else {
