@@ -27,6 +27,7 @@ const AUTHORIZED_ROLE_IDS = [
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
+  "1541861480457183272", // Desarrolladores
   "1522807097920720967", // Manager
 ];
 
