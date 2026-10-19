@@ -14,12 +14,33 @@ const REWARD_SECONDS = 60 * 60;
 const REWARD_AMOUNT = 50_000;
 const CHECK_INTERVAL_MS = 60_000;
 
-// Serializa las operaciones de cada usuario para evitar
-// que un evento de voz y el temporizador procesen a la vez.
+const ALLOWED_VOICE_CHANNEL_IDS = new Set([
+  "1452030683588333568",
+  "1478541699041984583",
+  "1452030713791774882",
+  "1452030742602453174",
+  "1452174467441627208",
+  "1462162035185029356",
+  "1462517911607316480",
+  "1478541393470292211",
+  "1478541114695749702",
+  "1553554498436333599",
+  "1538256157347418183",
+  "1538784135802523699",
+  "1538784288051564545",
+  "1538784348277309480",
+]);
+
+// Serializa las operaciones de cada usuario.
 const userLocks = new Map<string, Promise<void>>();
 
 function getKey(guildId: string, userId: string): string {
   return `${guildId}:${userId}`;
+}
+
+function isAllowedVoiceChannel(channelId: string | null): boolean {
+  return channelId !== null &&
+    ALLOWED_VOICE_CHANNEL_IDS.has(channelId);
 }
 
 async function withUserLock<T>(
@@ -62,6 +83,11 @@ async function getRecord(guildId: string, userId: string) {
   return rows[0];
 }
 
+/**
+ * Crea el registro si no existe.
+ * Una sesión solo empieza o continúa cuando el usuario
+ * está en un canal autorizado.
+ */
 async function ensureSession(
   guildId: string,
   userId: string,
@@ -93,9 +119,8 @@ async function ensureSession(
 }
 
 /**
- * Avisa en el chat integrado del canal de voz actual.
- * Los canales de voz no siempre exponen un método send()
- * en discord.js; en ese caso se deja constancia en los logs.
+ * Envía el aviso al chat del canal de voz actual,
+ * si el canal expone el método send().
  */
 async function notifyVoiceReward(
   client: Client,
@@ -116,8 +141,6 @@ async function notifyVoiceReward(
       return;
     }
 
-    // El chat integrado de voz depende del tipo de canal
-    // y de las capacidades expuestas por la versión de discord.js.
     const sendableChannel = voiceChannel as typeof voiceChannel & {
       send?: (options: {
         content: string;
@@ -133,10 +156,10 @@ async function notifyVoiceReward(
     }
 
     await sendableChannel.send({
-     content:
-  `🎉 **¡Ganaste una recompensa!**\n\n` +
-  `¡<@${userId}>! Recibiste **${REWARD_AMOUNT.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>** ` +
-  `en tu banco del <#1483361912904224799> por completar una hora en canales de voz. ¡Seguí así! 🎧`,
+      content:
+        `🎉 **¡Ganaste una recompensa!**\n\n` +
+        `¡<@${userId}>! Recibiste **${REWARD_AMOUNT.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>** ` +
+        `en tu banco del <#1483361912904224799> por completar una hora en canales de voz. ¡Seguí así! 🎧`,
       allowedMentions: { users: [userId] },
     });
 
@@ -152,9 +175,8 @@ async function notifyVoiceReward(
 }
 
 /**
- * Calcula el progreso actual y lo guarda antes de intentar
- * pagar. Los segundos pendientes permanecen en la tabla
- * si la API falla.
+ * Guarda el tiempo transcurrido únicamente de una sesión válida.
+ * Si sessionActive es false, la sesión se pausa.
  */
 async function accrueTime(
   client: Client,
@@ -192,7 +214,7 @@ async function accrueTime(
 }
 
 /**
- * Paga las horas pendientes una por una y registra cada pago.
+ * Paga las horas completas que estén pendientes.
  */
 async function payPendingRewards(
   client: Client,
@@ -206,12 +228,10 @@ async function payPendingRewards(
       return;
     }
 
-    // Acreditar el dinero en el banco de UnbelievaBoat.
     await unb.editUserBalance(guildId, userId, {
       bank: REWARD_AMOUNT,
     });
 
-    // Descontar una hora del saldo pendiente.
     const updated = await db
       .update(voiceRewardsTable)
       .set({
@@ -240,12 +260,13 @@ async function payPendingRewards(
       `[VoiceRewards] ${userId} recibió ${REWARD_AMOUNT} en el banco.`,
     );
 
-    // El aviso es independiente del pago: si falla, no se
-    // revierte ni se vuelve a acreditar la recompensa.
     await notifyVoiceReward(client, guildId, userId);
   }
 }
 
+/**
+ * Maneja entradas, salidas y cambios entre canales.
+ */
 async function handleVoiceUpdate(
   client: Client,
   oldState: VoiceState,
@@ -258,33 +279,40 @@ async function handleVoiceUpdate(
   if (oldState.channelId === newState.channelId) return;
 
   await withUserLock(getKey(guildId, userId), async () => {
-    // Entrada a voz.
-    if (!oldState.channelId && newState.channelId) {
+    const wasAllowed = isAllowedVoiceChannel(oldState.channelId);
+    const isAllowed = isAllowedVoiceChannel(newState.channelId);
+
+    // Sale de un VC permitido hacia uno no permitido,
+    // o se desconecta: guardar el tiempo válido y pausar.
+    if (wasAllowed && !isAllowed) {
+      await accrueTime(client, guildId, userId, false);
+
+      console.log(
+        `[VoiceRewards] ${userId} salió de un VC autorizado en ${guildId}.`,
+      );
+      return;
+    }
+
+    // Entra a un VC permitido desde fuera del sistema
+    // o desde un canal no autorizado.
+    if (!wasAllowed && isAllowed) {
       await ensureSession(guildId, userId);
       await payPendingRewards(client, guildId, userId);
 
       console.log(
-        `[VoiceRewards] ${userId} entró a voz en ${guildId}.`,
+        `[VoiceRewards] ${userId} entró a un VC autorizado en ${guildId}.`,
       );
       return;
     }
 
-    // Salida de voz.
-    if (oldState.channelId && !newState.channelId) {
-      await accrueTime(client, guildId, userId, false);
-
+    // Cambia entre dos VC autorizados: no reiniciar.
+    if (wasAllowed && isAllowed) {
       console.log(
-        `[VoiceRewards] ${userId} salió de voz en ${guildId}.`,
-      );
-      return;
-    }
-
-    // Cambio de canal: la sesión continúa.
-    if (oldState.channelId && newState.channelId) {
-      console.log(
-        `[VoiceRewards] ${userId} cambió de canal en ${guildId}.`,
+        `[VoiceRewards] ${userId} cambió entre VC autorizados en ${guildId}.`,
       );
     }
+
+    // Los cambios entre canales no autorizados no cuentan.
   });
 }
 
@@ -300,6 +328,9 @@ async function checkUser(
     if (!guild || !voiceState?.channelId) return;
     if (voiceState.member?.user.bot) return;
 
+    // No acumular ni iniciar sesiones en canales no permitidos.
+    if (!isAllowedVoiceChannel(voiceState.channelId)) return;
+
     const record = await getRecord(guildId, userId);
 
     if (!record) {
@@ -311,6 +342,11 @@ async function checkUser(
   });
 }
 
+/**
+ * Recupera las sesiones de usuarios conectados después
+ * de que el bot se reinicie, sin contar todo el tiempo
+ * durante el cual Render estuvo apagado.
+ */
 async function recoverConnectedUsers(client: Client): Promise<void> {
   for (const guild of client.guilds.cache.values()) {
     for (const state of guild.voiceStates.cache.values()) {
@@ -320,16 +356,20 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
         getKey(guild.id, state.id),
         async () => {
           const record = await getRecord(guild.id, state.id);
+          const allowed = isAllowedVoiceChannel(state.channelId);
 
           if (!record) {
-            await ensureSession(guild.id, state.id);
+            if (allowed) {
+              await ensureSession(guild.id, state.id);
+            }
             return;
           }
 
-          // No contar todo el tiempo que Render estuvo apagado.
           const now = new Date();
           let recoveredSeconds = record.accumulatedSeconds;
 
+          // Recuperar como máximo un minuto desde el último registro
+          // y solo si la sesión anterior estaba activa en un VC permitido.
           if (record.sessionStartedAt !== null) {
             const elapsed = Math.max(
               0,
@@ -350,7 +390,7 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
             .update(voiceRewardsTable)
             .set({
               accumulatedSeconds: recoveredSeconds,
-              sessionStartedAt: now,
+              sessionStartedAt: allowed ? now : null,
               updatedAt: now,
             })
             .where(eq(voiceRewardsTable.id, record.id));
@@ -384,6 +424,7 @@ export function setupVoiceRewards(client: Client): void {
       for (const guild of client.guilds.cache.values()) {
         for (const state of guild.voiceStates.cache.values()) {
           if (!state.channelId || state.member?.user.bot) continue;
+          if (!isAllowedVoiceChannel(state.channelId)) continue;
 
           void checkUser(client, guild.id, state.id).catch((error) => {
             console.error(
@@ -395,7 +436,9 @@ export function setupVoiceRewards(client: Client): void {
       }
     }, CHECK_INTERVAL_MS);
 
-    console.log("[VoiceRewards] Contador de voz iniciado.");
+    console.log(
+      `[VoiceRewards] Contador iniciado. VC autorizados: ${ALLOWED_VOICE_CHANNEL_IDS.size}.`,
+    );
   };
 
   if (client.isReady()) {
