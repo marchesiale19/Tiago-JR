@@ -11,7 +11,7 @@ import { voiceRewardsTable } from "@workspace/db/schema";
 import { unb } from "../lib/unbelievaboat";
 
 const REWARD_SECONDS = 60 * 60;
-const REWARD_AMOUNT = 50_000;
+const REWARD_AMOUNT = 40_000;
 const CHECK_INTERVAL_MS = 60_000;
 
 const ALLOWED_VOICE_CHANNEL_IDS = new Set([
