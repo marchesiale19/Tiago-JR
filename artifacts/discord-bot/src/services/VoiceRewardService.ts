@@ -1,23 +1,28 @@
+import { Events, type Client } from "discord.js";
 
-import type { Client, VoiceState } from "discord.js";
+export function setupVoiceRewards(client: Client): void {
+  client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+    const userId = newState.id;
+    const guildId = newState.guild.id;
 
-export function setupVoiceRewards(client: Client) {
-  client.on(
-    "voiceStateUpdate",
-    (oldState: VoiceState, newState: VoiceState) => {
-      if (newState.member?.user.bot ?? oldState.member?.user.bot) {
-        return;
-      }
+    // Ignorar bots.
+    if (newState.member?.user.bot) return;
 
-      if (oldState.channelId === newState.channelId) {
-        return;
-      }
+    // Detectar entrada, salida o cambio de canal.
+    if (oldState.channelId === newState.channelId) return;
 
-      console.log(
-        `[VOICE] ${newState.id}: ${
-          oldState.channelId ?? "desconectado"
-        } -> ${newState.channelId ?? "desconectado"}`,
-      );
-    },
-  );
+    if (!oldState.channelId && newState.channelId) {
+      console.log(`[VoiceRewards] ${userId} entró a voz en ${guildId}.`);
+      return;
+    }
+
+    if (oldState.channelId && !newState.channelId) {
+      console.log(`[VoiceRewards] ${userId} salió de voz en ${guildId}.`);
+      return;
+    }
+
+    if (oldState.channelId && newState.channelId) {
+      console.log(`[VoiceRewards] ${userId} cambió de canal en ${guildId}.`);
+    }
+  });
 }
