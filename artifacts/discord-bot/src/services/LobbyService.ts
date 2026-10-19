@@ -1,232 +1,94 @@
+// ---------------------------------------------------------------------------
+// LobbyService — lobby state machine transitions.
+//
+// In the new ranked workflow there are no private text channels per match.
+// The Ranked VC lifecycle is managed by RankedVCService.
+// This service owns:
+//   • State machine validation and transitions.
+//   • Queue lobby creation.
+//   • Derived user competitive state.
+//   • Lobby closure (status update + supervisor state cleanup).
+// ---------------------------------------------------------------------------
 
-import { eq, and, count, sql, inArray, isNull } from "drizzle-orm";
-import { db } from "../database";
+import { Client } from "discord.js";
+import { lobbyRepository }      from "../database/repositories/LobbyRepository";
+import { supervisorRepository } from "../database/repositories/SupervisorRepository";
 import {
-  lobbysTable,
-  participantesLobbyTable,
-  type InsertLobby,
-  type Lobby,
-  type InsertParticipanteLobby,
-  type ParticipanteLobby,
-} from "@workspace/db";
-import { type LobbyStatus } from "../enums";
+  LobbyStatus, LOBBY_TRANSITIONS, CompetitiveState,
+} from "../database/enums";
+import { eventBus } from "./EventBus";
+import { logger }   from "../lib/logger";
+import type { Lobby } from "@workspace/db";
 
-export class LobbyRepository {
-  async findById(id: string): Promise<Lobby | undefined> {
-    const rows = await db
-      .select()
-      .from(lobbysTable)
-      .where(eq(lobbysTable.id, id))
-      .limit(1);
+// ── State machine ──────────────────────────────────────────────────────────
 
-    return rows[0];
-  }
-
-  async findQueueLobby(): Promise<Lobby | undefined> {
-    const rows = await db
-      .select()
-      .from(lobbysTable)
-      .where(eq(lobbysTable.status, "queue"))
-      .limit(1);
-
-    return rows[0];
-  }
-
-  async findByStatus(status: LobbyStatus | LobbyStatus[]): Promise<Lobby[]> {
-    const statuses = Array.isArray(status) ? status : [status];
-
-    return db
-      .select()
-      .from(lobbysTable)
-      .where(inArray(lobbysTable.status, statuses));
-  }
-
-  async findActiveForUser(
-    discordId: string,
-  ): Promise<Lobby | undefined> {
-    const activeStatuses: LobbyStatus[] = [
-      "queue",
-      "waiting_supervisor",
-      "ready",
-      "in_game",
-      "validating",
-    ];
-
-    const rows = await db
-      .select({ lobby: lobbysTable })
-      .from(lobbysTable)
-      .innerJoin(
-        participantesLobbyTable,
-        and(
-          eq(participantesLobbyTable.lobbyId, lobbysTable.id),
-          eq(participantesLobbyTable.discordId, discordId),
-        ),
-      )
-      .where(inArray(lobbysTable.status, activeStatuses))
-      .limit(1);
-
-    return rows[0]?.lobby;
-  }
-
-  async findBySupervisorAndStatus(
-    supervisorId: string,
-    status: LobbyStatus,
-  ): Promise<Lobby | undefined> {
-    const rows = await db
-      .select()
-      .from(lobbysTable)
-      .where(
-        and(
-          eq(lobbysTable.supervisorId, supervisorId),
-          eq(lobbysTable.status, status),
-        ),
-      )
-      .limit(1);
-
-    return rows[0];
-  }
-
-  async findByChannelId(
-    channelId: string,
-  ): Promise<Lobby | undefined> {
-    const rows = await db
-      .select()
-      .from(lobbysTable)
-      .where(eq(lobbysTable.channelId, channelId))
-      .limit(1);
-
-    return rows[0];
-  }
-
-  async create(data: InsertLobby): Promise<Lobby> {
-    const rows = await db
-      .insert(lobbysTable)
-      .values(data)
-      .returning();
-
-    return rows[0]!;
-  }
-
-  async updateStatus(
-    id: string,
-    status: LobbyStatus,
-  ): Promise<void> {
-    await db
-      .update(lobbysTable)
-      .set({
-        status,
-        updatedAt: sql`now()`,
-      })
-      .where(eq(lobbysTable.id, id));
-  }
-
-  async updateSupervisor(
-    id: string,
-    supervisorId: string,
-    notifiedAt: Date,
-  ): Promise<void> {
-    await db
-      .update(lobbysTable)
-      .set({
-        supervisorId,
-        supervisorNotifiedAt: notifiedAt,
-        updatedAt: sql`now()`,
-      })
-      .where(eq(lobbysTable.id, id));
-  }
-
-  /**
-   * Reserva la supervisión para un solo usuario.
-   * Solo funciona si la lobby sigue esperando supervisor
-   * y todavía no tiene uno asignado.
-   */
-  async claimSupervisor(
-    lobbyId: string,
-    supervisorId: string,
-    notifiedAt: Date,
-  ): Promise<boolean> {
-    const rows = await db
-      .update(lobbysTable)
-      .set({
-        supervisorId,
-        supervisorNotifiedAt: notifiedAt,
-        updatedAt: sql`now()`,
-      })
-      .where(
-        and(
-          eq(lobbysTable.id, lobbyId),
-          eq(lobbysTable.status, "waiting_supervisor"),
-          isNull(lobbysTable.supervisorId),
-        ),
-      )
-      .returning({ id: lobbysTable.id });
-
-    return rows.length > 0;
-  }
-
-  async updateChannels(
-    id: string,
-    textChannelId: string,
-    voiceChannelId: string,
-  ): Promise<void> {
-    await db
-      .update(lobbysTable)
-      .set({
-        textChannelId,
-        voiceChannelId,
-        updatedAt: sql`now()`,
-      })
-      .where(eq(lobbysTable.id, id));
-  }
-
-  async countParticipants(lobbyId: string): Promise<number> {
-    const rows = await db
-      .select({ value: count() })
-      .from(participantesLobbyTable)
-      .where(eq(participantesLobbyTable.lobbyId, lobbyId));
-
-    return Number(rows[0]?.value ?? 0);
-  }
-
-  async listParticipants(
-    lobbyId: string,
-  ): Promise<ParticipanteLobby[]> {
-    return db
-      .select()
-      .from(participantesLobbyTable)
-      .where(eq(participantesLobbyTable.lobbyId, lobbyId));
-  }
-
-  async addParticipant(
-    data: InsertParticipanteLobby,
-  ): Promise<ParticipanteLobby> {
-    const rows = await db
-      .insert(participantesLobbyTable)
-      .values(data)
-      .returning();
-
-    return rows[0]!;
-  }
-
-  async removeParticipant(
-    lobbyId: string,
-    discordId: string,
-  ): Promise<void> {
-    await db
-      .delete(participantesLobbyTable)
-      .where(
-        and(
-          eq(participantesLobbyTable.lobbyId, lobbyId),
-          eq(participantesLobbyTable.discordId, discordId),
-        ),
-      );
-  }
-
-  async clearParticipants(lobbyId: string): Promise<void> {
-    await db
-      .delete(participantesLobbyTable)
-      .where(eq(participantesLobbyTable.lobbyId, lobbyId));
+export function validateTransition(from: LobbyStatus, to: LobbyStatus): void {
+  const allowed = LOBBY_TRANSITIONS[from];
+  if (!allowed.includes(to)) {
+    throw new Error(`Invalid lobby transition: ${from} → ${to}`);
   }
 }
 
-export const lobbyRepository = new LobbyRepository();
+export async function transitionTo(lobbyId: string, newStatus: LobbyStatus): Promise<Lobby> {
+  const lobby = await lobbyRepository.findById(lobbyId);
+  if (!lobby) throw new Error(`Lobby ${lobbyId} not found`);
+
+  validateTransition(lobby.status as LobbyStatus, newStatus);
+  await lobbyRepository.updateStatus(lobbyId, newStatus);
+  logger.info({ lobbyId, from: lobby.status, to: newStatus }, "Lobby status transition");
+  return { ...lobby, status: newStatus };
+}
+
+// ── Queue lobby management ─────────────────────────────────────────────────
+
+export async function getOrCreateQueueLobby(guildId: string, creadorId: string): Promise<Lobby> {
+  const existing = await lobbyRepository.findQueueLobby();
+  if (existing) return existing;
+
+  const lobby = await lobbyRepository.create({
+    creadorId,
+    guildId,
+    status:       LobbyStatus.Queue,
+    maxJugadores: 14,
+  });
+  logger.info({ lobbyId: lobby.id }, "New QUEUE lobby created (max 14)");
+  return lobby;
+}
+
+// ── Derived user competitive state ─────────────────────────────────────────
+
+export async function getUserCompetitiveState(discordId: string): Promise<CompetitiveState> {
+  const lobby = await lobbyRepository.findActiveForUser(discordId);
+  if (!lobby) return CompetitiveState.Libre;
+
+  switch (lobby.status as LobbyStatus) {
+    case LobbyStatus.Queue:            return CompetitiveState.EnCola;
+    case LobbyStatus.WaitingSupervisor:
+    case LobbyStatus.Ready:            return CompetitiveState.EnLobby;
+    case LobbyStatus.InGame:
+    case LobbyStatus.Validating:       return CompetitiveState.EnPartida;
+    default:                           return CompetitiveState.Libre;
+  }
+}
+
+// ── Lobby closure (CLOSED or CANCELLED) ───────────────────────────────────
+
+export async function closeLobby(
+  lobbyId:   string,
+  newStatus: (typeof LobbyStatus)["Closed"] | (typeof LobbyStatus)["Cancelled"],
+  _client:   Client,
+): Promise<void> {
+  const lobby = await lobbyRepository.findById(lobbyId);
+  if (!lobby) return;
+
+  validateTransition(lobby.status as LobbyStatus, newStatus);
+  await lobbyRepository.updateStatus(lobbyId, newStatus);
+
+  // Release supervisor record if one was tracked
+  if (lobby.supervisorId) {
+    await supervisorRepository.setOcupado(lobby.supervisorId, false).catch(() => {});
+  }
+
+  eventBus.emit("lobby:cancelled", { lobbyId, supervisorId: lobby.supervisorId ?? null });
+  logger.info({ lobbyId, status: newStatus }, "Lobby closed");
+}
