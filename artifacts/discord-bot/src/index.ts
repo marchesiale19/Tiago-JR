@@ -28,6 +28,7 @@ import { setupServerLogs } from "./services/serverLogs";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
+import { setupKakeraBank } from "./services/kakeraBank";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
@@ -95,6 +96,7 @@ const client = new Client({
  * CLIENT READY
  * ============================================================ */
 
+
 client.once(Events.ClientReady, (readyClient) => {
   logger.info(
     { tag: readyClient.user.username },
@@ -105,10 +107,18 @@ client.once(Events.ClientReady, (readyClient) => {
     `✅ Discord conectado como ${readyClient.user.tag}`,
   );
 
-setupVoiceRewards(client);
-console.log("✅ VoiceRewardService inicializado.");
-  
-  // 🟢 Inicialización del filtro de nombres para nuevos miembros
+  // Inicialización de recompensas de voz
+  try {
+    setupVoiceRewards(client);
+    console.log("✅ VoiceRewardService inicializado.");
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error inicializando VoiceRewardService",
+    );
+  }
+
+  // Inicialización del filtro de nombres
   try {
     setupNameFilter(client);
     console.log("✅ NameFilterService inicializado.");
@@ -118,7 +128,8 @@ console.log("✅ VoiceRewardService inicializado.");
       "Error inicializando NameFilterService",
     );
   }
-// 🟢 Inicialización del sistema de Server Logs cruzados
+
+  // Inicialización de Server Logs cruzados
   try {
     setupServerLogs(client);
     console.log("✅ ServerLogsService inicializado.");
@@ -128,15 +139,29 @@ console.log("✅ VoiceRewardService inicializado.");
       "Error inicializando ServerLogsService",
     );
   }
-  
+
+  // Inicialización de la base de datos y Kakera Bank
   import("./database/init")
-    .then(({ initDatabase }) => initDatabase(readyClient))
-    .catch((err) =>
-      logger.warn(
-        { err },
-        "Database init failed — continuing without DB",
-      ),
-    );
+    .then(async ({ initDatabase }) => {
+      const databaseReady = await initDatabase(readyClient);
+
+      if (!databaseReady) {
+        logger.warn(
+          "Kakera Bank: servicio desactivado porque la base de datos no está lista.",
+        );
+        return;
+      }
+
+      setupKakeraBank(readyClient);
+
+      console.log("✅ KakeraBankService inicializado.");
+    })
+    .catch((error) => {
+      logger.error(
+        { error },
+        "No se pudo inicializar la base de datos para Kakera Bank.",
+      );
+    });
 });
 
 /* ============================================================
