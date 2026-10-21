@@ -1,3 +1,7 @@
+import {
+  type Client,
+  type Message,
+} from "discord.js";
 import { and, eq } from "drizzle-orm";
 import { db, kakeraBankTransfers } from "@workspace/db";
 import { unb } from "../../lib/unbelievaboat";
@@ -264,9 +268,9 @@ export function setupKakeraBank(client: Client): void {
       );
     });
 
-  client.on(Events.MessageCreate, (message) => {
-    void handleMudaeMessage(client, message);
-  });
+  client.on("messageCreate", (message) => {
+  void handleMudaeMessage(client, message);
+});
 
   logger.info("Kakera Bank: detector y procesador registrados.");
 }
