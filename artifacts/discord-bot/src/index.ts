@@ -96,7 +96,6 @@ const client = new Client({
  * CLIENT READY
  * ============================================================ */
 
-
 client.once(Events.ClientReady, (readyClient) => {
   logger.info(
     { tag: readyClient.user.username },
@@ -156,9 +155,23 @@ client.once(Events.ClientReady, (readyClient) => {
 
       console.log("✅ KakeraBankService inicializado.");
     })
-    .catch((error) => {
+       .catch((error) => {
+      console.error(
+        "❌ Error real inicializando la base de datos para Kakera Bank:",
+        error,
+      );
+
       logger.error(
-        { error },
+        {
+          error:
+            error instanceof Error
+              ? {
+                  name: error.name,
+                  message: error.message,
+                  stack: error.stack,
+                }
+              : String(error),
+        },
         "No se pudo inicializar la base de datos para Kakera Bank.",
       );
     });
