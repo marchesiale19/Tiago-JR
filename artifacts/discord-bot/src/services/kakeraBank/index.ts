@@ -1,14 +1,5 @@
-import {
-  Events,
-  type Client,
-  type Message,
-} from "discord.js";
-import {
-  and,
-  eq,
-  db,
-  kakeraBankTransfers,
-} from "@workspace/db";
+import { and, eq } from "drizzle-orm";
+import { db, kakeraBankTransfers } from "@workspace/db";
 import { unb } from "../../lib/unbelievaboat";
 import { logger } from "../../lib/logger";
 
