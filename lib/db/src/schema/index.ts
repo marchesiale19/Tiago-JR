@@ -9,3 +9,4 @@ export * from "./logros";
 export * from "./reputaciones";
 export * from "./cooldowns";
 export * from "./voice-rewards";
+export * from "./kakera-bank";
