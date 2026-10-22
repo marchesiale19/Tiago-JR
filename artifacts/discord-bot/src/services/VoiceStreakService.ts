@@ -15,7 +15,6 @@ import { unb } from "../lib/unbelievaboat";
 
 const REQUIRED_PRESENT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5_000;
-const MAX_GAP_MS = 48 * 60 * 60 * 1000;
 const REWARD_AMOUNT = 100_000;
 const TIME_ZONE = "America/Cuiaba";
 
@@ -61,6 +60,12 @@ function getLocalDate(date: Date): string {
   );
 
   return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getPreviousLocalDate(date: string): string {
+  const previous = new Date(`${date}T00:00:00.000Z`);
+  previous.setUTCDate(previous.getUTCDate() - 1);
+  return previous.toISOString().slice(0, 10);
 }
 
 function getEligibleUsers(client: Client, guildId: string): Set<string> {
@@ -115,7 +120,7 @@ async function recordAttendance(
           eq(voiceStreakHistoryTable.userId, userId),
         ),
       )
-      .orderBy(desc(voiceStreakHistoryTable.createdAt))
+      .orderBy(desc(voiceStreakHistoryTable.attendanceDate))
       .limit(1);
 
     const [insertedAttendance] = await tx
@@ -147,14 +152,16 @@ async function recordAttendance(
     let cycleNumber = existing?.cycleNumber ?? 1;
 
     if (latestAttendance) {
-      const elapsed =
-        now.getTime() - latestAttendance.createdAt.getTime();
+      const yesterday = getPreviousLocalDate(today);
 
-      if (elapsed <= MAX_GAP_MS) {
-        currentStreak = (existing?.currentStreak ?? 1) + 1;
+      if (latestAttendance.attendanceDate === yesterday) {
+        currentStreak = (existing?.currentStreak ?? 0) + 1;
       } else {
         currentStreak = 1;
-        if (existing) cycleNumber += 1;
+
+        if (existing) {
+          cycleNumber += 1;
+        }
       }
     } else if (existing?.lastAttendanceDate) {
       // Recuperación ante un historial previo incompleto.
@@ -224,7 +231,10 @@ async function payMilestoneReward(
 
     rewardId = claim.id;
   } catch (error) {
-    console.error("[VoiceStreaks] No se pudo registrar la recompensa:", error);
+    console.error(
+      "[VoiceStreaks] No se pudo registrar la recompensa:",
+      error,
+    );
     return;
   }
 
@@ -296,6 +306,8 @@ async function processAttendance(
       );
     }
   } catch (error) {
+    completedUsers.delete(key);
+
     console.error(
       `[VoiceStreaks] Error al registrar asistencia de ${userId}:`,
       error,
