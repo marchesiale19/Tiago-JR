@@ -4,9 +4,20 @@ import {
   type Client,
   type VoiceState,
 } from "discord.js";
+import { and, desc, eq } from "drizzle-orm";
+import {
+  db,
+  voiceStreaksTable,
+  voiceStreakHistoryTable,
+  voiceStreakRewardsTable,
+} from "@workspace/db";
+import { unb } from "../lib/unbelievaboat";
 
 const REQUIRED_PRESENT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5_000;
+const MAX_GAP_MS = 48 * 60 * 60 * 1000;
+const REWARD_AMOUNT = 100_000;
+const TIME_ZONE = "America/Cuiaba";
 
 const ALLOWED_VOICE_CHANNEL_IDS = new Set([
   "1452030683588333568",
@@ -27,29 +38,39 @@ const ALLOWED_VOICE_CHANNEL_IDS = new Set([
 
 const presenceStartedAt = new Map<string, number>();
 const completedUsers = new Set<string>();
+const processingUsers = new Set<string>();
 
 function getUserKey(guildId: string, userId: string): string {
   return `${guildId}:${userId}`;
 }
 
 function isAllowed(channelId: string | null): boolean {
-  return (
-    channelId !== null &&
-    ALLOWED_VOICE_CHANNEL_IDS.has(channelId)
-  );
+  return channelId !== null && ALLOWED_VOICE_CHANNEL_IDS.has(channelId);
 }
 
-function getEligibleUsers(
-  client: Client,
-  guildId: string,
-): Set<string> {
+function getLocalDate(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const values = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getEligibleUsers(client: Client, guildId: string): Set<string> {
   const guild = client.guilds.cache.get(guildId);
   const users = new Set<string>();
 
   if (!guild) return users;
 
   for (const state of guild.voiceStates.cache.values()) {
-    if (state.member?.user.bot) continue;
+    if (!state.member || state.member.user.bot) continue;
     if (!isAllowed(state.channelId)) continue;
 
     users.add(state.id);
@@ -62,15 +83,225 @@ function resetGuildPresence(guildId: string): void {
   const prefix = `${guildId}:`;
 
   for (const key of presenceStartedAt.keys()) {
-    if (key.startsWith(prefix)) {
-      presenceStartedAt.delete(key);
-    }
+    if (key.startsWith(prefix)) presenceStartedAt.delete(key);
   }
 
   for (const key of completedUsers) {
-    if (key.startsWith(prefix)) {
-      completedUsers.delete(key);
+    if (key.startsWith(prefix)) completedUsers.delete(key);
+  }
+}
+
+type AttendanceResult = {
+  currentStreak: number;
+  bestStreak: number;
+  cycleNumber: number;
+  milestone: number | null;
+};
+
+async function recordAttendance(
+  guildId: string,
+  userId: string,
+): Promise<AttendanceResult | null> {
+  const now = new Date();
+  const today = getLocalDate(now);
+
+  return db.transaction(async (tx) => {
+    const [latestAttendance] = await tx
+      .select()
+      .from(voiceStreakHistoryTable)
+      .where(
+        and(
+          eq(voiceStreakHistoryTable.guildId, guildId),
+          eq(voiceStreakHistoryTable.userId, userId),
+        ),
+      )
+      .orderBy(desc(voiceStreakHistoryTable.createdAt))
+      .limit(1);
+
+    const [insertedAttendance] = await tx
+      .insert(voiceStreakHistoryTable)
+      .values({
+        guildId,
+        userId,
+        attendanceDate: today,
+        createdAt: now,
+      })
+      .onConflictDoNothing()
+      .returning({ id: voiceStreakHistoryTable.id });
+
+    // Ya existe una asistencia de este usuario para el día local.
+    if (!insertedAttendance) return null;
+
+    const [existing] = await tx
+      .select()
+      .from(voiceStreaksTable)
+      .where(
+        and(
+          eq(voiceStreaksTable.guildId, guildId),
+          eq(voiceStreaksTable.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    let currentStreak = 1;
+    let cycleNumber = existing?.cycleNumber ?? 1;
+
+    if (latestAttendance) {
+      const elapsed =
+        now.getTime() - latestAttendance.createdAt.getTime();
+
+      if (elapsed <= MAX_GAP_MS) {
+        currentStreak = (existing?.currentStreak ?? 1) + 1;
+      } else {
+        currentStreak = 1;
+        if (existing) cycleNumber += 1;
+      }
+    } else if (existing?.lastAttendanceDate) {
+      // Recuperación ante un historial previo incompleto.
+      cycleNumber += 1;
     }
+
+    const bestStreak = Math.max(
+      existing?.bestStreak ?? 0,
+      currentStreak,
+    );
+
+    if (existing) {
+      await tx
+        .update(voiceStreaksTable)
+        .set({
+          currentStreak,
+          bestStreak,
+          cycleNumber,
+          lastAttendanceDate: today,
+          updatedAt: now,
+        })
+        .where(eq(voiceStreaksTable.id, existing.id));
+    } else {
+      await tx.insert(voiceStreaksTable).values({
+        guildId,
+        userId,
+        currentStreak,
+        bestStreak,
+        cycleNumber,
+        lastAttendanceDate: today,
+        updatedAt: now,
+      });
+    }
+
+    return {
+      currentStreak,
+      bestStreak,
+      cycleNumber,
+      milestone: currentStreak % 10 === 0 ? currentStreak : null,
+    };
+  });
+}
+
+async function payMilestoneReward(
+  guildId: string,
+  userId: string,
+  cycleNumber: number,
+  milestone: number,
+): Promise<void> {
+  let rewardId: number;
+
+  try {
+    const [claim] = await db
+      .insert(voiceStreakRewardsTable)
+      .values({
+        guildId,
+        userId,
+        cycleNumber,
+        milestone,
+        status: "processing",
+      })
+      .onConflictDoNothing()
+      .returning({ id: voiceStreakRewardsTable.id });
+
+    // Ya se registró este hito: no volver a pagarlo automáticamente.
+    if (!claim) return;
+
+    rewardId = claim.id;
+  } catch (error) {
+    console.error("[VoiceStreaks] No se pudo registrar la recompensa:", error);
+    return;
+  }
+
+  try {
+    await unb.editUserBalance(guildId, userId, {
+      bank: REWARD_AMOUNT,
+    });
+
+    await db
+      .update(voiceStreakRewardsTable)
+      .set({
+        status: "paid",
+        paidAt: new Date(),
+      })
+      .where(eq(voiceStreakRewardsTable.id, rewardId));
+
+    console.log(
+      `[VoiceStreaks] Recompensa de ${REWARD_AMOUNT} pagada a ${userId}. Racha: ${milestone}, ciclo: ${cycleNumber}.`,
+    );
+  } catch (error) {
+    try {
+      await db
+        .update(voiceStreakRewardsTable)
+        .set({ status: "failed" })
+        .where(eq(voiceStreakRewardsTable.id, rewardId));
+    } catch (dbError) {
+      console.error(
+        "[VoiceStreaks] No se pudo actualizar el estado de la recompensa:",
+        dbError,
+      );
+    }
+
+    console.error(
+      `[VoiceStreaks] Falló el pago del hito ${milestone} para ${userId}. Revisar manualmente antes de reintentar.`,
+      error,
+    );
+  }
+}
+
+async function processAttendance(
+  guildId: string,
+  userId: string,
+): Promise<void> {
+  const key = getUserKey(guildId, userId);
+
+  if (processingUsers.has(key)) return;
+  processingUsers.add(key);
+
+  try {
+    const result = await recordAttendance(guildId, userId);
+
+    if (!result) {
+      console.log(
+        `[VoiceStreaks] ${userId} ya registró asistencia hoy.`,
+      );
+      return;
+    }
+
+    console.log(
+      `[VoiceStreaks] Asistencia de ${userId}: racha ${result.currentStreak}, récord ${result.bestStreak}.`,
+    );
+
+    if (result.milestone !== null) {
+      await payMilestoneReward(
+        guildId,
+        userId,
+        result.cycleNumber,
+        result.milestone,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[VoiceStreaks] Error al registrar asistencia de ${userId}:`,
+      error,
+    );
+  } finally {
+    processingUsers.delete(key);
   }
 }
 
@@ -83,8 +314,6 @@ function checkPresence(client: Client, guildId: string): void {
     return;
   }
 
-  // El contador individual solo avanza mientras haya
-  // al menos dos humanos en canales autorizados.
   for (const userId of users) {
     const key = getUserKey(guildId, userId);
 
@@ -100,26 +329,25 @@ function checkPresence(client: Client, guildId: string): void {
     if (now - startedAt >= REQUIRED_PRESENT_MS) {
       completedUsers.add(key);
       presenceStartedAt.delete(key);
-
-      console.log(
-        `[VoiceStreaks] ${userId} completó 5 minutos de presencia válida en ${guildId}.`,
-      );
-
-      // Próximo paso: registrar la asistencia en la base de datos.
+      void processAttendance(guildId, userId);
     }
   }
 
-  // Si un usuario sale de los canales autorizados,
-  // pierde su contador de presencia actual.
+  // Limpiar contadores de quienes salieron de los canales autorizados.
   for (const key of presenceStartedAt.keys()) {
     if (!key.startsWith(`${guildId}:`)) continue;
 
     const userId = key.slice(guildId.length + 1);
 
-    if (!users.has(userId)) {
-      presenceStartedAt.delete(key);
-      completedUsers.delete(key);
-    }
+    if (!users.has(userId)) presenceStartedAt.delete(key);
+  }
+
+  for (const key of completedUsers) {
+    if (!key.startsWith(`${guildId}:`)) continue;
+
+    const userId = key.slice(guildId.length + 1);
+
+    if (!users.has(userId)) completedUsers.delete(key);
   }
 }
 
@@ -129,7 +357,6 @@ function handleVoiceUpdate(
   newState: VoiceState,
 ): void {
   if (oldState.guild.id !== newState.guild.id) return;
-
   checkPresence(client, newState.guild.id);
 }
 
@@ -150,7 +377,7 @@ export function setupVoiceStreaks(client: Client): void {
     }, CHECK_INTERVAL_MS);
 
     console.log(
-      `[VoiceStreaks] Seguimiento iniciado. VC autorizados: ${ALLOWED_VOICE_CHANNEL_IDS.size}.`,
+      `[VoiceStreaks] Seguimiento iniciado. Canales autorizados: ${ALLOWED_VOICE_CHANNEL_IDS.size}.`,
     );
   };
 
