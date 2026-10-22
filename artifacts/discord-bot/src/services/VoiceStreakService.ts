@@ -4,7 +4,7 @@ import {
   type Client,
   type VoiceState,
 } from "discord.js";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, gt, lt } from "drizzle-orm";
 import {
   db,
   voiceStreaksTable,
@@ -15,8 +15,13 @@ import { unb } from "../lib/unbelievaboat";
 
 const REQUIRED_PRESENT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5_000;
+const ROLE_SYNC_INTERVAL_MS = 60 * 1000;
+const MAX_GAP_MS = 48 * 60 * 60 * 1000;
 const REWARD_AMOUNT = 100_000;
 const TIME_ZONE = "America/Cuiaba";
+
+const TARGET_GUILD_ID = "1437644356977823884";
+const TOP_STREAK_ROLE_ID = "1562944386935947284";
 
 const ALLOWED_VOICE_CHANNEL_IDS = new Set([
   "1452030683588333568",
@@ -38,6 +43,7 @@ const ALLOWED_VOICE_CHANNEL_IDS = new Set([
 const presenceStartedAt = new Map<string, number>();
 const completedUsers = new Set<string>();
 const processingUsers = new Set<string>();
+const roleSyncInProgress = new Set<string>();
 
 function getUserKey(guildId: string, userId: string): string {
   return `${guildId}:${userId}`;
@@ -62,12 +68,6 @@ function getLocalDate(date: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function getPreviousLocalDate(date: string): string {
-  const previous = new Date(`${date}T00:00:00.000Z`);
-  previous.setUTCDate(previous.getUTCDate() - 1);
-  return previous.toISOString().slice(0, 10);
-}
-
 function getEligibleUsers(client: Client, guildId: string): Set<string> {
   const guild = client.guilds.cache.get(guildId);
   const users = new Set<string>();
@@ -88,11 +88,15 @@ function resetGuildPresence(guildId: string): void {
   const prefix = `${guildId}:`;
 
   for (const key of presenceStartedAt.keys()) {
-    if (key.startsWith(prefix)) presenceStartedAt.delete(key);
+    if (key.startsWith(prefix)) {
+      presenceStartedAt.delete(key);
+    }
   }
 
   for (const key of completedUsers) {
-    if (key.startsWith(prefix)) completedUsers.delete(key);
+    if (key.startsWith(prefix)) {
+      completedUsers.delete(key);
+    }
   }
 }
 
@@ -134,7 +138,7 @@ async function recordAttendance(
       .onConflictDoNothing()
       .returning({ id: voiceStreakHistoryTable.id });
 
-    // Ya existe una asistencia de este usuario para el día local.
+    // Solo se registra una asistencia por usuario y fecha local.
     if (!insertedAttendance) return null;
 
     const [existing] = await tx
@@ -152,9 +156,10 @@ async function recordAttendance(
     let cycleNumber = existing?.cycleNumber ?? 1;
 
     if (latestAttendance) {
-      const yesterday = getPreviousLocalDate(today);
+      const elapsed =
+        now.getTime() - latestAttendance.createdAt.getTime();
 
-      if (latestAttendance.attendanceDate === yesterday) {
+      if (elapsed <= MAX_GAP_MS) {
         currentStreak = (existing?.currentStreak ?? 0) + 1;
       } else {
         currentStreak = 1;
@@ -205,6 +210,146 @@ async function recordAttendance(
   });
 }
 
+/**
+ * Expira rachas inactivas y sincroniza el rol con el Top 10.
+ * El récord histórico se conserva aunque la racha actual expire.
+ */
+async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
+  if (guildId !== TARGET_GUILD_ID) return;
+  if (roleSyncInProgress.has(guildId)) return;
+
+  roleSyncInProgress.add(guildId);
+
+  try {
+    const guild = client.guilds.cache.get(guildId);
+
+    if (!guild) {
+      console.error(
+        "[VoiceStreaks] No se encontró el servidor para sincronizar roles.",
+      );
+      return;
+    }
+
+    const role = await guild.roles.fetch(TOP_STREAK_ROLE_ID);
+
+    if (!role) {
+      console.error(
+        `[VoiceStreaks] No se encontró el rol ${TOP_STREAK_ROLE_ID}.`,
+      );
+      return;
+    }
+
+    const now = Date.now();
+    const cutoff = new Date(now - MAX_GAP_MS);
+
+    // Las rachas que superan las 48 horas de inactividad expiran.
+    // No se modifica updatedAt para conservar la referencia de actividad.
+    await db
+      .update(voiceStreaksTable)
+      .set({ currentStreak: 0 })
+      .where(
+        and(
+          eq(voiceStreaksTable.guildId, guildId),
+          gt(voiceStreaksTable.currentStreak, 0),
+          lt(voiceStreaksTable.updatedAt, cutoff),
+        ),
+      );
+
+    const rows = await db
+      .select()
+      .from(voiceStreaksTable)
+      .where(eq(voiceStreaksTable.guildId, guildId));
+
+    const activeRows = rows
+      .filter(
+        (row) =>
+          row.currentStreak > 0 &&
+          now - row.updatedAt.getTime() <= MAX_GAP_MS,
+      )
+      .sort(
+        (a, b) =>
+          b.currentStreak - a.currentStreak ||
+          b.bestStreak - a.bestStreak ||
+          a.userId.localeCompare(b.userId),
+      );
+
+    const top10Ids = new Set(
+      activeRows.slice(0, 10).map((row) => row.userId),
+    );
+
+    // Incluye los miembros que ya tienen el rol y los nuevos integrantes
+    // del Top 10 que estén registrados en la base de datos.
+    const candidateIds = new Set([
+      ...role.members.keys(),
+      ...top10Ids,
+    ]);
+
+    for (const userId of candidateIds) {
+      let member = guild.members.cache.get(userId);
+
+      if (!member) {
+        try {
+          member = await guild.members.fetch(userId);
+        } catch (error) {
+          console.error(
+            `[VoiceStreaks] No se pudo obtener al miembro ${userId}:`,
+            error,
+          );
+          continue;
+        }
+      }
+
+      const hasRole = member.roles.cache.has(role.id);
+      const shouldHaveRole = top10Ids.has(userId);
+
+      if (shouldHaveRole && !hasRole) {
+        try {
+          await member.roles.add(
+            role.id,
+            "Ingreso al Top 10 de rachas de voz",
+          );
+
+          console.log(
+            `[VoiceStreaks] Rol del Top 10 asignado a ${userId}.`,
+          );
+        } catch (error) {
+          console.error(
+            `[VoiceStreaks] No se pudo asignar el rol a ${userId}:`,
+            error,
+          );
+        }
+      } else if (!shouldHaveRole && hasRole) {
+        try {
+          await member.roles.remove(
+            role.id,
+            "Salida del Top 10 o expiración de la racha",
+          );
+
+          console.log(
+            `[VoiceStreaks] Rol del Top 10 retirado a ${userId}.`,
+          );
+        } catch (error) {
+          console.error(
+            `[VoiceStreaks] No se pudo retirar el rol a ${userId}:`,
+            error,
+          );
+        }
+      }
+    }
+
+    console.log(
+      `[VoiceStreaks] Top 10 sincronizado. Usuarios elegibles: ${top10Ids.size}.`,
+    );
+  } catch (error) {
+    console.error(
+      "[VoiceStreaks] Error sincronizando el Top 10:",
+      error,
+    );
+  } finally {
+    roleSyncInProgress.delete(guildId);
+  }
+}
+
 async function payMilestoneReward(
   guildId: string,
   userId: string,
@@ -226,7 +371,7 @@ async function payMilestoneReward(
       .onConflictDoNothing()
       .returning({ id: voiceStreakRewardsTable.id });
 
-    // Ya se registró este hito: no volver a pagarlo automáticamente.
+    // Evita acreditar dos veces el mismo hito automáticamente.
     if (!claim) return;
 
     rewardId = claim.id;
@@ -275,6 +420,7 @@ async function payMilestoneReward(
 }
 
 async function processAttendance(
+  client: Client,
   guildId: string,
   userId: string,
 ): Promise<void> {
@@ -296,6 +442,9 @@ async function processAttendance(
     console.log(
       `[VoiceStreaks] Asistencia de ${userId}: racha ${result.currentStreak}, récord ${result.bestStreak}.`,
     );
+
+    // Actualiza los roles después de registrar la asistencia.
+    await syncTop10Roles(client, guildId);
 
     if (result.milestone !== null) {
       await payMilestoneReward(
@@ -341,7 +490,7 @@ function checkPresence(client: Client, guildId: string): void {
     if (now - startedAt >= REQUIRED_PRESENT_MS) {
       completedUsers.add(key);
       presenceStartedAt.delete(key);
-      void processAttendance(guildId, userId);
+      void processAttendance(client, guildId, userId);
     }
   }
 
@@ -351,7 +500,9 @@ function checkPresence(client: Client, guildId: string): void {
 
     const userId = key.slice(guildId.length + 1);
 
-    if (!users.has(userId)) presenceStartedAt.delete(key);
+    if (!users.has(userId)) {
+      presenceStartedAt.delete(key);
+    }
   }
 
   for (const key of completedUsers) {
@@ -359,7 +510,9 @@ function checkPresence(client: Client, guildId: string): void {
 
     const userId = key.slice(guildId.length + 1);
 
-    if (!users.has(userId)) completedUsers.delete(key);
+    if (!users.has(userId)) {
+      completedUsers.delete(key);
+    }
   }
 }
 
@@ -369,6 +522,7 @@ function handleVoiceUpdate(
   newState: VoiceState,
 ): void {
   if (oldState.guild.id !== newState.guild.id) return;
+
   checkPresence(client, newState.guild.id);
 }
 
@@ -382,10 +536,16 @@ export function setupVoiceStreaks(client: Client): void {
       checkPresence(client, guild.id);
     }
 
+    // Sincronización inicial del Top 10.
+    void syncTop10Roles(client, TARGET_GUILD_ID);
+
+    // Comprueba periódicamente las rachas vencidas y los cambios del ranking.
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
         checkPresence(client, guild.id);
       }
+
+      void syncTop10Roles(client, TARGET_GUILD_ID);
     }, CHECK_INTERVAL_MS);
 
     console.log(
