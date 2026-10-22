@@ -1,4 +1,3 @@
-
 import {
   type Client,
   type Message,
@@ -17,7 +16,7 @@ const BEANS_PER_KAKERA = 1_000;
 const MAX_KAKERA_PER_TRANSFER = 100_000;
 
 const TRANSFER_REGEX =
-  /^<@!?(\d+)>\s+le ha regalado\s+\*\*(\d+)\*\*<:kakera:469835869059153940>a\s+<@!?(\d+)>$/;
+  /^<@!?(\d+)>\s+le ha regalado\s+\*\*([\d.]+)\*\*<:kakera:469835869059153940>a\s+<@!?(\d+)>$/;
 
 type TransferStatus = "credited" | "uncertain";
 
@@ -97,8 +96,7 @@ async function handleMudaeMessage(
   // Solo se aceptan regalos destinados a Santiago.
   if (recipientId !== SANTIAGO_ID) return;
 
-  const kakeraAmount = Number(amountText);
-
+const kakeraAmount = Number(amountText.replace(/\./g, ""));
   if (
     !Number.isSafeInteger(kakeraAmount) ||
     kakeraAmount < 1 ||
