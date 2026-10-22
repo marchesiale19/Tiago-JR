@@ -21,6 +21,9 @@ export const voiceStreaksTable = pgTable(
     // Mejor racha histórica.
     bestStreak: integer("best_streak").notNull().default(0),
 
+    // Identifica cada nueva racha para separar sus recompensas.
+    cycleNumber: integer("cycle_number").notNull().default(1),
+
     // Último día local cuya asistencia fue validada: YYYY-MM-DD.
     lastAttendanceDate: text("last_attendance_date"),
 
