@@ -28,6 +28,7 @@ import { setupServerLogs } from "./services/serverLogs";
 import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
+import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
 
 /* ============================================================
@@ -151,9 +152,18 @@ client.once(Events.ClientReady, (readyClient) => {
         return;
       }
 
-      setupKakeraBank(readyClient);
-
+         setupKakeraBank(readyClient);
       console.log("✅ KakeraBankService inicializado.");
+
+      try {
+        setupVoiceStreaks(readyClient);
+        console.log("✅ VoiceStreakService inicializado.");
+      } catch (err) {
+        logger.error(
+          { err },
+          "Error inicializando VoiceStreakService",
+        );
+      }
     })
        .catch((error) => {
       console.error(
