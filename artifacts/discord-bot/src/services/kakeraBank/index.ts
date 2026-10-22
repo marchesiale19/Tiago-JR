@@ -1,3 +1,4 @@
+
 import {
   type Client,
   type Message,
@@ -67,20 +68,27 @@ async function handleMudaeMessage(
   if (message.guildId !== SOURCE_GUILD_ID) return;
   if (message.author.id !== MUDAE_BOT_ID) return;
 
-logger.info(
-  {
-    messageId: message.id,
-    guildId: message.guildId,
-    authorId: message.author.id,
-    content: message.content,
-    embeds: message.embeds.map((embed) => ({
-      description: embed.description,
-      title: embed.title,
-    })),
-  },
-  "Kakera Bank: mensaje de Mudae recibido para inspección.",
-);
-  
+  // Diagnóstico ampliado: registra el contenido y los datos
+  // estructurados del mensaje para investigar el formato de Mudae.
+  logger.info(
+    {
+      messageId: message.id,
+      guildId: message.guildId,
+      channelId: message.channelId,
+      authorId: message.author.id,
+      content: message.content,
+      mentions: message.mentions.users.map((user) => ({
+        id: user.id,
+        username: user.username,
+      })),
+      embeds: message.embeds.map((embed) => embed.toJSON()),
+      components: message.components.map((component) =>
+        component.toJSON()
+      ),
+    },
+    "Kakera Bank: mensaje de Mudae recibido para inspección.",
+  );
+
   const match = TRANSFER_REGEX.exec(message.content);
   if (!match) return;
 
@@ -283,8 +291,8 @@ export function setupKakeraBank(client: Client): void {
     });
 
   client.on("messageCreate", (message) => {
-  void handleMudaeMessage(client, message);
-});
+    void handleMudaeMessage(client, message);
+  });
 
   logger.info("Kakera Bank: detector y procesador registrados.");
 }
