@@ -67,6 +67,20 @@ async function handleMudaeMessage(
   if (message.guildId !== SOURCE_GUILD_ID) return;
   if (message.author.id !== MUDAE_BOT_ID) return;
 
+logger.info(
+  {
+    messageId: message.id,
+    guildId: message.guildId,
+    authorId: message.author.id,
+    content: message.content,
+    embeds: message.embeds.map((embed) => ({
+      description: embed.description,
+      title: embed.title,
+    })),
+  },
+  "Kakera Bank: mensaje de Mudae recibido para inspección.",
+);
+  
   const match = TRANSFER_REGEX.exec(message.content);
   if (!match) return;
 
