@@ -20,6 +20,7 @@ const REQUIRED_TABLES = [
   "logros",
   "logros_jugador",
   "kakera_bank_transfers",
+  "voice_streaks",
 ] as const;
 
 export async function initDatabase(
