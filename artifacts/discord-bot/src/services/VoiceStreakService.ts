@@ -36,8 +36,7 @@ const TARGET_GUILD_ID = "1437644356977823884";
 const TOP_STREAK_ROLE_ID = "1562944386935947284";
 const LEADERBOARD_CHANNEL_ID = "1562995350787072020";
 
-const LEADERBOARD_TITLE =
-  "🔥 Leaderboard — Top Rachas de Among Us";
+const LEADERBOARD_TITLE = "🔥 Leaderboard | Top Rachas";
 
 const ALLOWED_VOICE_CHANNEL_IDS = new Set([
   "1452030683588333568",
@@ -57,7 +56,7 @@ const ALLOWED_VOICE_CHANNEL_IDS = new Set([
 ]);
 
 // ─────────────────────────────────────────────────────────────
-// ESTADO EN MEMORIA
+// ESTADO
 // ─────────────────────────────────────────────────────────────
 
 const presenceStartedAt = new Map<string, number>();
@@ -78,10 +77,7 @@ function getUserKey(guildId: string, userId: string): string {
 }
 
 function isAllowed(channelId: string | null): boolean {
-  return (
-    channelId !== null &&
-    ALLOWED_VOICE_CHANNEL_IDS.has(channelId)
-  );
+  return channelId !== null && ALLOWED_VOICE_CHANNEL_IDS.has(channelId);
 }
 
 function getLocalDate(date: Date): string {
@@ -99,10 +95,11 @@ function getLocalDate(date: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function getEligibleUsers(
-  client: Client,
-  guildId: string,
-): Set<string> {
+function formatDays(amount: number): string {
+  return `${amount} ${amount === 1 ? "día" : "días"}`;
+}
+
+function getEligibleUsers(client: Client, guildId: string): Set<string> {
   const guild = client.guilds.cache.get(guildId);
   const users = new Set<string>();
 
@@ -135,7 +132,7 @@ function resetGuildPresence(guildId: string): void {
 }
 
 // ─────────────────────────────────────────────────────────────
-// REGISTRO DE ASISTENCIAS
+// REGISTRO DE ASISTENCIA
 // ─────────────────────────────────────────────────────────────
 
 type AttendanceResult = {
@@ -176,7 +173,6 @@ async function recordAttendance(
       .onConflictDoNothing()
       .returning({ id: voiceStreakHistoryTable.id });
 
-    // Una sola asistencia por usuario y fecha local.
     if (!insertedAttendance) return null;
 
     const [existing] = await tx
@@ -240,14 +236,13 @@ async function recordAttendance(
       currentStreak,
       bestStreak,
       cycleNumber,
-      milestone:
-        currentStreak % 10 === 0 ? currentStreak : null,
+      milestone: currentStreak % 10 === 0 ? currentStreak : null,
     };
   });
 }
 
 // ─────────────────────────────────────────────────────────────
-// ROL AUTOMÁTICO DEL TOP 10
+// SINCRONIZACIÓN DEL TOP 10
 // ─────────────────────────────────────────────────────────────
 
 async function syncTop10Roles(
@@ -275,7 +270,6 @@ async function syncTop10Roles(
     const now = Date.now();
     const cutoff = new Date(now - MAX_GAP_MS);
 
-    // Expirar rachas inactivas sin borrar sus récords.
     await db
       .update(voiceStreaksTable)
       .set({ currentStreak: 0 })
@@ -309,7 +303,6 @@ async function syncTop10Roles(
       activeRows.slice(0, 10).map((row) => row.userId),
     );
 
-    // Miembros que ya tienen el rol y nuevos integrantes del Top 10.
     const candidateIds = new Set([
       ...role.members.keys(),
       ...top10Ids,
@@ -337,20 +330,12 @@ async function syncTop10Roles(
         if (shouldHaveRole && !hasRole) {
           await member.roles.add(
             role.id,
-            "Ingreso al Top 10 de rachas de voz",
-          );
-
-          console.log(
-            `[VoiceStreaks] Rol del Top 10 asignado a ${userId}.`,
+            "Ingreso al Top 10 de rachas",
           );
         } else if (!shouldHaveRole && hasRole) {
           await member.roles.remove(
             role.id,
             "Salida del Top 10 o expiración de la racha",
-          );
-
-          console.log(
-            `[VoiceStreaks] Rol del Top 10 retirado a ${userId}.`,
           );
         }
       } catch (error) {
@@ -375,14 +360,13 @@ async function syncTop10Roles(
 }
 
 // ─────────────────────────────────────────────────────────────
-// LEADERBOARD DECORADO
+// BÚSQUEDA DEL MENSAJE DEL LEADERBOARD
 // ─────────────────────────────────────────────────────────────
 
 async function findLeaderboardMessage(
   client: Client,
   channel: TextChannel,
 ): Promise<Message | null> {
-  // Reutilizar el mensaje encontrado durante esta ejecución.
   if (leaderboardMessage) {
     try {
       leaderboardMessage = await channel.messages.fetch(
@@ -395,7 +379,6 @@ async function findLeaderboardMessage(
     }
   }
 
-  // Buscar el embed anterior después de reiniciar el bot.
   let before: string | undefined;
 
   while (true) {
@@ -410,7 +393,9 @@ async function findLeaderboardMessage(
       (message) =>
         message.author.id === client.user?.id &&
         message.embeds.some(
-          (embed) => embed.title === LEADERBOARD_TITLE,
+          (embed) =>
+            embed.title === LEADERBOARD_TITLE ||
+            embed.title === "🔥 Leaderboard — Top Rachas de Among Us",
         ),
     );
 
@@ -429,6 +414,10 @@ async function findLeaderboardMessage(
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────
+// RENDERIZADO DEL LEADERBOARD
+// ─────────────────────────────────────────────────────────────
+
 async function renderLeaderboard(
   client: Client,
   guildId: string,
@@ -441,13 +430,12 @@ async function renderLeaderboard(
     channel = await client.channels.fetch(LEADERBOARD_CHANNEL_ID);
   } catch (error) {
     console.error(
-      `[VoiceStreaks] No se pudo obtener el canal ${LEADERBOARD_CHANNEL_ID}. Verificá el ID y el acceso del bot.`,
+      "[VoiceStreaks] Error obteniendo el canal del leaderboard:",
       error,
     );
     return;
   }
 
-  // Aceptar canales de texto normales y canales de anuncios.
   if (
     !channel ||
     (
@@ -456,7 +444,7 @@ async function renderLeaderboard(
     )
   ) {
     console.error(
-      `[VoiceStreaks] El canal ${LEADERBOARD_CHANNEL_ID} no existe, no es de texto/anuncios o no es accesible.`,
+      "[VoiceStreaks] El canal no existe o no es un canal de texto/anuncios.",
     );
     return;
   }
@@ -482,7 +470,6 @@ async function renderLeaderboard(
       ),
   ]);
 
-  // Solo mostrar rachas positivas que no hayan vencido.
   const activeRows = streakRows
     .filter(
       (row) =>
@@ -500,130 +487,115 @@ async function renderLeaderboard(
   const champion = top10[0];
 
   const absoluteRecord = streakRows.reduce(
-    (record, row) =>
-      Math.max(record, row.bestStreak ?? 0),
+    (best, row) => Math.max(best, row.bestStreak ?? 0),
     0,
   );
 
-  // Campeón destacado.
   const championValue = champion
     ? [
-        `> <@${champion.userId}>`,
+        `👑 <@${champion.userId}>`,
         "",
-        `> 🔥 **${champion.currentStreak} días consecutivos**`,
-        `> 🏆 Récord personal: **${champion.bestStreak} días**`,
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        "👑 **Dominando el leaderboard**",
+        `🔥 Racha actual: **${formatDays(champion.currentStreak)}**`,
+        `🏆 Récord personal: **${formatDays(champion.bestStreak)}**`,
       ].join("\n")
-    : "Todavía no hay una racha activa para coronar al campeón.";
+    : "Todavía no hay rachas activas.";
 
-  // Medallas para el podio y numeración para el resto.
-  const rankingLines = top10.map((row, index) => {
-    const position = index + 1;
+  const rankingValue = top10.length
+    ? top10
+        .map((row, index) => {
+          const medal =
+            index === 0
+              ? "🥇"
+              : index === 1
+                ? "🥈"
+                : index === 2
+                  ? "🥉"
+                  : `**${index + 1}.**`;
 
-    const medal =
-      position === 1
-        ? "🥇"
-        : position === 2
-          ? "🥈"
-          : position === 3
-            ? "🥉"
-            : `**${position}.**`;
-
-    return [
-      `${medal} <@${row.userId}>`,
-      `└ 🔥 **${row.currentStreak} días** · 🏆 Récord: **${row.bestStreak} días**`,
-    ].join("\n");
-  });
-
-  const rankingValue =
-    rankingLines.length > 0
-      ? rankingLines.join("\n\n")
-      : "No hay usuarios clasificados todavía.";
+          return [
+            `${medal} <@${row.userId}>`,
+            `└ 🔥 ${formatDays(row.currentStreak)} · 🏆 Récord: ${formatDays(row.bestStreak)}`,
+          ].join("\n");
+        })
+        .join("\n\n")
+    : "Todavía no hay usuarios clasificados.";
 
   const embed = new EmbedBuilder()
     .setColor(0xff7a1a)
     .setTitle(LEADERBOARD_TITLE)
     .setDescription(
       [
-        "```ansi",
-        "\u001b[1;33m      AMONG US · TEMPORADA PERMANENTE\u001b[0m",
-        "```",
-        "╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮",
-        "　🏅 **LOS MÁS CONSTANTES DEL SERVIDOR**",
-        "╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯",
+        "**AMONG US · TEMPORADA PERMANENTE**",
         "",
-        "Cada asistencia cuenta. ¿Quién dominará la clasificación?",
+        "Las rachas se construyen con constancia.",
+        "¿Quién llegará más lejos?",
       ].join("\n"),
     )
     .addFields(
       {
-        name: "👑 REY DE LAS RACHAS",
+        name: "👑 CAMPEÓN ACTUAL",
         value: championValue,
         inline: false,
       },
       {
-        name: "🏅 CLASIFICACIÓN GENERAL",
+        name: "🏅 CLASIFICACIÓN · TOP 10",
         value: rankingValue,
         inline: false,
       },
       {
-        name: "🔥 RACHAS ACTIVAS",
-        value: `**${activeRows.length}**\nUsuarios con racha vigente`,
+        name: "🔥 Rachas activas",
+        value: `**${activeRows.length}** usuarios`,
         inline: true,
       },
       {
-        name: "📅 ASISTENCIAS HOY",
-        value: `**${todayAttendances.length}**\nAsistencias registradas`,
+        name: "📅 Asistencias hoy",
+        value: `**${todayAttendances.length}**`,
         inline: true,
       },
       {
-        name: "🏆 RÉCORD ABSOLUTO",
-        value: `**${absoluteRecord} días**\nMejor racha histórica`,
+        name: "🏆 Récord absoluto",
+        value: `**${formatDays(absoluteRecord)}**`,
         inline: true,
       },
     )
     .setFooter({
-      text:
-        `⚡ Actualización automática • Rachas activas: ${activeRows.length}` +
-        ` • Asistencias hoy: ${todayAttendances.length}` +
-        ` • Récord absoluto: ${absoluteRecord} días`,
+      text: "Actualización automática · ¡Seguí sumando días!",
     })
     .setTimestamp(new Date());
 
-  const existingMessage = await findLeaderboardMessage(
-    client,
-    textChannel,
-  );
-
-  if (existingMessage) {
-    await existingMessage.edit({
-      embeds: [embed],
-      allowedMentions: { parse: [] },
-    });
-
-    console.log(
-      `[VoiceStreaks] Leaderboard existente editado. Mensaje: ${existingMessage.id}`,
+  try {
+    const existingMessage = await findLeaderboardMessage(
+      client,
+      textChannel,
     );
-  } else {
-    leaderboardMessage = await textChannel.send({
-      embeds: [embed],
-      allowedMentions: { parse: [] },
-    });
 
-    console.log(
-      `[VoiceStreaks] Leaderboard publicado. Mensaje: ${leaderboardMessage.id}`,
+    if (existingMessage) {
+      leaderboardMessage = await existingMessage.edit({
+        embeds: [embed],
+        allowedMentions: { parse: [] },
+      });
+
+      console.log(
+        `[VoiceStreaks] Leaderboard actualizado: ${leaderboardMessage.id}`,
+      );
+    } else {
+      leaderboardMessage = await textChannel.send({
+        embeds: [embed],
+        allowedMentions: { parse: [] },
+      });
+
+      console.log(
+        `[VoiceStreaks] Leaderboard publicado: ${leaderboardMessage.id}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      "[VoiceStreaks] Error publicando o editando el leaderboard:",
+      error,
     );
   }
-
-  console.log("[VoiceStreaks] Leaderboard actualizado.");
 }
 
-/**
- * Serializa las actualizaciones para evitar que dos eventos
- * editen simultáneamente el mismo mensaje.
- */
 export function renderVoiceStreakLeaderboard(
   client: Client,
   guildId: string = TARGET_GUILD_ID,
@@ -690,7 +662,7 @@ async function payMilestoneReward(
       .where(eq(voiceStreakRewardsTable.id, rewardId));
 
     console.log(
-      `[VoiceStreaks] Recompensa de ${REWARD_AMOUNT} pagada a ${userId}. Racha: ${milestone}, ciclo: ${cycleNumber}.`,
+      `[VoiceStreaks] Recompensa de ${REWARD_AMOUNT} pagada a ${userId}. Hito: ${milestone}, ciclo: ${cycleNumber}.`,
     );
   } catch (error) {
     try {
@@ -764,13 +736,10 @@ async function processAttendance(
 }
 
 // ─────────────────────────────────────────────────────────────
-// PRESENCIA EN VOZ
+// SEGUIMIENTO DE VOZ
 // ─────────────────────────────────────────────────────────────
 
-function checkPresence(
-  client: Client,
-  guildId: string,
-): void {
+function checkPresence(client: Client, guildId: string): void {
   const users = getEligibleUsers(client, guildId);
   const now = Date.now();
 
@@ -847,11 +816,9 @@ export function setupVoiceStreaks(client: Client): void {
       checkPresence(client, guild.id);
     }
 
-    // Sincronizar roles y publicar/editar el embed al iniciar.
     void syncTop10Roles(client, TARGET_GUILD_ID);
     void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
 
-    // Revisar presencia y expiración de rachas.
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
         checkPresence(client, guild.id);
@@ -860,7 +827,6 @@ export function setupVoiceStreaks(client: Client): void {
       void syncTop10Roles(client, TARGET_GUILD_ID);
     }, CHECK_INTERVAL_MS);
 
-    // Actualizar estadísticas y ranking cada minuto.
     setInterval(() => {
       void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
     }, LEADERBOARD_REFRESH_INTERVAL_MS);
