@@ -435,13 +435,28 @@ async function renderLeaderboard(
 ): Promise<void> {
   if (guildId !== TARGET_GUILD_ID) return;
 
-  const channel = await client.channels.fetch(
-    LEADERBOARD_CHANNEL_ID,
-  );
+  let channel;
 
-  if (!channel || channel.type !== ChannelType.GuildText) {
+  try {
+    channel = await client.channels.fetch(LEADERBOARD_CHANNEL_ID);
+  } catch (error) {
     console.error(
-      "[VoiceStreaks] El canal del leaderboard no existe o no es de texto.",
+      `[VoiceStreaks] No se pudo obtener el canal ${LEADERBOARD_CHANNEL_ID}. Verificá el ID y el acceso del bot.`,
+      error,
+    );
+    return;
+  }
+
+  // Aceptar canales de texto normales y canales de anuncios.
+  if (
+    !channel ||
+    (
+      channel.type !== ChannelType.GuildText &&
+      channel.type !== ChannelType.GuildAnnouncement
+    )
+  ) {
+    console.error(
+      `[VoiceStreaks] El canal ${LEADERBOARD_CHANNEL_ID} no existe, no es de texto/anuncios o no es accesible.`,
     );
     return;
   }
@@ -587,6 +602,10 @@ async function renderLeaderboard(
       embeds: [embed],
       allowedMentions: { parse: [] },
     });
+
+    console.log(
+      `[VoiceStreaks] Leaderboard existente editado. Mensaje: ${existingMessage.id}`,
+    );
   } else {
     leaderboardMessage = await textChannel.send({
       embeds: [embed],
