@@ -1,27 +1,43 @@
 
 import {
+  ChannelType,
+  EmbedBuilder,
   Events,
   type Client,
+  type Message,
+  type TextChannel,
   type VoiceState,
 } from "discord.js";
+
 import { and, desc, eq, gt, lt } from "drizzle-orm";
+
 import {
   db,
   voiceStreaksTable,
   voiceStreakHistoryTable,
   voiceStreakRewardsTable,
 } from "@workspace/db";
+
 import { unb } from "../lib/unbelievaboat";
+
+// ─────────────────────────────────────────────────────────────
+// CONFIGURACIÓN
+// ─────────────────────────────────────────────────────────────
 
 const REQUIRED_PRESENT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5_000;
-const ROLE_SYNC_INTERVAL_MS = 60 * 1000;
+const LEADERBOARD_REFRESH_INTERVAL_MS = 60_000;
+
 const MAX_GAP_MS = 48 * 60 * 60 * 1000;
 const REWARD_AMOUNT = 100_000;
 const TIME_ZONE = "America/Cuiaba";
 
 const TARGET_GUILD_ID = "1437644356977823884";
 const TOP_STREAK_ROLE_ID = "1562944386935947284";
+const LEADERBOARD_CHANNEL_ID = "1562995350787072020";
+
+const LEADERBOARD_TITLE =
+  "🔥 Leaderboard — Top Rachas de Among Us";
 
 const ALLOWED_VOICE_CHANNEL_IDS = new Set([
   "1452030683588333568",
@@ -40,17 +56,32 @@ const ALLOWED_VOICE_CHANNEL_IDS = new Set([
   "1538784348277309480",
 ]);
 
+// ─────────────────────────────────────────────────────────────
+// ESTADO EN MEMORIA
+// ─────────────────────────────────────────────────────────────
+
 const presenceStartedAt = new Map<string, number>();
 const completedUsers = new Set<string>();
 const processingUsers = new Set<string>();
 const roleSyncInProgress = new Set<string>();
+
+let leaderboardMessage: Message | null = null;
+let leaderboardQueue: Promise<void> = Promise.resolve();
+let initialized = false;
+
+// ─────────────────────────────────────────────────────────────
+// UTILIDADES
+// ─────────────────────────────────────────────────────────────
 
 function getUserKey(guildId: string, userId: string): string {
   return `${guildId}:${userId}`;
 }
 
 function isAllowed(channelId: string | null): boolean {
-  return channelId !== null && ALLOWED_VOICE_CHANNEL_IDS.has(channelId);
+  return (
+    channelId !== null &&
+    ALLOWED_VOICE_CHANNEL_IDS.has(channelId)
+  );
 }
 
 function getLocalDate(date: Date): string {
@@ -68,7 +99,10 @@ function getLocalDate(date: Date): string {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-function getEligibleUsers(client: Client, guildId: string): Set<string> {
+function getEligibleUsers(
+  client: Client,
+  guildId: string,
+): Set<string> {
   const guild = client.guilds.cache.get(guildId);
   const users = new Set<string>();
 
@@ -99,6 +133,10 @@ function resetGuildPresence(guildId: string): void {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// REGISTRO DE ASISTENCIAS
+// ─────────────────────────────────────────────────────────────
 
 type AttendanceResult = {
   currentStreak: number;
@@ -138,7 +176,7 @@ async function recordAttendance(
       .onConflictDoNothing()
       .returning({ id: voiceStreakHistoryTable.id });
 
-    // Solo se registra una asistencia por usuario y fecha local.
+    // Una sola asistencia por usuario y fecha local.
     if (!insertedAttendance) return null;
 
     const [existing] = await tx
@@ -164,12 +202,9 @@ async function recordAttendance(
       } else {
         currentStreak = 1;
 
-        if (existing) {
-          cycleNumber += 1;
-        }
+        if (existing) cycleNumber += 1;
       }
     } else if (existing?.lastAttendanceDate) {
-      // Recuperación ante un historial previo incompleto.
       cycleNumber += 1;
     }
 
@@ -205,16 +240,20 @@ async function recordAttendance(
       currentStreak,
       bestStreak,
       cycleNumber,
-      milestone: currentStreak % 10 === 0 ? currentStreak : null,
+      milestone:
+        currentStreak % 10 === 0 ? currentStreak : null,
     };
   });
 }
 
-/**
- * Expira rachas inactivas y sincroniza el rol con el Top 10.
- * El récord histórico se conserva aunque la racha actual expire.
- */
-async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
+// ─────────────────────────────────────────────────────────────
+// ROL AUTOMÁTICO DEL TOP 10
+// ─────────────────────────────────────────────────────────────
+
+async function syncTop10Roles(
+  client: Client,
+  guildId: string,
+): Promise<void> {
   if (guildId !== TARGET_GUILD_ID) return;
   if (roleSyncInProgress.has(guildId)) return;
 
@@ -222,13 +261,7 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
 
   try {
     const guild = client.guilds.cache.get(guildId);
-
-    if (!guild) {
-      console.error(
-        "[VoiceStreaks] No se encontró el servidor para sincronizar roles.",
-      );
-      return;
-    }
+    if (!guild) return;
 
     const role = await guild.roles.fetch(TOP_STREAK_ROLE_ID);
 
@@ -242,8 +275,7 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
     const now = Date.now();
     const cutoff = new Date(now - MAX_GAP_MS);
 
-    // Las rachas que superan las 48 horas de inactividad expiran.
-    // No se modifica updatedAt para conservar la referencia de actividad.
+    // Expirar rachas inactivas sin borrar sus récords.
     await db
       .update(voiceStreaksTable)
       .set({ currentStreak: 0 })
@@ -277,8 +309,7 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
       activeRows.slice(0, 10).map((row) => row.userId),
     );
 
-    // Incluye los miembros que ya tienen el rol y los nuevos integrantes
-    // del Top 10 que estén registrados en la base de datos.
+    // Miembros que ya tienen el rol y nuevos integrantes del Top 10.
     const candidateIds = new Set([
       ...role.members.keys(),
       ...top10Ids,
@@ -302,8 +333,8 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
       const hasRole = member.roles.cache.has(role.id);
       const shouldHaveRole = top10Ids.has(userId);
 
-      if (shouldHaveRole && !hasRole) {
-        try {
+      try {
+        if (shouldHaveRole && !hasRole) {
           await member.roles.add(
             role.id,
             "Ingreso al Top 10 de rachas de voz",
@@ -312,14 +343,7 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
           console.log(
             `[VoiceStreaks] Rol del Top 10 asignado a ${userId}.`,
           );
-        } catch (error) {
-          console.error(
-            `[VoiceStreaks] No se pudo asignar el rol a ${userId}:`,
-            error,
-          );
-        }
-      } else if (!shouldHaveRole && hasRole) {
-        try {
+        } else if (!shouldHaveRole && hasRole) {
           await member.roles.remove(
             role.id,
             "Salida del Top 10 o expiración de la racha",
@@ -328,12 +352,12 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
           console.log(
             `[VoiceStreaks] Rol del Top 10 retirado a ${userId}.`,
           );
-        } catch (error) {
-          console.error(
-            `[VoiceStreaks] No se pudo retirar el rol a ${userId}:`,
-            error,
-          );
         }
+      } catch (error) {
+        console.error(
+          `[VoiceStreaks] No se pudo sincronizar el rol de ${userId}:`,
+          error,
+        );
       }
     }
 
@@ -342,13 +366,264 @@ async function syncTop10Roles(client: Client, guildId: string): Promise<void> {
     );
   } catch (error) {
     console.error(
-      "[VoiceStreaks] Error sincronizando el Top 10:",
+      "[VoiceStreaks] Error sincronizando roles:",
       error,
     );
   } finally {
     roleSyncInProgress.delete(guildId);
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// LEADERBOARD DECORADO
+// ─────────────────────────────────────────────────────────────
+
+async function findLeaderboardMessage(
+  client: Client,
+  channel: TextChannel,
+): Promise<Message | null> {
+  // Reutilizar el mensaje encontrado durante esta ejecución.
+  if (leaderboardMessage) {
+    try {
+      leaderboardMessage = await channel.messages.fetch(
+        leaderboardMessage.id,
+      );
+
+      return leaderboardMessage;
+    } catch {
+      leaderboardMessage = null;
+    }
+  }
+
+  // Buscar el embed anterior después de reiniciar el bot.
+  let before: string | undefined;
+
+  while (true) {
+    const messages = await channel.messages.fetch({
+      limit: 100,
+      ...(before ? { before } : {}),
+    });
+
+    if (messages.size === 0) break;
+
+    const existing = messages.find(
+      (message) =>
+        message.author.id === client.user?.id &&
+        message.embeds.some(
+          (embed) => embed.title === LEADERBOARD_TITLE,
+        ),
+    );
+
+    if (existing) {
+      leaderboardMessage = existing;
+      return existing;
+    }
+
+    const oldestMessage = messages.last();
+
+    if (!oldestMessage || messages.size < 100) break;
+
+    before = oldestMessage.id;
+  }
+
+  return null;
+}
+
+async function renderLeaderboard(
+  client: Client,
+  guildId: string,
+): Promise<void> {
+  if (guildId !== TARGET_GUILD_ID) return;
+
+  const channel = await client.channels.fetch(
+    LEADERBOARD_CHANNEL_ID,
+  );
+
+  if (!channel || channel.type !== ChannelType.GuildText) {
+    console.error(
+      "[VoiceStreaks] El canal del leaderboard no existe o no es de texto.",
+    );
+    return;
+  }
+
+  const textChannel = channel as TextChannel;
+  const now = Date.now();
+  const today = getLocalDate(new Date());
+
+  const [streakRows, todayAttendances] = await Promise.all([
+    db
+      .select()
+      .from(voiceStreaksTable)
+      .where(eq(voiceStreaksTable.guildId, guildId)),
+
+    db
+      .select()
+      .from(voiceStreakHistoryTable)
+      .where(
+        and(
+          eq(voiceStreakHistoryTable.guildId, guildId),
+          eq(voiceStreakHistoryTable.attendanceDate, today),
+        ),
+      ),
+  ]);
+
+  // Solo mostrar rachas positivas que no hayan vencido.
+  const activeRows = streakRows
+    .filter(
+      (row) =>
+        row.currentStreak > 0 &&
+        now - row.updatedAt.getTime() <= MAX_GAP_MS,
+    )
+    .sort(
+      (a, b) =>
+        b.currentStreak - a.currentStreak ||
+        b.bestStreak - a.bestStreak ||
+        a.userId.localeCompare(b.userId),
+    );
+
+  const top10 = activeRows.slice(0, 10);
+  const champion = top10[0];
+
+  const absoluteRecord = streakRows.reduce(
+    (record, row) =>
+      Math.max(record, row.bestStreak ?? 0),
+    0,
+  );
+
+  // Campeón destacado.
+  const championValue = champion
+    ? [
+        `> <@${champion.userId}>`,
+        "",
+        `> 🔥 **${champion.currentStreak} días consecutivos**`,
+        `> 🏆 Récord personal: **${champion.bestStreak} días**`,
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        "👑 **Dominando el leaderboard**",
+      ].join("\n")
+    : "Todavía no hay una racha activa para coronar al campeón.";
+
+  // Medallas para el podio y numeración para el resto.
+  const rankingLines = top10.map((row, index) => {
+    const position = index + 1;
+
+    const medal =
+      position === 1
+        ? "🥇"
+        : position === 2
+          ? "🥈"
+          : position === 3
+            ? "🥉"
+            : `**${position}.**`;
+
+    return [
+      `${medal} <@${row.userId}>`,
+      `└ 🔥 **${row.currentStreak} días** · 🏆 Récord: **${row.bestStreak} días**`,
+    ].join("\n");
+  });
+
+  const rankingValue =
+    rankingLines.length > 0
+      ? rankingLines.join("\n\n")
+      : "No hay usuarios clasificados todavía.";
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff7a1a)
+    .setTitle(LEADERBOARD_TITLE)
+    .setDescription(
+      [
+        "```ansi",
+        "\u001b[1;33m      AMONG US · TEMPORADA PERMANENTE\u001b[0m",
+        "```",
+        "╭━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╮",
+        "　🏅 **LOS MÁS CONSTANTES DEL SERVIDOR**",
+        "╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯",
+        "",
+        "Cada asistencia cuenta. ¿Quién dominará la clasificación?",
+      ].join("\n"),
+    )
+    .addFields(
+      {
+        name: "👑 REY DE LAS RACHAS",
+        value: championValue,
+        inline: false,
+      },
+      {
+        name: "🏅 CLASIFICACIÓN GENERAL",
+        value: rankingValue,
+        inline: false,
+      },
+      {
+        name: "🔥 RACHAS ACTIVAS",
+        value: `**${activeRows.length}**\nUsuarios con racha vigente`,
+        inline: true,
+      },
+      {
+        name: "📅 ASISTENCIAS HOY",
+        value: `**${todayAttendances.length}**\nAsistencias registradas`,
+        inline: true,
+      },
+      {
+        name: "🏆 RÉCORD ABSOLUTO",
+        value: `**${absoluteRecord} días**\nMejor racha histórica`,
+        inline: true,
+      },
+    )
+    .setFooter({
+      text:
+        `⚡ Actualización automática • Rachas activas: ${activeRows.length}` +
+        ` • Asistencias hoy: ${todayAttendances.length}` +
+        ` • Récord absoluto: ${absoluteRecord} días`,
+    })
+    .setTimestamp(new Date());
+
+  const existingMessage = await findLeaderboardMessage(
+    client,
+    textChannel,
+  );
+
+  if (existingMessage) {
+    await existingMessage.edit({
+      embeds: [embed],
+      allowedMentions: { parse: [] },
+    });
+  } else {
+    leaderboardMessage = await textChannel.send({
+      embeds: [embed],
+      allowedMentions: { parse: [] },
+    });
+
+    console.log(
+      `[VoiceStreaks] Leaderboard publicado. Mensaje: ${leaderboardMessage.id}`,
+    );
+  }
+
+  console.log("[VoiceStreaks] Leaderboard actualizado.");
+}
+
+/**
+ * Serializa las actualizaciones para evitar que dos eventos
+ * editen simultáneamente el mismo mensaje.
+ */
+export function renderVoiceStreakLeaderboard(
+  client: Client,
+  guildId: string = TARGET_GUILD_ID,
+): Promise<void> {
+  leaderboardQueue = leaderboardQueue
+    .then(() => renderLeaderboard(client, guildId))
+    .catch((error) => {
+      console.error(
+        "[VoiceStreaks] Error actualizando el leaderboard:",
+        error,
+      );
+    });
+
+  return leaderboardQueue;
+}
+
+// ─────────────────────────────────────────────────────────────
+// RECOMPENSAS
+// ─────────────────────────────────────────────────────────────
 
 async function payMilestoneReward(
   guildId: string,
@@ -371,7 +646,6 @@ async function payMilestoneReward(
       .onConflictDoNothing()
       .returning({ id: voiceStreakRewardsTable.id });
 
-    // Evita acreditar dos veces el mismo hito automáticamente.
     if (!claim) return;
 
     rewardId = claim.id;
@@ -419,6 +693,10 @@ async function payMilestoneReward(
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// PROCESAMIENTO DE ASISTENCIA
+// ─────────────────────────────────────────────────────────────
+
 async function processAttendance(
   client: Client,
   guildId: string,
@@ -443,8 +721,8 @@ async function processAttendance(
       `[VoiceStreaks] Asistencia de ${userId}: racha ${result.currentStreak}, récord ${result.bestStreak}.`,
     );
 
-    // Actualiza los roles después de registrar la asistencia.
     await syncTop10Roles(client, guildId);
+    await renderVoiceStreakLeaderboard(client, guildId);
 
     if (result.milestone !== null) {
       await payMilestoneReward(
@@ -466,7 +744,14 @@ async function processAttendance(
   }
 }
 
-function checkPresence(client: Client, guildId: string): void {
+// ─────────────────────────────────────────────────────────────
+// PRESENCIA EN VOZ
+// ─────────────────────────────────────────────────────────────
+
+function checkPresence(
+  client: Client,
+  guildId: string,
+): void {
   const users = getEligibleUsers(client, guildId);
   const now = Date.now();
 
@@ -490,11 +775,11 @@ function checkPresence(client: Client, guildId: string): void {
     if (now - startedAt >= REQUIRED_PRESENT_MS) {
       completedUsers.add(key);
       presenceStartedAt.delete(key);
+
       void processAttendance(client, guildId, userId);
     }
   }
 
-  // Limpiar contadores de quienes salieron de los canales autorizados.
   for (const key of presenceStartedAt.keys()) {
     if (!key.startsWith(`${guildId}:`)) continue;
 
@@ -526,20 +811,28 @@ function handleVoiceUpdate(
   checkPresence(client, newState.guild.id);
 }
 
+// ─────────────────────────────────────────────────────────────
+// INICIALIZACIÓN
+// ─────────────────────────────────────────────────────────────
+
 export function setupVoiceStreaks(client: Client): void {
   client.on(Events.VoiceStateUpdate, (oldState, newState) => {
     handleVoiceUpdate(client, oldState, newState);
   });
 
   const initialize = (): void => {
+    if (initialized) return;
+    initialized = true;
+
     for (const guild of client.guilds.cache.values()) {
       checkPresence(client, guild.id);
     }
 
-    // Sincronización inicial del Top 10.
+    // Sincronizar roles y publicar/editar el embed al iniciar.
     void syncTop10Roles(client, TARGET_GUILD_ID);
+    void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
 
-    // Comprueba periódicamente las rachas vencidas y los cambios del ranking.
+    // Revisar presencia y expiración de rachas.
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
         checkPresence(client, guild.id);
@@ -547,6 +840,11 @@ export function setupVoiceStreaks(client: Client): void {
 
       void syncTop10Roles(client, TARGET_GUILD_ID);
     }, CHECK_INTERVAL_MS);
+
+    // Actualizar estadísticas y ranking cada minuto.
+    setInterval(() => {
+      void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
+    }, LEADERBOARD_REFRESH_INTERVAL_MS);
 
     console.log(
       `[VoiceStreaks] Seguimiento iniciado. Canales autorizados: ${ALLOWED_VOICE_CHANNEL_IDS.size}.`,
