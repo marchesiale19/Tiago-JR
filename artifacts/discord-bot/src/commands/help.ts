@@ -296,6 +296,20 @@ function getCategories(
       ].join("\n"),
     },
 
+
+    /* -----------------------------------------------------
+     * RACHAS
+     * --------------------------------------------------- */
+    {
+      label: "Rachas",
+      description: "Consulta tus rachas de asistencia de voz.",
+      emoji: "🔥",
+      title: "Rachas",
+      content: [
+        "-racha — Consulta tu racha actual, tu récord personal y el progreso hacia la próxima recompensa.",
+      ].join("\n"),
+    },
+    
     /* -----------------------------------------------------
      * CASINO
      * --------------------------------------------------- */
