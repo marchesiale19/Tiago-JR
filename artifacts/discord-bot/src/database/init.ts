@@ -45,13 +45,44 @@ export async function initDatabase(
   try {
     await db.execute(sql`SELECT 1`);
     logger.info("Database connection OK.");
-  } catch (err) {
+    } catch (err) {
     logger.error(
       { err },
       "Database connection failed — is DATABASE_URL correct?",
     );
     throw err;
   }
+
+  // Crear la tabla de retos matemáticos si todavía no existe.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS math_challenges (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      guild_id text NOT NULL,
+      channel_id text NOT NULL,
+      message_id text,
+      user_id text NOT NULL,
+      expression text NOT NULL,
+      correct_answer integer NOT NULL,
+      status text NOT NULL DEFAULT 'pending',
+      started_at timestamptz,
+      expires_at timestamptz,
+      answered_at timestamptz,
+      completed_at timestamptz,
+      created_at timestamptz NOT NULL DEFAULT now()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS math_challenges_user_idx
+    ON math_challenges (guild_id, user_id)
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS math_challenges_status_idx
+    ON math_challenges (status)
+  `);
+
+  logger.info("Math challenges table verified.");
 
   const missingTables: string[] = [];
 
