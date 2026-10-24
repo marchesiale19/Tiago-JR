@@ -331,7 +331,7 @@ function getCategories(
               "-bomb drop — Dropea una bomba en un canal.",
             ]
           : []),
-
+        "-math — Participa en una trivia matemática apostando frijoles.",
         "-ppt — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
         "-tateti — Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
       ].join("\n"),
