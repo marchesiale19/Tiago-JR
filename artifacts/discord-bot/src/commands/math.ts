@@ -18,7 +18,7 @@ import {
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
 import { generateMathQuestion } from "../utils/mathQuestionGenerator";
-import { UnbelievaBoatClient } from "unb-api";
+import { Client as UnbelievaBoatClient } from "unb-api";
 
 const TIME_LIMIT_MS = 6_000;
 const COOLDOWN_MS = 20_000;
