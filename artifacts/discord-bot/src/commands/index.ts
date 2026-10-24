@@ -1,3 +1,4 @@
+
 import {
   Collection,
   type ChatInputCommandInteraction,
@@ -27,7 +28,7 @@ import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
 import * as math from "./math";
 
-// nuevo flujo de ranked
+// Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
 import * as partida from "./partida";
 import * as registrarPartida from "./registrar-partida";
@@ -35,22 +36,21 @@ import * as sala from "./sala";
 import * as finalizarPartida from "./finalizar-partida";
 import * as supervisorInactivo from "./supervisor-inactivo";
 
-// parche 2 o ni idea, solo pq sí
+// Gestión de cola
 import * as cancelar from "./cancelar";
 import * as emparejamiento from "./emparejamiento";
 
-// gestión de temporadas
+// Gestión de temporadas
 import * as abrir from "./abrir";
 import * as cerrar from "./cerrar";
 import * as reputacion from "./reputacion";
 import * as ver from "./ver";
 
-// sistema de lotería
+// Sistema de lotería
 import * as loteria from "./loteria";
 
-// sistema de clear
-import * as clear from "./clear"; 
-
+// Sistema de clear
+import * as clear from "./clear";
 
 export interface BotCommand {
   data: {
@@ -73,127 +73,52 @@ export interface BotCommand {
   ) => Promise<void>;
 }
 
-export const commands: Collection<
-  string,
-  BotCommand
-> = new Collection();
+export const commands: Collection<string, BotCommand> =
+  new Collection();
 
 /* ============================================================
  * APLICACIONES PRO
  * ============================================================ */
 
-commands.set(
-  postular.data.name,
-  postular,
-);
+commands.set(postular.data.name, postular);
+commands.set(sanciones.data.name, sanciones);
 
-commands.set(
-  sanciones.data.name,
-  sanciones,
-);
-
-commands.set(
-  rolesCommand.data.data.name,
-  {
-    data: rolesCommand.data.data,
-    execute: rolesCommand.data.execute,
-    run: rolesCommand.data.run,
-  },
-);
+commands.set(rolesCommand.data.data.name, {
+  data: rolesCommand.data.data,
+  execute: rolesCommand.data.execute,
+  run: rolesCommand.data.run,
+});
 
 /* ============================================================
- * SEASONS, RANKING Y PROFILES
+ * TEMPORADAS, RANKING Y PERFILES
  * ============================================================ */
 
-commands.set(
-  temporada.data.name,
-  temporada,
-);
+commands.set(temporada.data.name, temporada);
+commands.set(ranking.data.name, ranking);
+commands.set(perfil.data.name, perfil);
+commands.set(logros.data.name, logros);
+commands.set(luckybox.data.name, luckybox);
+commands.set(bomb.data.name, bomb);
+commands.set(tateti.data.name, tateti);
+commands.set(ppt.data.name, ppt);
+commands.set(asignarRangoData.name, {
+  data: asignarRangoData,
+  execute: asignarRangoExecute,
+});
+commands.set(leaderboard.data.name, leaderboard);
 
-commands.set(
-  ranking.data.name,
-  ranking,
-);
-
-commands.set(
-  perfil.data.name,
-  perfil,
-);
-
-commands.set(
-  logros.data.name,
-  logros,
-);
-
-commands.set(
-  luckybox.data.name,
-  luckybox,
-);
-
-commands.set(
-  bomb.data.name,
-  bomb,
-);
-
-commands.set(
-  tateti.data.name,
-  tateti,
-);
-
-commands.set(
-  ppt.data.name,
-  ppt,
-);
-
-commands.set(
-  asignarRangoData.name,
-  {
-    data: asignarRangoData,
-    execute: asignarRangoExecute,
-  },
-);
-
-commands.set(
-  leaderboard.data.name,
-  leaderboard,
-);
-
-commands.set(
-  math.data.name,
-  math,
-);
-  
-);
+// Reto matemático: /math y -math
+commands.set(math.data.name, math);
 
 /* ============================================================
  * FLUJO DEL RANKED
  * ============================================================ */
 
-commands.set(
-  buscarPartida.data.name,
-  buscarPartida,
-);
-
-commands.set(
-  partida.data.name,
-  partida,
-);
-
-commands.set(
-  registrarPartida.data.name,
-  registrarPartida,
-);
-
-commands.set(
-  sala.data.name,
-  sala,
-);
-
-commands.set(
-  finalizarPartida.data.name,
-  finalizarPartida,
-);
-
+commands.set(buscarPartida.data.name, buscarPartida);
+commands.set(partida.data.name, partida);
+commands.set(registrarPartida.data.name, registrarPartida);
+commands.set(sala.data.name, sala);
+commands.set(finalizarPartida.data.name, finalizarPartida);
 commands.set(
   supervisorInactivo.data.name,
   supervisorInactivo,
@@ -203,156 +128,88 @@ commands.set(
  * GESTIÓN DE TEMPORADAS
  * ============================================================ */
 
-commands.set(
-  abrir.data.name,
-  abrir,
-);
-
-commands.set(
-  cerrar.data.name,
-  cerrar,
-);
-
-commands.set(
-  reputacion.data.name,
-  reputacion,
-);
-
-commands.set(
-  ver.data.name,
-  ver,
-);
+commands.set(abrir.data.name, abrir);
+commands.set(cerrar.data.name, cerrar);
+commands.set(reputacion.data.name, reputacion);
+commands.set(ver.data.name, ver);
 
 /* ============================================================
  * GESTIÓN DE COLA
  * ============================================================ */
 
-commands.set(
-  cancelar.data.name,
-  cancelar,
-);
-
-commands.set(
-  emparejamiento.data.name,
-  emparejamiento,
-);
+commands.set(cancelar.data.name, cancelar);
+commands.set(emparejamiento.data.name, emparejamiento);
 
 /* ============================================================
  * GESTIÓN DE HELP
  * ============================================================ */
 
-commands.set(
-  helpData.name,
-  {
-    data: helpData,
-    execute: helpExecute,
-  },
-);
+commands.set(helpData.name, {
+  data: helpData,
+  execute: helpExecute,
+});
 
 /* ============================================================
- * LOTERÍA
+ * SISTEMA DE LOTERÍA
  *
  * Comandos:
- *
  * /anotar
  * /notas
  * /girar
  *
- * Y por prefijo:
- *
+ * Prefijos:
  * -anotar
  * -notas
  * -girar
  * ============================================================ */
 
-/**
- * Crea un comando independiente que utiliza el sistema
- * interno de lotería.
- *
- * loteria.execute() utiliza interaction.options.getSubcommand()
- * para determinar qué acción ejecutar.
- *
- * Como queremos que sean tres Slash Commands separados,
- * hacemos que cada wrapper le devuelva su propio nombre.
- */
 function crearComandoLoteria(
   nombre: "anotar" | "notas" | "girar",
 ): BotCommand {
-  const data = {
-    name: nombre,
-    description:
-      nombre === "anotar"
-        ? "Registra a los participantes actuales de la lotería."
-        : nombre === "notas"
-          ? "Muestra los participantes actuales de la lotería."
-          : "Realiza el sorteo de la lotería.",
-  };
+  const description =
+    nombre === "anotar"
+      ? "Registra a los participantes actuales de la lotería."
+      : nombre === "notas"
+        ? "Muestra los participantes actuales de la lotería."
+        : "Realiza el sorteo de la lotería.";
 
   return {
     data: {
-      name: data.name,
-
+      name: nombre,
       toJSON: () => ({
-        name: data.name,
-        description: data.description,
+        name: nombre,
+        description,
       }),
     },
 
     async execute(
       interaction: ChatInputCommandInteraction,
     ): Promise<void> {
-      /*
-       * Creamos un Proxy para que loteria.execute()
-       * vea el subcomando correspondiente sin modificar
-       * la interacción real de Discord.
-       */
-      const interactionProxy =
-        new Proxy(
-          interaction,
-          {
-            get(
-              target,
-              property,
-              receiver,
-            ) {
-              if (
-                property ===
-                "options"
+      const interactionProxy = new Proxy(interaction, {
+        get(target, property, receiver) {
+          if (property === "options") {
+            return new Proxy(target.options, {
+              get(
+                optionsTarget,
+                optionsProperty,
+                optionsReceiver,
               ) {
-                return new Proxy(
-                  target.options,
-                  {
-                    get(
-                      optionsTarget,
-                      optionsProperty,
-                      optionsReceiver,
-                    ) {
-                      if (
-                        optionsProperty ===
-                        "getSubcommand"
-                      ) {
-                        return () =>
-                          nombre;
-                      }
+                if (optionsProperty === "getSubcommand") {
+                  return () => nombre;
+                }
 
-                      return Reflect.get(
-                        optionsTarget,
-                        optionsProperty,
-                        optionsReceiver,
-                      );
-                    },
-                  },
+                return Reflect.get(
+                  optionsTarget,
+                  optionsProperty,
+                  optionsReceiver,
                 );
-              }
+              },
+            });
+          }
 
-              return Reflect.get(
-                target,
-                property,
-                receiver,
-              );
-            },
-          },
-        );
+          return Reflect.get(target, property, receiver);
+        },
+      });
 
       await loteria.execute(
         interactionProxy as ChatInputCommandInteraction,
@@ -361,21 +218,6 @@ function crearComandoLoteria(
   };
 }
 
-/* ------------------------------------------------------------
- * SLASH COMMANDS DE LOTERÍA
- * ------------------------------------------------------------ */
-
-commands.set(
-  "anotar",
-  crearComandoLoteria("anotar"),
-);
-
-commands.set(
-  "notas",
-  crearComandoLoteria("notas"),
-);
-
-commands.set(
-  "girar",
-  crearComandoLoteria("girar"),
-);
+commands.set("anotar", crearComandoLoteria("anotar"));
+commands.set("notas", crearComandoLoteria("notas"));
+commands.set("girar", crearComandoLoteria("girar"));
