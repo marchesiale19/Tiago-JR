@@ -18,14 +18,14 @@ import {
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
 import { generateMathQuestion } from "../utils/mathQuestionGenerator";
-import { Client as UnbelievaBoatClient } from "unb-api";
+import UnbelievaBoat from "unb-api";
 
 const TIME_LIMIT_MS = 6_000;
 const COOLDOWN_MS = 20_000;
 const MIN_BET = 100;
 
 // Cliente de UnbelievaBoat
-const unb = new UnbelievaBoatClient(process.env.UNBELIEVABOAT_TOKEN || "");
+const unb = new UnbelievaBoat(process.env.UNBELIEVABOAT_TOKEN || "");
 
 export const data = new SlashCommandBuilder()
   .setName("math")
