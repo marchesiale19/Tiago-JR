@@ -273,6 +273,13 @@ export async function execute(
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
 
+    const details =
+      error instanceof Error
+        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
+        : String(error);
+
+    console.error("[MATH] Detalles completos:", details);
+
     await interaction.editReply(
       "No pude completar el reto. Revisá los registros del bot.",
     );
@@ -303,6 +310,13 @@ export async function run(
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
+
+    const details =
+      error instanceof Error
+        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
+        : String(error);
+
+    console.error("[MATH] Detalles completos:", details);
 
     await message.reply(
       "No pude completar el reto. Revisá los registros del bot.",
