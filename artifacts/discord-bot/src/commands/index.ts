@@ -27,6 +27,7 @@ import * as tateti from "./tateti";
 import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
 import * as math from "./math";
+import * as racha from "./racha";
 
 // Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -109,6 +110,9 @@ commands.set(leaderboard.data.name, leaderboard);
 
 // Reto matemático: /math y -math
 commands.set(math.data.name, math);
+
+// Racha
+commands.set(racha.data.name, racha);
 
 /* ============================================================
  * FLUJO DEL RANKED
