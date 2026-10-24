@@ -18,14 +18,15 @@ import {
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
 import { generateMathQuestion } from "../utils/mathQuestionGenerator";
-import UnbelievaBoat from "unb-api";
+import unbSdk from "unb-api";
 
 const TIME_LIMIT_MS = 6_000;
 const COOLDOWN_MS = 20_000;
 const MIN_BET = 100;
 
-// Cliente de UnbelievaBoat
-const unb = new UnbelievaBoat(process.env.UNBELIEVABOAT_TOKEN || "");
+// Inicialización segura e interoperable de UnbelievaBoat
+const UnbelievaBoatClient = (unbSdk as any).Client || (unbSdk as any).default || unbSdk;
+const unb = new UnbelievaBoatClient(process.env.UNBELIEVABOAT_TOKEN || "");
 
 export const data = new SlashCommandBuilder()
   .setName("math")
@@ -66,7 +67,7 @@ async function startChallenge(
     return;
   }
 
-  // Verificar saldo en UnbelievaBoat
+  // 1. Verificar saldo en UnbelievaBoat
   try {
     const userBalance = await unb.getUserBalance(guildId, userId);
     if (userBalance.cash < betAmount) {
@@ -86,7 +87,7 @@ async function startChallenge(
 
   const now = new Date();
 
-  // Expira únicamente los retos cuyo plazo terminó
+  // Limpiar retos expirados
   await db
     .update(mathChallenges)
     .set({
@@ -103,11 +104,9 @@ async function startChallenge(
       ),
     );
 
-  // Impide que el usuario tenga dos retos simultáneos.
+  // Validar reto activo existente
   const [activeChallenge] = await db
-    .select({
-      id: mathChallenges.id,
-    })
+    .select({ id: mathChallenges.id })
     .from(mathChallenges)
     .where(
       and(
@@ -126,15 +125,10 @@ async function startChallenge(
     return;
   }
 
-  // Comprueba el enfriamiento de 20 segundos.
-  const cooldownStart = new Date(
-    now.getTime() - COOLDOWN_MS,
-  );
-
+  // Validar Cooldown (20 segundos)
+  const cooldownStart = new Date(now.getTime() - COOLDOWN_MS);
   const [lastChallenge] = await db
-    .select({
-      createdAt: mathChallenges.createdAt,
-    })
+    .select({ createdAt: mathChallenges.createdAt })
     .from(mathChallenges)
     .where(
       and(
@@ -147,9 +141,7 @@ async function startChallenge(
     .limit(1);
 
   if (lastChallenge) {
-    const elapsed =
-      now.getTime() - lastChallenge.createdAt.getTime();
-
+    const elapsed = now.getTime() - lastChallenge.createdAt.getTime();
     const remainingSeconds = Math.max(
       1,
       Math.ceil((COOLDOWN_MS - elapsed) / 1_000),
@@ -161,18 +153,9 @@ async function startChallenge(
     return;
   }
 
-  // Cobrar la apuesta inicial
-  try {
-    await unb.editUserBalance(guildId, userId, { cash: -betAmount }, "Reto matemático - Entrada");
-  } catch (error) {
-    console.error("[MATH] Error al descontar apuesta:", error);
-    await sendQuestion("⚠️ Error al procesar tu apuesta.");
-    return;
-  }
-
   const question = generateMathQuestion();
 
-  // Crea el registro antes de publicar la pregunta.
+  // 2. Registrar reto en la BD (estado: pending) antes de cobrar
   const [challenge] = await db
     .insert(mathChallenges)
     .values({
@@ -183,12 +166,24 @@ async function startChallenge(
       correctAnswer: question.answer,
       status: "pending",
     })
-    .returning({
-      id: mathChallenges.id,
-    });
+    .returning({ id: mathChallenges.id });
 
+  // 3. Descontar apuesta
+  try {
+    await unb.editUserBalance(guildId, userId, { cash: -betAmount }, "Reto matemático - Entrada");
+  } catch (error) {
+    console.error("[MATH] Error al descontar apuesta:", error);
+    await db
+      .update(mathChallenges)
+      .set({ status: "cancelled", completedAt: new Date() })
+      .where(eq(mathChallenges.id, challenge.id));
+
+    await sendQuestion("⚠️ Error al procesar la apuesta en el sistema de economía.");
+    return;
+  }
+
+  // 4. Publicar pregunta en Discord
   let prompt: Message;
-
   try {
     prompt = await sendQuestion(
       `🧠 **Reto matemático por $${betAmount}**\n` +
@@ -196,24 +191,19 @@ async function startChallenge(
         `Tenés **6 segundos** para responder en este canal.`,
     );
   } catch (error) {
-    // Si falla el envío, cancelar reto y reembolsar plata
+    // Failsafe: Si falla el envío del mensaje, se cancela y reembolsa inmediatamente
     await db
       .update(mathChallenges)
-      .set({
-        status: "cancelled",
-        completedAt: new Date(),
-      })
+      .set({ status: "cancelled", completedAt: new Date() })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Reembolso por fallo");
+    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Reembolso por fallo de red");
     throw error;
   }
 
-  // El tiempo empieza una vez publicada la pregunta.
+  // Activar temporizador
   const startedAt = new Date();
-  const expiresAt = new Date(
-    startedAt.getTime() + TIME_LIMIT_MS,
-  );
+  const expiresAt = new Date(startedAt.getTime() + TIME_LIMIT_MS);
 
   await db
     .update(mathChallenges)
@@ -225,6 +215,7 @@ async function startChallenge(
     })
     .where(eq(mathChallenges.id, challenge.id));
 
+  // Escuchar respuesta
   const collector = channel.createMessageCollector({
     time: TIME_LIMIT_MS,
     max: 1,
@@ -234,20 +225,15 @@ async function startChallenge(
   });
 
   const answer = await new Promise<Message | null>((resolve) => {
-    collector.once("collect", (message) => {
-      resolve(message);
-    });
-
+    collector.once("collect", (message) => resolve(message));
     collector.once("end", (collected) => {
-      if (collected.size === 0) {
-        resolve(null);
-      }
+      if (collected.size === 0) resolve(null);
     });
   });
 
   const finishedAt = new Date();
 
-  // Caso: Se terminó el tiempo (Reembolso completo)
+  // Caso: Tiempo agotado -> Reembolso completo
   if (!answer) {
     await db
       .update(mathChallenges)
@@ -268,12 +254,10 @@ async function startChallenge(
     return;
   }
 
+  // Evaluar respuesta
   const rawAnswer = answer.content.trim();
   const isInteger = /^-?\d+$/.test(rawAnswer);
-
-  const correct =
-    isInteger &&
-    Number(rawAnswer) === question.answer;
+  const correct = isInteger && Number(rawAnswer) === question.answer;
 
   await db
     .update(mathChallenges)
@@ -285,7 +269,6 @@ async function startChallenge(
     .where(eq(mathChallenges.id, challenge.id));
 
   if (correct) {
-    // Si gana, le pagamos el doble (monto apostado x 2)
     const reward = betAmount * 2;
     await unb.editUserBalance(guildId, userId, { cash: reward }, "Reto matemático - Victoria (2x)");
 
@@ -311,12 +294,10 @@ export async function execute(
       content: "Este comando solo funciona dentro de un servidor.",
       ephemeral: true,
     });
-
     return;
   }
 
   const betAmount = interaction.options.getInteger("apuesta", true);
-
   await interaction.deferReply();
 
   try {
@@ -333,14 +314,6 @@ export async function execute(
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
-
-    const details =
-      error instanceof Error
-        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
-        : String(error);
-
-    console.error("[MATH] Detalles completos:", details);
-
     await interaction.editReply(
       "No pude completar el reto. Revisá los registros del bot.",
     );
@@ -355,7 +328,6 @@ export async function run(
     await message.reply(
       "Este comando solo funciona dentro de un servidor.",
     );
-
     return;
   }
 
@@ -371,7 +343,6 @@ export async function run(
 
   try {
     const channel = message.channel as TextBasedChannel;
-
     await startChallenge({
       guildId: message.guildId,
       channelId: message.channelId,
@@ -382,14 +353,6 @@ export async function run(
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
-
-    const details =
-      error instanceof Error
-        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
-        : String(error);
-
-    console.error("[MATH] Detalles completos:", details);
-
     await message.reply(
       "No pude completar el reto. Revisá los registros del bot.",
     );
