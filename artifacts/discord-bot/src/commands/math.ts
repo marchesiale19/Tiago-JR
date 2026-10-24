@@ -1,12 +1,20 @@
+
 import {
-  MessageCollector,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Message,
   type TextBasedChannel,
 } from "discord.js";
 
-import { and, desc, eq, gt } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  isNull,
+  lte,
+  or,
+} from "drizzle-orm";
 
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
@@ -40,7 +48,8 @@ async function startChallenge(
 
   const now = new Date();
 
-  // Expira retos cuyo plazo ya terminó.
+  // Expira únicamente los retos cuyo plazo terminó
+  // o que quedaron sin fecha de vencimiento.
   await db
     .update(mathChallenges)
     .set({
@@ -50,17 +59,40 @@ async function startChallenge(
     .where(
       and(
         eq(mathChallenges.status, "active"),
-        // No se modifican retos que todavía tienen tiempo.
-        // La comprobación exacta se hace con expiresAt.
-        // Los retos sin vencimiento también se consideran inválidos.
-        // El filtro se completa en la siguiente consulta.
+        or(
+          isNull(mathChallenges.expiresAt),
+          lte(mathChallenges.expiresAt, now),
+        ),
+      ),
+    );
+
+  // Impide que el usuario tenga dos retos simultáneos.
+  const [activeChallenge] = await db
+    .select({
+      id: mathChallenges.id,
+    })
+    .from(mathChallenges)
+    .where(
+      and(
         eq(mathChallenges.guildId, guildId),
         eq(mathChallenges.userId, userId),
+        eq(mathChallenges.status, "active"),
+        gt(mathChallenges.expiresAt, now),
       ),
     )
-    .then(async () => {
-      // La consulta de abajo no depende de este resultado.
-    });
+    .limit(1);
+
+  if (activeChallenge) {
+    await sendQuestion(
+      "🧠 Ya tenés un reto matemático activo. Respondé antes de iniciar otro.",
+    );
+    return;
+  }
+
+  // Comprueba el enfriamiento de 20 segundos.
+  const cooldownStart = new Date(
+    now.getTime() - COOLDOWN_MS,
+  );
 
   const [lastChallenge] = await db
     .select({
@@ -71,32 +103,30 @@ async function startChallenge(
       and(
         eq(mathChallenges.guildId, guildId),
         eq(mathChallenges.userId, userId),
-        gt(
-          mathChallenges.createdAt,
-          new Date(now.getTime() - COOLDOWN_MS),
-        ),
+        gt(mathChallenges.createdAt, cooldownStart),
       ),
     )
     .orderBy(desc(mathChallenges.createdAt))
     .limit(1);
 
   if (lastChallenge) {
-    const remaining = Math.ceil(
-      (
-        lastChallenge.createdAt.getTime() +
-        COOLDOWN_MS -
-        now.getTime()
-      ) / 1000,
+    const elapsed =
+      now.getTime() - lastChallenge.createdAt.getTime();
+
+    const remainingSeconds = Math.max(
+      1,
+      Math.ceil((COOLDOWN_MS - elapsed) / 1_000),
     );
 
     await sendQuestion(
-      `⏳ Esperá ${Math.max(1, remaining)} segundos antes de iniciar otro reto.`,
+      `⏳ Esperá **${remainingSeconds} segundos** antes de iniciar otro reto.`,
     );
     return;
   }
 
   const question = generateMathQuestion();
 
+  // Crea el registro antes de publicar la pregunta.
   const [challenge] = await db
     .insert(mathChallenges)
     .values({
@@ -105,9 +135,7 @@ async function startChallenge(
       userId,
       expression: question.expression,
       correctAnswer: question.answer,
-      status: "active",
-      startedAt: now,
-      expiresAt: new Date(now.getTime() + TIME_LIMIT_MS),
+      status: "pending",
     })
     .returning({
       id: mathChallenges.id,
@@ -118,36 +146,54 @@ async function startChallenge(
   try {
     prompt = await sendQuestion(
       `🧠 **Reto matemático**\n` +
-      `Resolvé: **${question.expression} = ?**\n` +
-      `Tenés **6 segundos** para responder. Escribí el resultado en este canal.`,
+        `Resolvé: **${question.expression} = ?**\n` +
+        `Tenés **6 segundos** para responder en este canal.`,
     );
-
-    await db
-      .update(mathChallenges)
-      .set({ messageId: prompt.id })
-      .where(eq(mathChallenges.id, challenge.id));
   } catch (error) {
     await db
       .update(mathChallenges)
-      .set({ status: "cancelled", completedAt: new Date() })
+      .set({
+        status: "cancelled",
+        completedAt: new Date(),
+      })
       .where(eq(mathChallenges.id, challenge.id));
 
     throw error;
   }
 
-  const collector = new MessageCollector(channel, {
+  // El tiempo empieza una vez publicada la pregunta.
+  const startedAt = new Date();
+  const expiresAt = new Date(
+    startedAt.getTime() + TIME_LIMIT_MS,
+  );
+
+  await db
+    .update(mathChallenges)
+    .set({
+      status: "active",
+      messageId: prompt.id,
+      startedAt,
+      expiresAt,
+    })
+    .where(eq(mathChallenges.id, challenge.id));
+
+  const collector = channel.createMessageCollector({
     time: TIME_LIMIT_MS,
     max: 1,
     filter: (message) =>
       message.author.id === userId &&
-      message.channelId === channelId &&
-      /^\s*-?\d+\s*$/.test(message.content),
+      message.channelId === channelId,
   });
 
   const answer = await new Promise<Message | null>((resolve) => {
-    collector.once("collect", (message) => resolve(message));
+    collector.once("collect", (message) => {
+      resolve(message);
+    });
+
     collector.once("end", (collected) => {
-      if (collected.size === 0) resolve(null);
+      if (collected.size === 0) {
+        resolve(null);
+      }
     });
   });
 
@@ -163,12 +209,19 @@ async function startChallenge(
       .where(eq(mathChallenges.id, challenge.id));
 
     await channel.send(
-      `⌛ Se terminó el tiempo de <@${userId}>. La respuesta era **${question.answer}**.`,
+      `⌛ Se terminó el tiempo de <@${userId}>. ` +
+        `La respuesta correcta era **${question.answer}**.`,
     );
+
     return;
   }
 
-  const correct = Number(answer.content.trim()) === question.answer;
+  const rawAnswer = answer.content.trim();
+  const isInteger = /^-?\d+$/.test(rawAnswer);
+
+  const correct =
+    isInteger &&
+    Number(rawAnswer) === question.answer;
 
   await db
     .update(mathChallenges)
@@ -181,11 +234,13 @@ async function startChallenge(
 
   if (correct) {
     await channel.send(
-      `✅ ¡Correcto, <@${userId}>! La respuesta era **${question.answer}**.`,
+      `✅ ¡Correcto, <@${userId}>! ` +
+        `La respuesta era **${question.answer}**.`,
     );
   } else {
     await channel.send(
-      `❌ No era correcto, <@${userId}>. La respuesta era **${question.answer}**.`,
+      `❌ Respuesta incorrecta, <@${userId}>. ` +
+        `La respuesta correcta era **${question.answer}**.`,
     );
   }
 }
@@ -198,6 +253,7 @@ export async function execute(
       content: "Este comando solo funciona dentro de un servidor.",
       ephemeral: true,
     });
+
     return;
   }
 
@@ -218,7 +274,7 @@ export async function execute(
     console.error("[MATH] Error al ejecutar el reto:", error);
 
     await interaction.editReply(
-      "No pude iniciar o completar el reto. Revisá los registros del bot.",
+      "No pude completar el reto. Revisá los registros del bot.",
     );
   }
 }
@@ -228,23 +284,28 @@ export async function run(
   _args: string[],
 ): Promise<void> {
   if (!message.guildId) {
-    await message.reply("Este comando solo funciona dentro de un servidor.");
+    await message.reply(
+      "Este comando solo funciona dentro de un servidor.",
+    );
+
     return;
   }
 
   try {
+    const channel = message.channel as TextBasedChannel;
+
     await startChallenge({
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
-      channel: message.channel as TextBasedChannel,
-      sendQuestion: (content) => message.channel.send(content),
+      channel,
+      sendQuestion: (content) => channel.send(content),
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
 
     await message.reply(
-      "No pude iniciar o completar el reto. Revisá los registros del bot.",
+      "No pude completar el reto. Revisá los registros del bot.",
     );
   }
 }
