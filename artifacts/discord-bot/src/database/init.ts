@@ -23,6 +23,7 @@ const REQUIRED_TABLES = [
   "voice_streaks",
   "voice_streak_history",
   "voice_streak_rewards",
+  "math_challenges",
 ] as const;
 
 export async function initDatabase(
