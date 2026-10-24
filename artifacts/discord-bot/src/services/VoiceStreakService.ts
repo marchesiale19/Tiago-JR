@@ -1,4 +1,3 @@
-
 import {
   ChannelType,
   EmbedBuilder,
@@ -26,6 +25,7 @@ import { unb } from "../lib/unbelievaboat";
 
 const REQUIRED_PRESENT_MS = 5 * 60 * 1000;
 const CHECK_INTERVAL_MS = 5_000;
+const TOP10_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const LEADERBOARD_REFRESH_INTERVAL_MS = 60_000;
 
 const MAX_GAP_MS = 48 * 60 * 60 * 1000;
@@ -712,7 +712,9 @@ async function processAttendance(
       `[VoiceStreaks] Asistencia de ${userId}: racha ${result.currentStreak}, récord ${result.bestStreak}.`,
     );
 
+    // Sincronizar roles cuando se registra una nueva asistencia diaria.
     await syncTop10Roles(client, guildId);
+
     await renderVoiceStreakLeaderboard(client, guildId);
 
     if (result.milestone !== null) {
@@ -816,17 +818,24 @@ export function setupVoiceStreaks(client: Client): void {
       checkPresence(client, guild.id);
     }
 
+    // Sincronización y publicación iniciales.
     void syncTop10Roles(client, TARGET_GUILD_ID);
     void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
 
+    // Comprobar la presencia de voz cada 5 segundos.
+    // Este intervalo ya no sincroniza los roles.
     setInterval(() => {
       for (const guild of client.guilds.cache.values()) {
         checkPresence(client, guild.id);
       }
-
-      void syncTop10Roles(client, TARGET_GUILD_ID);
     }, CHECK_INTERVAL_MS);
 
+    // Comprobar los roles del Top 10 cada 30 minutos.
+    setInterval(() => {
+      void syncTop10Roles(client, TARGET_GUILD_ID);
+    }, TOP10_SYNC_INTERVAL_MS);
+
+    // Actualizar el leaderboard cada minuto.
     setInterval(() => {
       void renderVoiceStreakLeaderboard(client, TARGET_GUILD_ID);
     }, LEADERBOARD_REFRESH_INTERVAL_MS);
