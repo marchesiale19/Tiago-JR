@@ -1,4 +1,3 @@
-
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -19,18 +18,31 @@ import {
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
 import { generateMathQuestion } from "../utils/mathQuestionGenerator";
+import { UnbelievaBoatClient } from "unb-api";
 
 const TIME_LIMIT_MS = 6_000;
 const COOLDOWN_MS = 20_000;
+const MIN_BET = 100;
+
+// Cliente de UnbelievaBoat
+const unb = new UnbelievaBoatClient(process.env.UNBELIEVABOAT_TOKEN || "");
 
 export const data = new SlashCommandBuilder()
   .setName("math")
-  .setDescription("Resuelve un reto matemático contrarreloj.");
+  .setDescription("Resuelve un reto matemático contrarreloj por dinero.")
+  .addIntegerOption((option) =>
+    option
+      .setName("apuesta")
+      .setDescription("Monto a apostar (Mínimo 100)")
+      .setRequired(true)
+      .setMinValue(MIN_BET)
+  );
 
 type StartOptions = {
   guildId: string;
   channelId: string;
   userId: string;
+  betAmount: number;
   channel: TextBasedChannel;
   sendQuestion: (content: string) => Promise<Message>;
 };
@@ -42,14 +54,39 @@ async function startChallenge(
     guildId,
     channelId,
     userId,
+    betAmount,
     channel,
     sendQuestion,
   } = options;
 
+  if (betAmount < MIN_BET) {
+    await sendQuestion(
+      `❌ La apuesta mínima para jugar es de **$${MIN_BET}**.`,
+    );
+    return;
+  }
+
+  // Verificar saldo en UnbelievaBoat
+  try {
+    const userBalance = await unb.getUserBalance(guildId, userId);
+    if (userBalance.cash < betAmount) {
+      await sendQuestion(
+        `❌ No tenés suficiente dinero en mano para apostar **$${betAmount}**. ` +
+          `Tu saldo actual es de **$${userBalance.cash}**.`,
+      );
+      return;
+    }
+  } catch (error) {
+    console.error("[MATH] Error al consultar saldo en UnbelievaBoat:", error);
+    await sendQuestion(
+      "⚠️ No se pudo verificar tu saldo. Intentalo de nuevo en unos momentos.",
+    );
+    return;
+  }
+
   const now = new Date();
 
   // Expira únicamente los retos cuyo plazo terminó
-  // o que quedaron sin fecha de vencimiento.
   await db
     .update(mathChallenges)
     .set({
@@ -124,6 +161,15 @@ async function startChallenge(
     return;
   }
 
+  // Cobrar la apuesta inicial
+  try {
+    await unb.editUserBalance(guildId, userId, { cash: -betAmount }, "Reto matemático - Entrada");
+  } catch (error) {
+    console.error("[MATH] Error al descontar apuesta:", error);
+    await sendQuestion("⚠️ Error al procesar tu apuesta.");
+    return;
+  }
+
   const question = generateMathQuestion();
 
   // Crea el registro antes de publicar la pregunta.
@@ -145,11 +191,12 @@ async function startChallenge(
 
   try {
     prompt = await sendQuestion(
-      `🧠 **Reto matemático**\n` +
+      `🧠 **Reto matemático por $${betAmount}**\n` +
         `Resolvé: **${question.expression} = ?**\n` +
         `Tenés **6 segundos** para responder en este canal.`,
     );
   } catch (error) {
+    // Si falla el envío, cancelar reto y reembolsar plata
     await db
       .update(mathChallenges)
       .set({
@@ -158,6 +205,7 @@ async function startChallenge(
       })
       .where(eq(mathChallenges.id, challenge.id));
 
+    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Reembolso por fallo");
     throw error;
   }
 
@@ -199,6 +247,7 @@ async function startChallenge(
 
   const finishedAt = new Date();
 
+  // Caso: Se terminó el tiempo (Reembolso completo)
   if (!answer) {
     await db
       .update(mathChallenges)
@@ -208,9 +257,12 @@ async function startChallenge(
       })
       .where(eq(mathChallenges.id, challenge.id));
 
+    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Devolución por tiempo agotado");
+
     await channel.send(
       `⌛ Se terminó el tiempo de <@${userId}>. ` +
-        `La respuesta correcta era **${question.answer}**.`,
+        `La respuesta correcta era **${question.answer}**.\n` +
+        `🪙 Te devolvimos tus **$${betAmount}**.`,
     );
 
     return;
@@ -233,14 +285,20 @@ async function startChallenge(
     .where(eq(mathChallenges.id, challenge.id));
 
   if (correct) {
+    // Si gana, le pagamos el doble (monto apostado x 2)
+    const reward = betAmount * 2;
+    await unb.editUserBalance(guildId, userId, { cash: reward }, "Reto matemático - Victoria (2x)");
+
     await channel.send(
       `✅ ¡Correcto, <@${userId}>! ` +
-        `La respuesta era **${question.answer}**.`,
+        `La respuesta era **${question.answer}**.\n` +
+        `🎉 ¡Ganaste **$${reward}** (2x de tu apuesta)!`,
     );
   } else {
     await channel.send(
       `❌ Respuesta incorrecta, <@${userId}>. ` +
-        `La respuesta correcta era **${question.answer}**.`,
+        `La respuesta correcta era **${question.answer}**.\n` +
+        `💸 Perdiste tu apuesta de **$${betAmount}**.`,
     );
   }
 }
@@ -257,6 +315,8 @@ export async function execute(
     return;
   }
 
+  const betAmount = interaction.options.getInteger("apuesta", true);
+
   await interaction.deferReply();
 
   try {
@@ -264,6 +324,7 @@ export async function execute(
       guildId: interaction.guildId,
       channelId: interaction.channelId,
       userId: interaction.user.id,
+      betAmount,
       channel: interaction.channel,
       sendQuestion: async (content) => {
         await interaction.editReply(content);
@@ -288,13 +349,23 @@ export async function execute(
 
 export async function run(
   message: Message,
-  _args: string[],
+  args: string[],
 ): Promise<void> {
   if (!message.guildId) {
     await message.reply(
       "Este comando solo funciona dentro de un servidor.",
     );
 
+    return;
+  }
+
+  const rawBet = args[0];
+  const betAmount = parseInt(rawBet, 10);
+
+  if (!rawBet || isNaN(betAmount)) {
+    await message.reply(
+      `❌ Debes ingresar un monto válido para apostar. Ejemplo: \`!math ${MIN_BET}\``,
+    );
     return;
   }
 
@@ -305,6 +376,7 @@ export async function run(
       guildId: message.guildId,
       channelId: message.channelId,
       userId: message.author.id,
+      betAmount,
       channel,
       sendQuestion: (content) => channel.send(content),
     });
