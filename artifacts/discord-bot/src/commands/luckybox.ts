@@ -355,6 +355,7 @@ const LUCKYBOX_DROP_AUTHORIZED_ROLES:
   readonly string[] = [
     "1539368076326473868", // Developer Tiago Jr
     "1522807097920720967", // Manager
+    "944483765667893248", // Administrador
   ];
 
 /* ========================================================================== */
