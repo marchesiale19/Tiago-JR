@@ -1,5 +1,3 @@
-// src/database/schema/mathChallenges.ts
-
 import {
   pgTable,
   uuid,
