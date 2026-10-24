@@ -18,15 +18,15 @@ import {
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
 import { generateMathQuestion } from "../utils/mathQuestionGenerator";
-import unbSdk from "unb-api";
+import pkg from "unb-api";
+const { Client: UnbClient } = pkg;
 
 const TIME_LIMIT_MS = 6_000;
 const COOLDOWN_MS = 20_000;
 const MIN_BET = 100;
 
-// Inicialización segura e interoperable de UnbelievaBoat
-const UnbelievaBoatClient = (unbSdk as any).Client || (unbSdk as any).default || unbSdk;
-const unb = new UnbelievaBoatClient(process.env.UNBELIEVABOAT_TOKEN || "");
+// Cliente de UnbelievaBoat idéntico al que usa ppt.ts
+const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
 
 export const data = new SlashCommandBuilder()
   .setName("math")
@@ -70,10 +70,12 @@ async function startChallenge(
   // 1. Verificar saldo en UnbelievaBoat
   try {
     const userBalance = await unb.getUserBalance(guildId, userId);
-    if (userBalance.cash < betAmount) {
+    const cash = userBalance.cash || 0;
+
+    if (cash < betAmount) {
       await sendQuestion(
         `❌ No tenés suficiente dinero en mano para apostar **$${betAmount}**. ` +
-          `Tu saldo actual es de **$${userBalance.cash}**.`,
+          `Tu saldo actual es de **$${cash}**.`,
       );
       return;
     }
@@ -170,7 +172,7 @@ async function startChallenge(
 
   // 3. Descontar apuesta
   try {
-    await unb.editUserBalance(guildId, userId, { cash: -betAmount }, "Reto matemático - Entrada");
+    await unb.editUserBalance(guildId, userId, { cash: -betAmount });
   } catch (error) {
     console.error("[MATH] Error al descontar apuesta:", error);
     await db
@@ -197,7 +199,7 @@ async function startChallenge(
       .set({ status: "cancelled", completedAt: new Date() })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Reembolso por fallo de red");
+    await unb.editUserBalance(guildId, userId, { cash: betAmount });
     throw error;
   }
 
@@ -243,7 +245,7 @@ async function startChallenge(
       })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await unb.editUserBalance(guildId, userId, { cash: betAmount }, "Reto matemático - Devolución por tiempo agotado");
+    await unb.editUserBalance(guildId, userId, { cash: betAmount });
 
     await channel.send(
       `⌛ Se terminó el tiempo de <@${userId}>. ` +
@@ -270,7 +272,7 @@ async function startChallenge(
 
   if (correct) {
     const reward = betAmount * 2;
-    await unb.editUserBalance(guildId, userId, { cash: reward }, "Reto matemático - Victoria (2x)");
+    await unb.editUserBalance(guildId, userId, { cash: reward });
 
     await channel.send(
       `✅ ¡Correcto, <@${userId}>! ` +
