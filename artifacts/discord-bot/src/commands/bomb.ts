@@ -1,325 +1,1372 @@
-
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ChannelType,
+  EmbedBuilder,
+  MessageFlags,
   SlashCommandBuilder,
+  type ButtonInteraction,
   type ChatInputCommandInteraction,
+  type Guild,
   type Message,
-  type TextBasedChannel,
+  type User,
 } from "discord.js";
 
 import {
-  and,
-  desc,
-  eq,
-  gt,
-  isNull,
-  lte,
-  or,
-} from "drizzle-orm";
+  existsSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 
-import { db } from "../database/database";
-import { mathChallenges } from "@workspace/db/schema";
-import { generateMathQuestion } from "../utils/mathQuestionGenerator";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const TIME_LIMIT_MS = 6_000;
-const COOLDOWN_MS = 20_000;
+import pkg from "unb-api";
+const { Client: UnbClient } = pkg;
 
-export const data = new SlashCommandBuilder()
-  .setName("math")
-  .setDescription("Resuelve un reto matemático contrarreloj.");
+import { logger } from "../lib/logger";
 
-type StartOptions = {
-  guildId: string;
-  channelId: string;
-  userId: string;
-  channel: TextBasedChannel;
-  sendQuestion: (content: string) => Promise<Message>;
+/* ========================================================================== */
+/*                           CONFIGURACIÓN API                                */
+/* ========================================================================== */
+
+const UNBELIEVABOAT_API_KEY =
+  process.env["UNBELIEVABOAT_API_KEY"];
+
+if (!UNBELIEVABOAT_API_KEY) {
+  throw new Error(
+    "❌ Falta la variable de entorno UNBELIEVABOAT_API_KEY.",
+  );
+}
+
+const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
+
+const BOMB_COIN_EMOJI =
+  "<:MonedaServer:1524674026188967956>";
+
+/* ========================================================================== */
+/*                         LOGS GLOBALES DE BOMB DROPS                        */
+/* ========================================================================== */
+
+const BOMB_LOG_SOURCE_GUILD_ID = "1437644356977823884";
+const BOMB_LOG_DESTINATION_GUILD_ID = "1541513034139435081";
+const BOMB_LOG_CHANNEL_ID = "1557861035677843576";
+
+/* ========================================================================== */
+/*                          ROLES AUTORIZADOS                                 */
+/* ========================================================================== */
+
+const BOMB_DROP_AUTHORIZED_ROLES: readonly string[] = [
+  "1539368076326473868", // Developer Tiago Jr
+  "1522807097920720967", // Manager
+];
+
+/* ========================================================================== */
+/*                              TIPOS                                         */
+/* ========================================================================== */
+
+type BombType =
+  | "comun"
+  | "raro"
+  | "epico"
+  | "admin";
+
+interface BombReward {
+  readonly amount: number;
+  readonly chance: number;
+}
+
+interface BombConfig {
+  readonly name: string;
+  readonly color: number;
+  readonly chance: number;
+  readonly rewards: readonly BombReward[];
+}
+
+/* ========================================================================== */
+/*                       CONFIGURACIÓN DE BOMBAS                              */
+/* ========================================================================== */
+
+const BOMB_CONFIG: Record<BombType, BombConfig> = {
+  comun: {
+    name: "Bomba Común",
+    color: 0x808080,
+    chance: 65,
+    rewards: [
+      { amount: -20_000, chance: 70 },
+      { amount: -25_000, chance: 30 },
+    ],
+  },
+
+  raro: {
+    name: "Bomba Rara",
+    color: 0x3498db,
+    chance: 25,
+    rewards: [
+      { amount: -150_000, chance: 65 },
+      { amount: -250_000, chance: 35 },
+    ],
+  },
+
+  epico: {
+    name: "Bomba Épica",
+    color: 0x9b59b6,
+    chance: 9,
+    rewards: [
+      { amount: -600_000, chance: 70 },
+      { amount: -1_000_000, chance: 30 },
+    ],
+  },
+
+  admin: {
+    name: "Bomba Admin",
+    color: 0xff0000,
+    chance: 1,
+    rewards: [
+      { amount: -1_000_000, chance: 70 },
+      { amount: -5_000_000, chance: 25 },
+      { amount: -10_000_000, chance: 5 },
+    ],
+  },
 };
 
-async function startChallenge(
-  options: StartOptions,
-): Promise<void> {
-  const {
-    guildId,
-    channelId,
-    userId,
-    channel,
-    sendQuestion,
-  } = options;
+/* ========================================================================== */
+/*                       LÍMITES DE BOMB DROPS                                */
+/* ========================================================================== */
 
-  const now = new Date();
+const BOMB_LIMITS: Record<BombType, number> = {
+  comun: 6,
+  raro: 3,
+  epico: 2,
+  admin: 2,
+};
 
-  // Expira únicamente los retos cuyo plazo terminó
-  // o que quedaron sin fecha de vencimiento.
-  await db
-    .update(mathChallenges)
-    .set({
-      status: "expired",
-      completedAt: now,
-    })
-    .where(
-      and(
-        eq(mathChallenges.status, "active"),
-        or(
-          isNull(mathChallenges.expiresAt),
-          lte(mathChallenges.expiresAt, now),
-        ),
-      ),
+const BOMB_TIME_ZONE = "America/Sao_Paulo";
+
+interface BombLimitStore {
+  daily: Record<string, number>;
+  weekends: Record<string, number>;
+}
+
+interface BombLimitReservation {
+  key: string;
+  type: BombType;
+  weekend: boolean;
+}
+
+const BOMB_LIMITS_FILE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "bomb-limits.json",
+);
+
+function loadBombLimits(): BombLimitStore {
+  try {
+    if (existsSync(BOMB_LIMITS_FILE)) {
+      const content = readFileSync(
+        BOMB_LIMITS_FILE,
+        "utf8",
+      );
+
+      const parsed = JSON.parse(
+        content,
+      ) as Partial<BombLimitStore>;
+
+      return {
+        daily: parsed.daily ?? {},
+        weekends: parsed.weekends ?? {},
+      };
+    }
+  } catch (error) {
+    logger.error(
+      { error },
+      "No se pudieron cargar los límites de Bomb Drops.",
     );
-
-  // Impide que el usuario tenga dos retos simultáneos.
-  const [activeChallenge] = await db
-    .select({
-      id: mathChallenges.id,
-    })
-    .from(mathChallenges)
-    .where(
-      and(
-        eq(mathChallenges.guildId, guildId),
-        eq(mathChallenges.userId, userId),
-        eq(mathChallenges.status, "active"),
-        gt(mathChallenges.expiresAt, now),
-      ),
-    )
-    .limit(1);
-
-  if (activeChallenge) {
-    await sendQuestion(
-      "🧠 Ya tenés un reto matemático activo. Respondé antes de iniciar otro.",
-    );
-    return;
   }
 
-  // Comprueba el enfriamiento de 20 segundos.
-  const cooldownStart = new Date(
-    now.getTime() - COOLDOWN_MS,
+  return {
+    daily: {},
+    weekends: {},
+  };
+}
+
+let bombLimitStore = loadBombLimits();
+
+function saveBombLimits(): void {
+  writeFileSync(
+    BOMB_LIMITS_FILE,
+    JSON.stringify(bombLimitStore, null, 2),
+    "utf8",
+  );
+}
+
+function getBrazilDateInfo(): {
+  dateKey: string;
+  weekday: number;
+} {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: BOMB_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    weekday: "short",
+  }).formatToParts(new Date());
+
+  const getPart = (type: string): string =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  const year = getPart("year");
+  const month = getPart("month");
+  const day = getPart("day");
+  const weekdayName = getPart("weekday");
+
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  return {
+    dateKey: `${year}-${month}-${day}`,
+    weekday: weekdayMap[weekdayName] ?? -1,
+  };
+}
+
+/**
+ * Devuelve la fecha del sábado correspondiente al fin de semana.
+ * Sábado y domingo comparten el mismo cupo de Bombas Admin.
+ */
+function getWeekendKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+
+  const date = new Date(
+    Date.UTC(year!, month! - 1, day!),
   );
 
-  const [lastChallenge] = await db
-    .select({
-      createdAt: mathChallenges.createdAt,
-    })
-    .from(mathChallenges)
-    .where(
-      and(
-        eq(mathChallenges.guildId, guildId),
-        eq(mathChallenges.userId, userId),
-        gt(mathChallenges.createdAt, cooldownStart),
-      ),
-    )
-    .orderBy(desc(mathChallenges.createdAt))
-    .limit(1);
-
-  if (lastChallenge) {
-    const elapsed =
-      now.getTime() - lastChallenge.createdAt.getTime();
-
-    const remainingSeconds = Math.max(
-      1,
-      Math.ceil((COOLDOWN_MS - elapsed) / 1_000),
-    );
-
-    await sendQuestion(
-      `⏳ Esperá **${remainingSeconds} segundos** antes de iniciar otro reto.`,
-    );
-    return;
+  if (date.getUTCDay() === 0) {
+    date.setUTCDate(date.getUTCDate() - 1);
   }
 
-  const question = generateMathQuestion();
+  return date.toISOString().slice(0, 10);
+}
 
-  // Crea el registro antes de publicar la pregunta.
-  const [challenge] = await db
-    .insert(mathChallenges)
-    .values({
-      guildId,
-      channelId,
-      userId,
-      expression: question.expression,
-      correctAnswer: question.answer,
-      status: "pending",
+function reserveBombDrop(
+  guildId: string,
+  bombType: BombType,
+): {
+  allowed: boolean;
+  reason?: string;
+  reservation?: BombLimitReservation;
+} {
+  const { dateKey, weekday } = getBrazilDateInfo();
+
+  if (
+    bombType === "admin" &&
+    weekday !== 0 &&
+    weekday !== 6
+  ) {
+    return {
+      allowed: false,
+      reason:
+        "🔒 Las **Bombas Admin** solamente se pueden lanzar los sábados y domingos.",
+    };
+  }
+
+  const weekend = bombType === "admin";
+
+  const periodKey = weekend
+    ? getWeekendKey(dateKey)
+    : dateKey;
+
+  const key = weekend
+    ? `${guildId}:admin:${periodKey}`
+    : `${guildId}:${bombType}:${periodKey}`;
+
+  const store = weekend
+    ? bombLimitStore.weekends
+    : bombLimitStore.daily;
+
+  const currentCount = store[key] ?? 0;
+  const limit = BOMB_LIMITS[bombType];
+
+  if (currentCount >= limit) {
+    return {
+      allowed: false,
+      reason: weekend
+        ? `⛔ Ya se alcanzó el límite de **${limit} Bombas Admin por fin de semana**. El cupo se renueva el próximo sábado.`
+        : `⛔ Se agotó el cupo de **${limit} ${BOMB_CONFIG[bombType].name} por día**. Probá nuevamente mañana.`,
+    };
+  }
+
+  store[key] = currentCount + 1;
+  saveBombLimits();
+
+  return {
+    allowed: true,
+    reservation: {
+      key,
+      type: bombType,
+      weekend,
+    },
+  };
+}
+
+function releaseBombDropReservation(
+  reservation: BombLimitReservation,
+): void {
+  const store = reservation.weekend
+    ? bombLimitStore.weekends
+    : bombLimitStore.daily;
+
+  const currentCount = store[reservation.key] ?? 0;
+
+  if (currentCount <= 1) {
+    delete store[reservation.key];
+  } else {
+    store[reservation.key] = currentCount - 1;
+  }
+
+  saveBombLimits();
+}
+
+/* ========================================================================== */
+/*                          BOTÓN / DROP                                      */
+/* ========================================================================== */
+
+const BOMB_DROP_BUTTON_PREFIX = "bomb_drop_claim";
+
+/* ========================================================================== */
+/*                     DROPS ACTIVOS EN MEMORIA                               */
+/* ========================================================================== */
+
+interface ActiveBombDrop {
+  readonly dropId: string;
+  readonly guildId: string;
+  readonly channelId: string;
+  readonly messageId: string;
+  readonly bombType: BombType;
+
+  claimed: boolean;
+  claimedBy?: string;
+}
+
+const activeBombDrops = new Map<string, ActiveBombDrop>();
+
+/* ========================================================================== */
+/*                              BURLAS                                        */
+/* ========================================================================== */
+
+const BOMB_TAUNTS: readonly string[] = [
+  "@usuario, sigue tratando de reclamar recompensas sin saber lo que es. Vas a llegar cerca.",
+  "@usuario, entraste a un link de dudosa procedencia y te mandó a una pagina árabe.",
+  "@usuario se comió la bomba JAKAJJAJAJA.",
+  "JAJAJA @usuario, te regalaste",
+  "@usuario reclamó sin mirar, qué manera de regalarse",
+  "Y bueno @usuario, había que leer",
+  "@usuario vio el botón y apagó el cerebro",
+  "Te pudo la desesperación, @usuario",
+  '@usuario: "drop gratis"',
+  "@usuario, hermano... ni miraste?",
+  "Qué rápido reclamaste para comerte una bomba, @usuario",
+  "Gracias por prestarte voluntariamente a la prueba, @usuario",
+  "Bueno, @usuario, disfrutá tu premio",
+  "@usuario acaba de aprender que no todo drop tiene premio, aplaudanle",
+  "La ansiedad pudo más que el sentido común de @usuario",
+  "@usuario reclamó a velocidad récord, la dignidad quedó atrás",
+  "@usuario fue demasiado rápido para su propio bien",
+  "@usuario no duró ni un segundo antes de mandarse",
+  "No podés ser tan desesperado, @usuario",
+  "@usuario asi de facil es estafarte?",
+  "@usuario leer es gratis sabias?",
+  "@usuario, máquina, LEE ANTES DE TOCAR",
+  "Te ganó la manija, @usuario",
+  '@usuario vio un botón y dijo "es mío", ahi tenes',
+  "@usuario eres mas rapido que la velocidad de la luz, pero que pena que no sepas leer",
+  "@usuario, ni las instrucciones miraste, hermano",
+  "@usuario Te comiste la bomba por apurado, maestro",
+  "@usuario estaba esperando un premio y recibió algo mejor",
+  "@usuario, no es navidad para que te andes regalando así",
+  "@usuario, te faltó leer nomás, máquina",
+  "@usuario, quién te apuraba?",
+  "@usuario, hermano, era cuestión de LEER",
+  "Felicitaciones @usuario, fuiste el primero en descubrir qué había adentro",
+  "Excelente velocidad, @usuario. Lástima que era la de hiroshima",
+  "Gran tiempo de reacción, @usuario. Cero tiempo de lectura",
+  "Felicitaciones @usuario, ganaste mielda",
+  "Impresionante velocidad de @usuario. La inteligencia quedó en segundo plano",
+  "Bien hecho @usuario ahora que?",
+  "@usuario demostró que leer es opcional",
+  "@usuario logró exactamente lo que le pedía el instinto: apretar el botón",
+  "@usuario, la velocidad fue de profesional. La decisión fue cuestionable",
+  "@usuario mañana a la misma hora?",
+  '@usuario acaba de descubrir el concepto de "leer antes de hacer"',
+  "@usuario ya sabia que ibas a hacer eso",
+  "@usuario, hermano, era literalmente leer 2 palabras",
+  "Bueno @usuario, qué aprendimos hoy?",
+  "@usuario, mañana probamos de vuelta",
+  "Excelente decisión @usuario, terrible resultado",
+  "@usuario, te faltó una cosita: pensar",
+  "@usuario, un botón te papió",
+  "@usuario 2 o 3 años en dagestan y aprendes",
+  "@usuario vs botón: botón 7 - 0 @usuario",
+  "Los superiores ya fueron informados de tu falta de lectura",
+  "@usuario, te agradecemos por aportar cagues de risa en el servidor",
+  "@usuario, querés saber lo que había en el drop? Yo tampoco",
+  "@usuario mira el lado bueno, las risas no faltaron",
+  "@usuario, sabes qué pasó? Vos apretaste",
+  "@usuario arriba las manos dame todo lo que tienes",
+  "@usuario, te iba a explicar qué pasó pero supongo que ya sabes",
+  "@usuario, sabes cuál era el prémio? Yo tampoco",
+  "@usuario, perdon, me equivoque de persona",
+  "@usuario no me la vas a creer, mira tu balance",
+  "@usuario, tengo buenas notícias, no son para vos",
+  "@usuario no te importaria si agarro un poco de dinero prestado verdad?",
+  "@usuario, tu pedido fue rechazado por falta de neuronas",
+  "@usuario, tu sentido común está completamente afuera de servicio",
+  "@usuario, aceptaste los términos y condiciones de tu cagada",
+  "@usuario, la próxima consulta con un adulto responsable antes de tocar",
+  "@usuario, skill issue",
+  "@usuario, lo duplicas y se lo pasas a la siguiente persona?",
+  "@usuario te gustan las sorpresas? Checa tu balance",
+];
+
+function getRandomTaunt(user: User): string {
+  const index = Math.floor(Math.random() * BOMB_TAUNTS.length);
+
+  return (
+    BOMB_TAUNTS[index] ??
+    "@usuario, qué manera de regalarse."
+  ).replaceAll("@usuario", `<@${user.id}>`);
+}
+
+/* ========================================================================== */
+/*                         SORTEAR CASTIGO                                    */
+/* ========================================================================== */
+
+function pickBombReward(bombType: BombType): number {
+  const rewards = BOMB_CONFIG[bombType].rewards;
+  const random = Math.random() * 100;
+
+  let accumulated = 0;
+
+  for (const reward of rewards) {
+    accumulated += reward.chance;
+
+    if (random < accumulated) {
+      return reward.amount;
+    }
+  }
+
+  return rewards[rewards.length - 1]?.amount ?? -20_000;
+}
+
+/* ========================================================================== */
+/*                         PERMISOS                                           */
+/* ========================================================================== */
+
+function hasBombDropPermission(
+  member: {
+    roles: {
+      cache: {
+        has: (roleId: string) => boolean;
+      };
+    };
+  },
+): boolean {
+  return BOMB_DROP_AUTHORIZED_ROLES.some((roleId) =>
+    member.roles.cache.has(roleId),
+  );
+}
+
+/* ========================================================================== */
+/*                         FORMATEAR DINERO                                   */
+/* ========================================================================== */
+
+function formatMoney(amount: number): string {
+  return amount.toLocaleString("es-AR");
+}
+
+
+/* ========================================================================== */
+/*                         EMBED INFO DE BOMBA                                */
+/* ========================================================================== */
+
+function createBombInfoEmbed(
+  bombType: BombType,
+): EmbedBuilder {
+  const config = BOMB_CONFIG[bombType];
+
+  const punishmentList = config.rewards
+    .map((reward) => {
+      const amount = formatMoney(Math.abs(reward.amount));
+
+      return [
+        `💸 **-${amount} ${BOMB_COIN_EMOJI}**`,
+        `└ Probabilidad: **${reward.chance}%**`,
+      ].join("\n");
     })
-    .returning({
-      id: mathChallenges.id,
-    });
+    .join("\n\n");
 
-  let prompt: Message;
+  const limitDescription =
+    bombType === "admin"
+      ? "📅 **Límite:** 2 por fin de semana\n🔓 **Disponibilidad:** sábados y domingos"
+      : `📅 **Límite:** ${BOMB_LIMITS[bombType]} por día`;
+
+  return new EmbedBuilder()
+    .setColor("Orange")
+    .setTitle(`📊 Información de Recompensas: ${config.name}`)
+    .setDescription(
+      [
+        `Información sobre los castigos de la **${config.name}**.`,
+        "",
+        `🎲 **Probabilidad de aparición:** ${config.chance}%`,
+        limitDescription,
+      ].join("\n"),
+    )
+    .addFields({
+      name: "⚠️ Castigos",
+      value: punishmentList,
+    })
+    .setFooter({
+      text: "Sistema de Bombas • Informaciones Oficiales",
+    })
+    .setTimestamp();
+}
+
+/* ========================================================================== */
+/*                         EMBED DROP                                         */
+/* ========================================================================== */
+
+function createBombDropEmbed(
+  bombType: BombType,
+): EmbedBuilder {
+  const config = BOMB_CONFIG[bombType];
+
+  return new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle(`💣 ¡Se ha soltado una ${config.name}!`)
+    .setDescription(
+      "¡El primero en presionar **Reclamar** activará la bomba!\n\n" +
+        "💀 **Advertencia:** este drop NO tiene premio.",
+    )
+    .addFields({
+      name: "💣 Bomba",
+      value: `**${config.name}**`,
+      inline: true,
+    })
+    .setFooter({
+      text: "Sistema de Bomb Drop • Buena suerte... la vas a necesitar.",
+    })
+    .setTimestamp();
+}
+
+
+/* ========================================================================== */
+/*                         LOGS DE BOMB DROPS                                 */
+/* ========================================================================== */
+
+async function sendBombDropLog(
+  guild: Guild,
+  moderatorUser: User,
+  bombType: BombType,
+  dropMessage: Message,
+): Promise<void> {
+  // Solo registrar los drops del servidor de origen.
+  if (guild.id !== BOMB_LOG_SOURCE_GUILD_ID) {
+    return;
+  }
 
   try {
-    prompt = await sendQuestion(
-      `🧠 **Reto matemático**\n` +
-        `Resolvé: **${question.expression} = ?**\n` +
-        `Tenés **6 segundos** para responder en este canal.`,
+    const logChannel = await guild.client.channels
+      .fetch(BOMB_LOG_CHANNEL_ID);
+
+    if (
+      !logChannel ||
+      !logChannel.isTextBased() ||
+      !("send" in logChannel) ||
+      !("guild" in logChannel) ||
+      logChannel.guild.id !== BOMB_LOG_DESTINATION_GUILD_ID
+    ) {
+      logger.error(
+        {
+          sourceGuildId: guild.id,
+          destinationGuildId: BOMB_LOG_DESTINATION_GUILD_ID,
+          channelId: BOMB_LOG_CHANNEL_ID,
+        },
+        "El canal de logs de Bomb Drops no es válido.",
+      );
+
+      return;
+    }
+
+    const config = BOMB_CONFIG[bombType];
+
+    const embed = new EmbedBuilder()
+      .setColor(config.color)
+      .setTitle("💣 Registro de Bomb Drop")
+      .setDescription(
+        "Se ha creado un nuevo Bomb Drop en el servidor de origen.",
+      )
+      .addFields(
+        {
+          name: "👤 Responsable",
+          value:
+            `<@${moderatorUser.id}>\n` +
+            `\`${moderatorUser.id}\``,
+          inline: true,
+        },
+        {
+          name: "💣 Tipo de bomba",
+          value: `**${config.name}**`,
+          inline: true,
+        },
+        {
+          name: "🏠 Servidor de origen",
+          value:
+            `${guild.name}\n` +
+            `\`${guild.id}\``,
+          inline: false,
+        },
+        {
+          name: "📍 Canal del drop",
+          value:
+            `<#${dropMessage.channelId}>\n` +
+            `\`${dropMessage.channelId}\``,
+          inline: true,
+        },
+        {
+          name: "🔗 Mensaje del drop",
+          value: `[Abrir Bomb Drop](${dropMessage.url})`,
+          inline: true,
+        },
+      )
+      .setFooter({
+        text: "Sistema de Bomb Drops • Registro de actividad",
+      })
+      .setTimestamp(dropMessage.createdAt);
+
+    await logChannel.send({
+      embeds: [embed],
+      allowedMentions: {
+        parse: [],
+      },
+    });
+
+    logger.info(
+      {
+        sourceGuildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+        dropChannelId: dropMessage.channelId,
+        dropMessageId: dropMessage.id,
+        logChannelId: BOMB_LOG_CHANNEL_ID,
+      },
+      "Log de Bomb Drop enviado correctamente.",
     );
   } catch (error) {
-    await db
-      .update(mathChallenges)
-      .set({
-        status: "cancelled",
-        completedAt: new Date(),
-      })
-      .where(eq(mathChallenges.id, challenge.id));
-
-    throw error;
-  }
-
-  // El tiempo empieza una vez publicada la pregunta.
-  const startedAt = new Date();
-  const expiresAt = new Date(
-    startedAt.getTime() + TIME_LIMIT_MS,
-  );
-
-  await db
-    .update(mathChallenges)
-    .set({
-      status: "active",
-      messageId: prompt.id,
-      startedAt,
-      expiresAt,
-    })
-    .where(eq(mathChallenges.id, challenge.id));
-
-  const collector = channel.createMessageCollector({
-    time: TIME_LIMIT_MS,
-    max: 1,
-    filter: (message) =>
-      message.author.id === userId &&
-      message.channelId === channelId,
-  });
-
-  const answer = await new Promise<Message | null>((resolve) => {
-    collector.once("collect", (message) => {
-      resolve(message);
-    });
-
-    collector.once("end", (collected) => {
-      if (collected.size === 0) {
-        resolve(null);
-      }
-    });
-  });
-
-  const finishedAt = new Date();
-
-  if (!answer) {
-    await db
-      .update(mathChallenges)
-      .set({
-        status: "expired",
-        completedAt: finishedAt,
-      })
-      .where(eq(mathChallenges.id, challenge.id));
-
-    await channel.send(
-      `⌛ Se terminó el tiempo de <@${userId}>. ` +
-        `La respuesta correcta era **${question.answer}**.`,
-    );
-
-    return;
-  }
-
-  const rawAnswer = answer.content.trim();
-  const isInteger = /^-?\d+$/.test(rawAnswer);
-
-  const correct =
-    isInteger &&
-    Number(rawAnswer) === question.answer;
-
-  await db
-    .update(mathChallenges)
-    .set({
-      status: correct ? "completed" : "failed",
-      answeredAt: finishedAt,
-      completedAt: finishedAt,
-    })
-    .where(eq(mathChallenges.id, challenge.id));
-
-  if (correct) {
-    await channel.send(
-      `✅ ¡Correcto, <@${userId}>! ` +
-        `La respuesta era **${question.answer}**.`,
-    );
-  } else {
-    await channel.send(
-      `❌ Respuesta incorrecta, <@${userId}>. ` +
-        `La respuesta correcta era **${question.answer}**.`,
+    logger.error(
+      {
+        error,
+        sourceGuildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+        logChannelId: BOMB_LOG_CHANNEL_ID,
+      },
+      "No se pudo enviar el log de Bomb Drop.",
     );
   }
 }
+
+/* ========================================================================== */
+/*                       BOTÓN DROP                                           */
+/* ========================================================================== */
+
+function createBombDropButton(
+  dropId: string,
+  disabled = false,
+): ActionRowBuilder<ButtonBuilder> {
+  const button = new ButtonBuilder()
+    .setCustomId(`${BOMB_DROP_BUTTON_PREFIX}:${dropId}`)
+    .setLabel("Reclamar")
+    .setEmoji("💣")
+    .setStyle(ButtonStyle.Primary)
+    .setDisabled(disabled);
+
+  return new ActionRowBuilder<ButtonBuilder>()
+    .addComponents(button);
+}
+
+/* ========================================================================== */
+/*                        EMBED ACTIVADA                                      */
+/* ========================================================================== */
+
+function createBombActivatedEmbed(
+  bombType: BombType,
+  user: User,
+  amount: number,
+): EmbedBuilder {
+  const config = BOMB_CONFIG[bombType];
+
+  return new EmbedBuilder()
+    .setColor(0xff0000)
+    .setTitle("💥 ¡Bomba activada!")
+    .setDescription(
+      `<@${user.id}> activó la **${config.name}**.`,
+    )
+    .addFields(
+      {
+        name: "👤 Usuario",
+        value: `<@${user.id}>`,
+        inline: true,
+      },
+      {
+        name: "💸 Dinero perdido",
+        value:
+          `**-${formatMoney(Math.abs(amount))} ${BOMB_COIN_EMOJI}**`,
+        inline: true,
+      },
+      {
+        name: "💣 Estado",
+        value: "`ACTIVADA`",
+        inline: false,
+      },
+    )
+    .setFooter({
+      text: "Sistema de Bomb Drop • Gracias por participar.",
+    })
+    .setTimestamp();
+}
+
+/* ========================================================================== */
+/*                           CREAR DROP                                       */
+/* ========================================================================== */
+
+async function handleBombDrop(
+  sendReply: (options: any) => Promise<any>,
+  guild: Guild,
+  moderatorUser: User,
+  bombType: BombType,
+  targetChannel: {
+    send: (options: any) => Promise<any>;
+  },
+): Promise<void> {
+  let reservation: BombLimitReservation | undefined;
+  let dropCreated = false;
+
+  try {
+    const member = await guild.members
+      .fetch(moderatorUser.id)
+      .catch(() => null);
+
+    if (!member) {
+      await sendReply({
+        content:
+          "❌ No pude verificar tus roles en este servidor.",
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    if (!hasBombDropPermission(member)) {
+      await sendReply({
+        content:
+          "❌ No tenés un rango autorizado para gestionar los Bomb Drops.",
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    const limitResult = reserveBombDrop(
+      guild.id,
+      bombType,
+    );
+
+    if (!limitResult.allowed) {
+      await sendReply({
+        content: limitResult.reason,
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    reservation = limitResult.reservation;
+
+    const dropId =
+      `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const embed = createBombDropEmbed(bombType);
+    const row = createBombDropButton(dropId);
+
+    const dropMessage = await targetChannel.send({
+      embeds: [embed],
+      components: [row],
+    });
+
+    dropCreated = true;
+
+    activeBombDrops.set(dropId, {
+      dropId,
+      guildId: guild.id,
+      channelId: dropMessage.channelId,
+      messageId: dropMessage.id,
+      bombType,
+      claimed: false,
+    });
+    await sendBombDropLog(
+  guild,
+  moderatorUser,
+  bombType,
+  dropMessage,
+);
+
+    await sendReply({
+      content:
+        `💣 La **${BOMB_CONFIG[bombType].name}** fue soltada correctamente en <#${dropMessage.channelId}>.`,
+      flags: MessageFlags.Ephemeral,
+    });
+
+    logger.info(
+      {
+        guildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+        dropId,
+        messageId: dropMessage.id,
+        channelId: dropMessage.channelId,
+      },
+      "Bomb Drop creado correctamente.",
+    );
+  } catch (err) {
+    if (reservation && !dropCreated) {
+      try {
+        releaseBombDropReservation(reservation);
+      } catch (releaseError) {
+        logger.error(
+          { releaseError, reservation },
+          "No se pudo liberar el cupo reservado de Bomb Drop.",
+        );
+      }
+    }
+
+    logger.error(
+      {
+        err,
+        guildId: guild.id,
+        moderatorUserId: moderatorUser.id,
+        bombType,
+      },
+      "Error creando Bomb Drop.",
+    );
+
+    await sendReply({
+      content: "❌ No se pudo crear el Bomb Drop.",
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+/* ========================================================================== */
+/*                     PROCESAR BOMBA DESPUÉS DEL ACK                         */
+/* ========================================================================== */
+
+async function processBombClaim(
+  interaction: ButtonInteraction,
+  drop: ActiveBombDrop,
+): Promise<void> {
+  try {
+    const amount = pickBombReward(drop.bombType);
+
+    await unb.editUserBalance(
+      interaction.guildId!,
+      interaction.user.id,
+      {
+        cash: amount,
+      },
+      `Bomb Drop - ${BOMB_CONFIG[drop.bombType].name}`,
+    );
+
+    logger.info(
+      {
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        bombType: drop.bombType,
+        amount,
+        dropId: drop.dropId,
+      },
+      "Bomb Drop reclamado correctamente.",
+    );
+
+    activeBombDrops.delete(drop.dropId);
+
+    const activatedEmbed = createBombActivatedEmbed(
+      drop.bombType,
+      interaction.user,
+      amount,
+    );
+
+    const disabledRow = createBombDropButton(
+      drop.dropId,
+      true,
+    );
+
+    await interaction.editReply({
+      embeds: [activatedEmbed],
+      components: [disabledRow],
+    });
+
+    if (
+      interaction.channel &&
+      "send" in interaction.channel
+    ) {
+      await interaction.channel.send(
+        getRandomTaunt(interaction.user),
+      );
+    }
+  } catch (err) {
+    drop.claimed = false;
+    drop.claimedBy = undefined;
+
+    logger.error(
+      {
+        err,
+        guildId: interaction.guildId,
+        userId: interaction.user.id,
+        bombType: drop.bombType,
+        dropId: drop.dropId,
+      },
+      "Falló la aplicación del castigo del Bomb Drop.",
+    );
+
+    try {
+      await interaction.followUp({
+        content:
+          "❌ No se pudo procesar la bomba mediante UnbelievaBoat. No se te descontó dinero.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (followUpErr) {
+      logger.error(
+        { followUpErr },
+        "No se pudo enviar el error del Bomb Drop.",
+      );
+    }
+  }
+}
+
+/* ========================================================================== */
+/*                        HANDLE BOTÓN                                        */
+/* ========================================================================== */
+
+export async function handleBombDropButton(
+  interaction: ButtonInteraction,
+): Promise<void> {
+  try {
+    await interaction.deferUpdate();
+  } catch (err) {
+    logger.error(
+      {
+        err,
+        customId: interaction.customId,
+        userId: interaction.user.id,
+      },
+      "No se pudo hacer deferUpdate() del Bomb Drop.",
+    );
+
+    return;
+  }
+
+  const prefix = `${BOMB_DROP_BUTTON_PREFIX}:`;
+
+  if (!interaction.customId.startsWith(prefix)) {
+    try {
+      await interaction.followUp({
+        content: "❌ Este botón de bomba no es válido.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err },
+        "No se pudo informar sobre un botón de bomba inválido.",
+      );
+    }
+
+    return;
+  }
+
+  const dropId = interaction.customId.slice(prefix.length);
+
+  if (!dropId) {
+    try {
+      await interaction.followUp({
+        content: "❌ Este botón de bomba no es válido.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err },
+        "No se pudo informar sobre un dropId inválido.",
+      );
+    }
+
+    return;
+  }
+
+  if (!interaction.guildId || !interaction.guild) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Este botón solamente puede utilizarse dentro de un servidor.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err },
+        "No se pudo informar sobre interacción fuera de servidor.",
+      );
+    }
+
+    return;
+  }
+
+  const drop = activeBombDrops.get(dropId);
+
+  if (!drop) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Esta bomba ya no está disponible. Es posible que el bot haya sido reiniciado.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err, dropId },
+        "No se pudo informar que el Bomb Drop no existe.",
+      );
+    }
+
+    return;
+  }
+
+  if (drop.guildId !== interaction.guildId) {
+    try {
+      await interaction.followUp({
+        content: "❌ Esta bomba pertenece a otro servidor.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err, dropId },
+        "No se pudo informar sobre un Bomb Drop de otro servidor.",
+      );
+    }
+
+    return;
+  }
+
+  if (drop.claimed) {
+    try {
+      await interaction.followUp({
+        content:
+          "❌ Esta bomba ya fue activada por otro usuario.",
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch (err) {
+      logger.error(
+        { err, dropId },
+        "No se pudo informar que el Bomb Drop ya fue reclamado.",
+      );
+    }
+
+    return;
+  }
+
+  drop.claimed = true;
+  drop.claimedBy = interaction.user.id;
+
+  await processBombClaim(interaction, drop);
+}
+
+/* ========================================================================== */
+/*                         NORMALIZAR BOMBA                                   */
+/* ========================================================================== */
+
+function normalizeBombName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function getBombType(value: string): BombType | null {
+  switch (normalizeBombName(value)) {
+    case "comun":
+      return "comun";
+
+    case "raro":
+      return "raro";
+
+    case "epico":
+      return "epico";
+
+    case "admin":
+      return "admin";
+
+    default:
+      return null;
+  }
+}
+
+/* ========================================================================== */
+/*                          SLASH COMMAND                                     */
+/* ========================================================================== */
+
+export const data = new SlashCommandBuilder()
+  .setName("bomb")
+  .setDescription("Gestioná los Bomb Drops.")
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("drop")
+      .setDescription(
+        "Soltá una bomba para que alguien la reclame.",
+      )
+      .addStringOption((option) =>
+        option
+          .setName("bomba")
+          .setDescription("Elegí el tipo de bomba.")
+          .setRequired(true)
+          .addChoices(
+            { name: "💣 Bomba Común", value: "comun" },
+            { name: "💣 Bomba Rara", value: "raro" },
+            { name: "💣 Bomba Épica", value: "epico" },
+            { name: "💣 Bomba Admin", value: "admin" },
+          ),
+      )
+      .addChannelOption((option) =>
+        option
+          .setName("canal")
+          .setDescription("Canal donde se soltará la bomba.")
+          .addChannelTypes(ChannelType.GuildText)
+          .setRequired(false),
+      ),
+  )
+  .addSubcommand((subcommand) =>
+    subcommand
+      .setName("info")
+      .setDescription(
+        "Consultá los castigos y probabilidades de una bomba.",
+      )
+      .addStringOption((option) =>
+        option
+          .setName("rareza")
+          .setDescription(
+            "Rareza de la bomba que querés consultar.",
+          )
+          .setRequired(true)
+          .addChoices(
+            { name: "💣 Común", value: "comun" },
+            { name: "💣 Rara", value: "raro" },
+            { name: "💣 Épica", value: "epico" },
+            { name: "💣 Admin", value: "admin" },
+          ),
+      ),
+  );
+
+/* ========================================================================== */
+/*                           EXECUTE                                          */
+/* ========================================================================== */
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
-  if (!interaction.guildId || !interaction.channel) {
+  if (!interaction.guildId || !interaction.guild) {
     await interaction.reply({
-      content: "Este comando solo funciona dentro de un servidor.",
-      ephemeral: true,
+      content:
+        "❌ Este comando solamente se puede usar en servidores.",
+      flags: MessageFlags.Ephemeral,
     });
 
     return;
   }
 
-  await interaction.deferReply();
+  const subcommand = interaction.options.getSubcommand();
 
-  try {
-    await startChallenge({
-      guildId: interaction.guildId,
-      channelId: interaction.channelId,
-      userId: interaction.user.id,
-      channel: interaction.channel,
-      sendQuestion: async (content) => {
-        await interaction.editReply(content);
-        return interaction.fetchReply();
-      },
-    });
-  } catch (error) {
-    console.error("[MATH] Error al ejecutar el reto:", error);
-
-    const details =
-      error instanceof Error
-        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
-        : String(error);
-
-    console.error("[MATH] Detalles completos:", details);
-
-    await interaction.editReply(
-      "No pude completar el reto. Revisá los registros del bot.",
+  if (subcommand === "info") {
+    const bombValue = interaction.options.getString(
+      "rareza",
+      true,
     );
+
+    const bombType = getBombType(bombValue);
+
+    if (!bombType) {
+      await interaction.reply({
+        content: "❌ Tipo de bomba inválido.",
+        flags: MessageFlags.Ephemeral,
+      });
+
+      return;
+    }
+
+    await interaction.reply({
+      embeds: [createBombInfoEmbed(bombType)],
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return;
   }
+
+  if (subcommand !== "drop") {
+    return;
+  }
+
+  const bombValue = interaction.options.getString(
+    "bomba",
+    true,
+  );
+
+  const bombType = getBombType(bombValue);
+
+  if (!bombType) {
+    await interaction.reply({
+      content: "❌ Tipo de bomba inválido.",
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  const selectedChannel = interaction.options.getChannel("canal");
+  const targetChannel = selectedChannel ?? interaction.channel;
+
+  if (
+    !targetChannel ||
+    !targetChannel.isTextBased() ||
+    !("send" in targetChannel)
+  ) {
+    await interaction.reply({
+      content:
+        "❌ No se pudo obtener un canal de texto válido.",
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
+
+  await handleBombDrop(
+    (options) => interaction.editReply(options),
+    interaction.guild,
+    interaction.user,
+    bombType,
+    targetChannel,
+  );
 }
+
+/* ========================================================================== */
+/*                          PREFIX COMMAND                                    */
+/* ========================================================================== */
 
 export async function run(
   message: Message,
-  _args: string[],
+  args: string[],
 ): Promise<void> {
-  if (!message.guildId) {
+  if (!message.guildId || !message.guild) {
     await message.reply(
-      "Este comando solo funciona dentro de un servidor.",
+      "❌ Este comando solamente se puede usar en servidores.",
     );
 
     return;
   }
 
-  try {
-    const channel = message.channel as TextBasedChannel;
+  const subcommand = (args[0] ?? "").toLowerCase();
 
-    await startChallenge({
-      guildId: message.guildId,
-      channelId: message.channelId,
-      userId: message.author.id,
-      channel,
-      sendQuestion: (content) => channel.send(content),
+  if (subcommand === "info") {
+    const bombValue = args.slice(1).join(" ").trim();
+    const bombType = getBombType(bombValue);
+
+    if (!bombType) {
+      await message.reply(
+        "❌ Uso correcto: `-bomb info <común|raro|épico|admin>`.",
+      );
+
+      return;
+    }
+
+    await message.reply({
+      embeds: [createBombInfoEmbed(bombType)],
     });
-  } catch (error) {
-    console.error("[MATH] Error al ejecutar el reto:", error);
 
-    const details =
-      error instanceof Error
-        ? `${error.name}: ${error.message}\n${error.stack ?? ""}`
-        : String(error);
-
-    console.error("[MATH] Detalles completos:", details);
-
-    await message.reply(
-      "No pude completar el reto. Revisá los registros del bot.",
-    );
+    return;
   }
+
+  if (subcommand !== "drop") {
+    await message.reply(
+      "❌ Usos disponibles: `-bomb drop <rareza> [#canal]` o `-bomb info <rareza>`.",
+    );
+
+    return;
+  }
+
+  const mentionedChannel = message.mentions.channels.first();
+
+  const bombArguments = args
+    .slice(1)
+    .filter((arg) => !/^<#\d+>$/.test(arg))
+    .join(" ")
+    .trim();
+
+  if (!bombArguments) {
+    await message.reply(
+      "❌ Uso correcto: `-bomb drop [común|raro|épico|admin] [#canal opcional]`.",
+    );
+
+    return;
+  }
+
+  const bombType = getBombType(bombArguments);
+
+  if (!bombType) {
+    await message.reply(
+      "❌ Esa bomba no existe. Las opciones son: `común`, `raro`, `épico` y `admin`.",
+    );
+
+    return;
+  }
+
+  const targetChannel = mentionedChannel ?? message.channel;
+
+  if (
+    !targetChannel ||
+    !targetChannel.isTextBased() ||
+    !("send" in targetChannel)
+  ) {
+    await message.reply(
+      "❌ No se pudo obtener un canal de texto válido.",
+    );
+
+    return;
+  }
+
+ 
+  await handleBombDrop(
+    async (options) => {
+      return message.reply({
+        content: options.content,
+      });
+    },
+    message.guild,
+    message.author,
+    bombType,
+    targetChannel,
+  );  
 }
