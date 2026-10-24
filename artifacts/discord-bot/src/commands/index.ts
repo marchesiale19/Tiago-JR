@@ -156,8 +156,12 @@ commands.set(
 commands.set(
   leaderboard.data.name,
   leaderboard,
+);
 
-  commands.set(math.data.name, math);
+commands.set(
+  math.data.name,
+  math,
+);
   
 );
 
