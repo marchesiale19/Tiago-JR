@@ -25,6 +25,7 @@ import * as bomb from "./bomb";
 import * as tateti from "./tateti";
 import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
+import * as math from "./math";
 
 // nuevo flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -155,6 +156,9 @@ commands.set(
 commands.set(
   leaderboard.data.name,
   leaderboard,
+
+  commands.set(math.data.name, math);
+  
 );
 
 /* ============================================================
