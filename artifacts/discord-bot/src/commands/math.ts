@@ -336,7 +336,7 @@ export async function run(
 
   if (!rawBet || isNaN(betAmount)) {
     await message.reply(
-      `❌ Debes ingresar un monto válido para apostar. Ejemplo: \`!math ${MIN_BET}\``,
+      `❌ Debes ingresar un monto válido para apostar. Ejemplo: \`-math ${MIN_BET}\``,
     );
     return;
   }
