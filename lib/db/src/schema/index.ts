@@ -13,3 +13,4 @@ export * from "./kakera-bank";
 export * from "./voice-streaks";
 export * from "./voice-streak-history";
 export * from "./voice-streak-rewards";
+export * from "./mathChallenges";
