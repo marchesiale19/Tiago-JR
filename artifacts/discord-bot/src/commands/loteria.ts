@@ -13,7 +13,7 @@ import {
 const LOTERIA_ROLE_ID = "1543094546483781684";
 
 const LOTERIA_AUTHORIZED_ROLES = [
-  "1539368076326473868", // Developer Tiago Jr
+  "1522434536796061816", // Desarrollador
   "1522807097920720967", // Manager
 ];
 
