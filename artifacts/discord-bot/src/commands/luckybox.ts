@@ -343,8 +343,8 @@ const LUCKYBOX_IDS: Record<string, string> = {
 /* ========================================================================== */
 
 export const AUTHORIZED_ROLES: readonly string[] = [
-  "1522807097920720967", 
-  "1539368076326473868", 
+  "1522807097920720967", // Manager
+  "1522434536796061816", // Desarrollador
 ];
 
 /* ========================================================================== */
@@ -353,8 +353,8 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 
 const LUCKYBOX_DROP_AUTHORIZED_ROLES:
   readonly string[] = [
-    "1539368076326473868", // Developer Tiago Jr[cite: 1]
-    "1522807097920720967", // Manager[cite: 1]
+    "1522434536796061816", // Desarrollador[cite: 4]
+    "1522807097920720967", // Manager[cite: 4]
   ];
 
 // ID de Bang
