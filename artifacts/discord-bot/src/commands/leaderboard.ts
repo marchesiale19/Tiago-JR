@@ -19,7 +19,6 @@ const ROLES_AUTORIZADOS = [
   "1512634750152478851", // Jefe staff
   "1508266687689003039", // Co-owner
   "1451383215603585140", // Owner
-  "1539368076326473868", // Developer Tiago Jr
 ];
 
 function tienePermisoSync(member: any): boolean {
