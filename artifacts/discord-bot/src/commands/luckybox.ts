@@ -353,10 +353,12 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 
 const LUCKYBOX_DROP_AUTHORIZED_ROLES:
   readonly string[] = [
-    "1539368076326473868", // Developer Tiago Jr
-    "1522807097920720967", // Manager
-    "944483765667893248", // Administrador
+    "1539368076326473868", // Developer Tiago Jr[span_2](start_span)[span_2](end_span)
+    "1522807097920720967", // Manager[span_3](start_span)[span_3](end_span)
   ];
+
+// ID de Bang (Reemplazo del rol de Administrador genérico)
+const BANG_USER_ID = "944483765667893248";
 
 /* ========================================================================== */
 /*                     LÍMITES DE LUCKYBOX DROP                              */
@@ -699,8 +701,7 @@ async function checkLuckyboxDropLimit(
    */
   if (usageKey === "admin") {
     if (isBoosterUser) {
-      // Límite de 1 Mr Lucky Admin semanal para Sowi (usando el weekendKey o controlando por semana)
-      const weeklyAdminCount = usage.admin; // O podemos adaptarlo
+      const weeklyAdminCount = usage.admin;
       if (weeklyAdminCount >= 1) {
         return {
           allowed: false,
@@ -737,7 +738,7 @@ async function checkLuckyboxDropLimit(
     return { allowed: true, remaining, limit: 2 };
   }
 
-  // Resto de límites normales para Común, Raro y Épico (Managers/Developers)
+  // Resto de límites normales para Común, Raro y Épico
   if (usageKey === "common") {
     const remaining = Math.max(0, 6 - usage.common);
     if (remaining <= 0) {
@@ -816,15 +817,6 @@ const LUCKYBOX_DROP_ORANGE =
 const LUCKYBOX_DROP_GREEN =
   0x57F287;
 
-/*
- * Estado en memoria de los drops activos.
- *
- * La clave es el dropId.
- *
- * Esto evita que dos usuarios puedan reclamar
- * simultáneamente la misma Luckybox dentro de
- * la misma instancia del bot.
- */
 interface ActiveLuckyboxDrop {
   readonly dropId: string;
   readonly guildId: string;
@@ -1072,11 +1064,11 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "5.0%",
   },
   {
-  texto: `Rol <@&${ROL_ESCLAVO_SADY_ID}>`,
-  valor: 0,
-  tipo: "rol_esclavo_sady",
-  probabilidad: "4.0%",
-},
+    texto: `Rol <@&${ROL_ESCLAVO_SADY_ID}>`,
+    valor: 0,
+    tipo: "rol_esclavo_sady",
+    probabilidad: "4.0%",
+  },
   {
      texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
     valor: 0,
@@ -1118,57 +1110,21 @@ export function pickReward(
 
   if (nombreLower.includes("admin")) {
     rewards = ADMIN_LUCKYBOX_REWARDS;
-  probabilities = [
-  25.0,
-  20.0,
-  15.0,
-  10.0,
-  5.0,
-  3.0,
-  1.8,
-  0.2,
-  5.0,
-  4.0,
-  3.0,
-  2.0,
-  1.0,
-  5.0,
-];
+    probabilities = [
+      25.0, 20.0, 15.0, 10.0, 5.0, 3.0, 1.8, 0.2, 5.0, 4.0, 3.0, 2.0, 1.0, 5.0,
+    ];
   } else if (
     nombreLower.includes("épico") ||
     nombreLower.includes("epico")
   ) {
     rewards = EPIC_LUCKYBOX_REWARDS;
-    probabilities = [
-      22.0,
-      12.0,
-      5.0,
-      0.8,
-      0.2,
-      35.0,
-      25.0,
-    ];
+    probabilities = [22.0, 12.0, 5.0, 0.8, 0.2, 35.0, 25.0];
   } else if (nombreLower.includes("raro")) {
     rewards = RARE_LUCKYBOX_REWARDS;
-    probabilities = [
-      25.0,
-      12.0,
-      8.0,
-      1.0,
-      34.0,
-      20.0,
-    ];
+    probabilities = [25.0, 12.0, 8.0, 1.0, 34.0, 20.0];
   } else {
     rewards = COMMON_LUCKYBOX_REWARDS;
-    probabilities = [
-      25.0,
-      20.0,
-      15.0,
-      8.0,
-      3.0,
-      20.0,
-      9.0,
-    ];
+    probabilities = [25.0, 20.0, 15.0, 8.0, 3.0, 20.0, 9.0];
   }
 
   let acumulado = 0;
@@ -1359,17 +1315,16 @@ function findLuckyboxInInventory(
       itemId === expectedId;
 
     const matchesName =
-  itemName.length > 0 &&
-  (
-    itemName === targetName ||
-    itemName.includes(targetName) ||
-    targetName.includes(itemName)
-  );
+      itemName.length > 0 &&
+      (
+        itemName === targetName ||
+        itemName.includes(targetName) ||
+        targetName.includes(itemName)
+      );
 
     return matchesId || matchesName;
   });
 }
-
 
 /* ========================================================================== */
 /*                       LOGS DE LUCKYBOX DROP                                */
@@ -1381,7 +1336,6 @@ async function sendLuckyboxDropLog(
   cajaNombre: string,
   dropMessage: Message,
 ): Promise<void> {
-  // Registrar únicamente los drops del servidor de origen.
   if (
     guild.id !==
     LUCKYBOX_DROP_LOG_SOURCE_GUILD_ID
@@ -1390,19 +1344,19 @@ async function sendLuckyboxDropLog(
   }
 
   try {
-   const channel =
-  await guild.client.channels.fetch(
-    LUCKYBOX_DROP_LOG_CHANNEL_ID,
-  );
+    const channel =
+      await guild.client.channels.fetch(
+        LUCKYBOX_DROP_LOG_CHANNEL_ID,
+      );
 
-if (
-  !channel ||
-  !channel.isTextBased() ||
-  !("send" in channel) ||
-  !("guildId" in channel) ||
-  channel.guildId !==
-    LUCKYBOX_DROP_LOG_TARGET_GUILD_ID
-) {
+    if (
+      !channel ||
+      !channel.isTextBased() ||
+      !("send" in channel) ||
+      !("guildId" in channel) ||
+      channel.guildId !==
+        LUCKYBOX_DROP_LOG_TARGET_GUILD_ID
+    ) {
       logger.warn(
         {
           channelId:
@@ -1684,7 +1638,7 @@ function hasLuckyboxDropPermission(
     };
   },
 ): boolean {
-  if (member.id === LUCKYBOX_BOOSTER_USER_ID) {
+  if (member.id === LUCKYBOX_BOOSTER_USER_ID || member.id === BANG_USER_ID) {
     return true;
   }
 
@@ -1829,10 +1783,6 @@ async function handleLuckyboxDrop(
       return;
     }
 
-    /* ---------------------------------------------------------------------- */
-    /*                    VERIFICAR LÍMITE DE DROP                            */
-    /* ---------------------------------------------------------------------- */
-
     const dropLimit =
       await checkLuckyboxDropLimit(
         guild.id,
@@ -1917,7 +1867,6 @@ async function handleLuckyboxDrop(
       cajaNombre,
     );
 
-    // Registrar el drop en el servidor central de logs.
     await sendLuckyboxDropLog(
       guild,
       moderatorUser,
@@ -2057,16 +2006,13 @@ export async function handleLuckyboxDropButton(
     return;
   }
 
-  // Marcamos como reclamado de inmediato en memoria
   drop.claimed = true;
   drop.claimedBy =
     interaction.user.id;
 
-  // Diferimos la actualización para evitar el timeout de Discord
   await interaction.deferUpdate();
 
   try {
-    // 1. Añadimos el item al inventario de UnbelievaBoat
     await addInventoryItem(
       interaction.guildId,
       interaction.user.id,
@@ -2087,7 +2033,6 @@ export async function handleLuckyboxDropButton(
 
     activeLuckyboxDrops.delete(drop.dropId);
 
-    // 2. Actualizamos el mensaje visualmente indicando quién la reclamó
     const claimedEmbed =
       createLuckyboxClaimedEmbed(
         drop.cajaNombre,
@@ -2109,14 +2054,12 @@ export async function handleLuckyboxDropButton(
       ],
     });
 
-    // 3. Enviamos un mensaje oculto (ephemeral) de confirmación al usuario
     await interaction.followUp({
       content: `🎉 ¡Felicidades <@${interaction.user.id}>! Reclamaste exitosamente un/a **${drop.cajaNombre}** y se añadió a tu inventario de UnbelievaBoat.`,
       flags: MessageFlags.Ephemeral,
     });
 
   } catch (err) {
-    // Si falla la API de UnbelievaBoat o la edición, revertimos el estado
     drop.claimed = false;
     drop.claimedBy = undefined;
 
@@ -2476,7 +2419,6 @@ async function handleCollect(
       return;
     }
 
-    // Consultar el cooldown actual en PostgreSQL
     const existingCooldown = await db.query.cooldownsTable.findFirst({
       where: and(
         eq(cooldownsTable.guildId, guild.id),
@@ -2604,7 +2546,6 @@ async function handleCollect(
       throw err;
     }
 
-    // Guardar o actualizar el cooldown en PostgreSQL
     const collectDate = new Date();
 
     if (existingCooldown) {
@@ -3149,11 +3090,6 @@ export const data =
     .setDescription(
       "Gestioná y abrí tus cajas Mr Lucky.",
     )
-
-    /* ---------------------------------------------------------------------- */
-    /* /luckybox collect                                                      */
-    /* ---------------------------------------------------------------------- */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3162,11 +3098,6 @@ export const data =
             "Reclamá las Luckybox correspondientes a tus roles.",
           ),
     )
-
-    /* ---------------------------------------------------------------------- */
-    /* /luckybox drop                                                         */
-    /* ---------------------------------------------------------------------- */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3184,28 +3115,20 @@ export const data =
                 .setRequired(true)
                 .addChoices(
                   {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
+                    name: "Mr Lucky Común",
+                    value: "Mr Lucky Común",
                   },
                   {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
+                    name: "Mr Lucky Raro",
+                    value: "Mr Lucky Raro",
                   },
                   {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
+                    name: "Mr Lucky Épico",
+                    value: "Mr Lucky Épico",
                   },
                   {
-                    name:
-                      "Mr Lucky Admin",
-                    value:
-                      "Mr Lucky Admin",
+                    name: "Mr Lucky Admin",
+                    value: "Mr Lucky Admin",
                   },
                 ),
           )
@@ -3222,11 +3145,6 @@ export const data =
                 .setRequired(false),
           ),
     )
-
-    /* ---------------------------------------------------------------------- */
-    /* /luckybox abrir                                                        */
-    /* ---------------------------------------------------------------------- */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3244,37 +3162,24 @@ export const data =
                 .setRequired(true)
                 .addChoices(
                   {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
+                    name: "Mr Lucky Común",
+                    value: "Mr Lucky Común",
                   },
                   {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
+                    name: "Mr Lucky Raro",
+                    value: "Mr Lucky Raro",
                   },
                   {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
+                    name: "Mr Lucky Épico",
+                    value: "Mr Lucky Épico",
                   },
                   {
-                    name:
-                      "Mr Lucky Admin",
-                    value:
-                      "Mr Lucky Admin",
+                    name: "Mr Lucky Admin",
+                    value: "Mr Lucky Admin",
                   },
                 ),
           ),
     )
-
-    /* ---------------------------------------------------------------------- */
-    /* /luckybox info                                                         */
-    /* ---------------------------------------------------------------------- */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3292,37 +3197,24 @@ export const data =
                 .setRequired(true)
                 .addChoices(
                   {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
+                    name: "Mr Lucky Común",
+                    value: "Mr Lucky Común",
                   },
                   {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
+                    name: "Mr Lucky Raro",
+                    value: "Mr Lucky Raro",
                   },
                   {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
+                    name: "Mr Lucky Épico",
+                    value: "Mr Lucky Épico",
                   },
                   {
-                    name:
-                      "MR LUCKY ADMIN",
-                    value:
-                      "MR LUCKY ADMIN",
+                    name: "MR LUCKY ADMIN",
+                    value: "MR LUCKY ADMIN",
                   },
                 ),
           ),
     )
-
-    /* ---------------------------------------------------------------------- */
-    /* /luckybox dar                                                          */
-    /* ---------------------------------------------------------------------- */
-
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3349,28 +3241,20 @@ export const data =
                 .setRequired(true)
                 .addChoices(
                   {
-                    name:
-                      "Mr Lucky Común",
-                    value:
-                      "Mr Lucky Común",
+                    name: "Mr Lucky Común",
+                    value: "Mr Lucky Común",
                   },
                   {
-                    name:
-                      "Mr Lucky Raro",
-                    value:
-                      "Mr Lucky Raro",
+                    name: "Mr Lucky Raro",
+                    value: "Mr Lucky Raro",
                   },
                   {
-                    name:
-                      "Mr Lucky Épico",
-                    value:
-                      "Mr Lucky Épico",
+                    name: "Mr Lucky Épico",
+                    value: "Mr Lucky Épico",
                   },
                   {
-                    name:
-                      "MR LUCKY ADMIN",
-                    value:
-                      "MR LUCKY ADMIN",
+                    name: "MR LUCKY ADMIN",
+                    value: "MR LUCKY ADMIN",
                   },
                 ),
           ),
@@ -3404,10 +3288,6 @@ export async function execute(
   const subcommand =
     interaction.options.getSubcommand();
 
-  /* ======================================================================== */
-  /*                                COLLECT                                   */
-  /* ======================================================================== */
-
   if (subcommand === "collect") {
     await interaction.deferReply({
       flags:
@@ -3425,10 +3305,6 @@ export async function execute(
 
     return;
   }
-
-  /* ======================================================================== */
-  /*                                DROP                                      */
-  /* ======================================================================== */
 
   if (subcommand === "drop") {
     const cajaNombre =
@@ -3480,19 +3356,11 @@ export async function execute(
     return;
   }
 
-  /*
-   * `caja` solamente existe en abrir/info/dar,
-   * por eso se obtiene después de comprobar collect/drop.
-   */
   const cajaNombre =
     interaction.options.getString(
       "caja",
       true,
     );
-
-  /* ======================================================================== */
-  /*                                INFO                                      */
-  /* ======================================================================== */
 
   if (subcommand === "info") {
     await interaction.deferReply({
@@ -3510,10 +3378,6 @@ export async function execute(
 
     return;
   }
-
-  /* ======================================================================== */
-  /*                                 DAR                                      */
-  /* ======================================================================== */
 
   if (subcommand === "dar") {
     const targetUser =
@@ -3540,10 +3404,6 @@ export async function execute(
 
     return;
   }
-
-  /* ======================================================================== */
-  /*                                ABRIR                                     */
-  /* ======================================================================== */
 
   await interaction.deferReply({
     flags:
@@ -3604,10 +3464,6 @@ export async function run(
   const mainArg =
     (args[0] ?? "").toLowerCase();
 
-  /* ======================================================================== */
-  /*                              -collect                                    */
-  /* ======================================================================== */
-
   if (mainArg === "collect") {
     await handleCollect(
       message.guild,
@@ -3618,10 +3474,6 @@ export async function run(
 
     return;
   }
-
-  /* ======================================================================== */
-  /*                         VALIDAR SUBCOMANDO                                */
-  /* ======================================================================== */
 
   const validSubcommands =
     [
@@ -3659,10 +3511,6 @@ export async function run(
       | "drop";
 
   const offset = 1;
-
-  /* ======================================================================== */
-  /*                         NORMALIZAR CAJAS                                 */
-  /* ======================================================================== */
 
   const normalizeCaja =
     (value: string): string =>
@@ -3705,17 +3553,13 @@ export async function run(
   const opcionesValidas =
     "común, raro, épico y admin";
 
-  /* ======================================================================== */
-  /*                                  DROP                                    */
-  /* ======================================================================== */
+  if (sub === "drop") {
+    const isSpecialUser =
+      message.author.id === LUCKYBOX_BOOSTER_USER_ID ||
+      message.author.id === BANG_USER_ID;
 
-if (sub === "drop") {
-    const isBoosterDrop =
-      message.author.id ===
-      LUCKYBOX_BOOSTER_USER_ID;
-
-    if (isBoosterDrop) {
-      // Flujo exclusivo para Sowi (Forzar canal de boosters)
+    if (isSpecialUser) {
+      // Flujo exclusivo para Sowi o Bang (Usando canal por defecto o el que especifiquen)
       const cajaArguments = args
         .slice(offset)
         .join(" ")
@@ -3738,9 +3582,15 @@ if (sub === "drop") {
         return;
       }
 
+      // Si es Sowi va al canal de boosters, si es Bang usará el canal actual o el asignado
+      const targetChannelId =
+        message.author.id === LUCKYBOX_BOOSTER_USER_ID
+          ? LUCKYBOX_BOOSTER_CHANNEL_ID
+          : message.channelId;
+
       const targetChannel =
         await message.guild.channels
-          .fetch(LUCKYBOX_BOOSTER_CHANNEL_ID)
+          .fetch(targetChannelId)
           .catch(() => null);
 
       if (
@@ -3749,7 +3599,7 @@ if (sub === "drop") {
         !("send" in targetChannel)
       ) {
         await message.reply(
-          "❌ No se encontró el canal de boosters.",
+          "❌ No se encontró el canal de destino.",
         );
         return;
       }
@@ -3828,10 +3678,6 @@ if (sub === "drop") {
     return;
   }
 
-  /* ======================================================================== */
-  /*                                  DAR                                     */
-  /* ========================================================================== */
-
   if (sub === "dar") {
     const mentionedUser =
       message.mentions.users.first();
@@ -3888,10 +3734,6 @@ if (sub === "drop") {
 
     return;
   }
-
-  /* ======================================================================== */
-  /*                            ABRIR / INFO                                  */
-  /* ======================================================================== */
 
   const cajaNombreRestante =
     args
