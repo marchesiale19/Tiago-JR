@@ -20,7 +20,6 @@ const ROLES_AUTORIZADOS = [
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
-  "1539368076326473868", // Developer Tiago Jr
 ];
 
 async function hasPermission(interaction: ChatInputCommandInteraction): Promise<boolean> {
