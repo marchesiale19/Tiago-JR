@@ -353,11 +353,11 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 
 const LUCKYBOX_DROP_AUTHORIZED_ROLES:
   readonly string[] = [
-    "1539368076326473868", // Developer Tiago Jr[span_2](start_span)[span_2](end_span)
-    "1522807097920720967", // Manager[span_3](start_span)[span_3](end_span)
+    "1539368076326473868", // Developer Tiago Jr[cite: 1]
+    "1522807097920720967", // Manager[cite: 1]
   ];
 
-// ID de Bang (Reemplazo del rol de Administrador genérico)
+// ID de Bang
 const BANG_USER_ID = "944483765667893248";
 
 /* ========================================================================== */
@@ -382,9 +382,6 @@ const LUCKYBOX_DROP_LIMITS = {
     period: "weekend",
   },
 } as const;
-
-type LuckyboxDropLimitKey =
-  keyof typeof LUCKYBOX_DROP_LIMITS;
 
 interface LuckyboxDropUsage {
   common: number;
@@ -535,11 +532,6 @@ function getDateKey(
   ].join("-");
 }
 
-/*
- * Devuelve una clave que representa el fin de semana actual.
- *
- * Sábado y domingo pertenecen al mismo weekendKey.
- */
 function getWeekendKey(
   date = new Date(),
 ): string {
@@ -549,10 +541,6 @@ function getWeekendKey(
   const weekendDate =
     new Date(date);
 
-  /*
-   * Si es domingo, retrocedemos un día hasta sábado.
-   * Si es sábado, se mantiene.
-   */
   if (day === 0) {
     weekendDate.setDate(
       weekendDate.getDate() - 1,
@@ -575,10 +563,6 @@ function isWeekend(
     day === 6
   );
 }
-
-/* ========================================================================== */
-/*                     OBTENER USO DEL SERVIDOR                              */
-/* ========================================================================== */
 
 function getDropUsage(
   guildId: string,
@@ -609,10 +593,6 @@ function getDropUsage(
     return usage;
   }
 
-  /*
-   * Los límites comunes/raros/épicos se reinician
-   * automáticamente al cambiar el día.
-   */
   if (
     existing.date !== dateKey
   ) {
@@ -622,10 +602,6 @@ function getDropUsage(
     existing.date = dateKey;
   }
 
-  /*
-   * El límite Admin se reinicia al comenzar
-   * un nuevo fin de semana.
-   */
   if (
     existing.weekendKey !==
     weekendKey
@@ -637,10 +613,6 @@ function getDropUsage(
 
   return existing;
 }
-
-/* ========================================================================== */
-/*                     VALIDAR LÍMITE DE DROP                                 */
-/* ========================================================================== */
 
 function getDropUsageKey(
   cajaNombre: string,
@@ -682,7 +654,6 @@ async function checkLuckyboxDropLimit(
   const isBoosterUser = userId === LUCKYBOX_BOOSTER_USER_ID;
   const usageKey = getDropUsageKey(cajaNombre);
 
-  // Si es Sowi, no hay límite para Común, Raro ni Épico
   if (isBoosterUser && usageKey !== "admin") {
     return {
       allowed: true,
@@ -696,9 +667,6 @@ async function checkLuckyboxDropLimit(
   const now = new Date();
   const usage = getDropUsage(guildId, now);
 
-  /*
-   * ADMIN (Límite de 1 semanal para Sowi, o fin de semana para los demás)
-   */
   if (usageKey === "admin") {
     if (isBoosterUser) {
       const weeklyAdminCount = usage.admin;
@@ -713,7 +681,6 @@ async function checkLuckyboxDropLimit(
       return { allowed: true, remaining: 1 - weeklyAdminCount, limit: 1 };
     }
 
-    // Regla normal para Managers/Developers (fines de semana)
     if (!isWeekend(now)) {
       return {
         allowed: false,
@@ -738,7 +705,6 @@ async function checkLuckyboxDropLimit(
     return { allowed: true, remaining, limit: 2 };
   }
 
-  // Resto de límites normales para Común, Raro y Épico
   if (usageKey === "common") {
     const remaining = Math.max(0, 6 - usage.common);
     if (remaining <= 0) {
@@ -778,10 +744,6 @@ async function checkLuckyboxDropLimit(
   return { allowed: true, remaining, limit: 2 };
 }
 
-/* ========================================================================== */
-/*                    REGISTRAR DROP UTILIZADO                                */
-/* ========================================================================== */
-
 async function registerLuckyboxDrop(
   guildId: string,
   cajaNombre: string,
@@ -803,10 +765,6 @@ async function registerLuckyboxDrop(
 
   await saveLuckyboxDropUsage();
 }
-
-/* ========================================================================== */
-/*                         CONFIGURACIÓN DROP                                 */
-/* ========================================================================== */
 
 const LUCKYBOX_DROP_BUTTON_PREFIX =
   "luckybox_drop_claim";
@@ -835,10 +793,6 @@ const activeLuckyboxDrops =
     ActiveLuckyboxDrop
   >();
 
-/* ========================================================================== */
-/*                    DROP ESPECIAL BOOSTERS                                  */
-/* ========================================================================== */
-
 const LUCKYBOX_BOOSTER_USER_ID =
   "1503876451315880016";
 
@@ -847,10 +801,6 @@ const LUCKYBOX_BOOSTER_CHANNEL_ID =
 
 const LUCKYBOX_BOOSTER_ROLE_ID =
   "1453071091340808466";
-
-/* ========================================================================== */
-/*                             MAPA DE ROLES                                  */
-/* ========================================================================== */
 
 const ROLE_MAP: Record<string, string> = {
   rol_seguro: ROL_SEGURO_ID,
@@ -862,10 +812,6 @@ const ROLE_MAP: Record<string, string> = {
   rol_esclavo_rayi: ROL_ESCLAVO_RAYI_ID,
   rol_omg_bro: ROL_OMG_BRO_ID,
 };
-
-/* ========================================================================== */
-/*                       RECOMPENSAS COMUNES                                  */
-/* ========================================================================== */
 
 export const COMMON_LUCKYBOX_REWARDS = [
   {
@@ -912,10 +858,6 @@ export const COMMON_LUCKYBOX_REWARDS = [
   },
 ] as const satisfies readonly LuckyboxReward[];
 
-/* ========================================================================== */
-/*                         RECOMPENSAS RARAS                                  */
-/* ========================================================================== */
-
 export const RARE_LUCKYBOX_REWARDS = [
   {
     texto: "350,000 Frijoles",
@@ -954,10 +896,6 @@ export const RARE_LUCKYBOX_REWARDS = [
     probabilidad: "20.0%",
   },
 ] as const satisfies readonly LuckyboxReward[];
-
-/* ========================================================================== */
-/*                        RECOMPENSAS ÉPICAS                                  */
-/* ========================================================================== */
 
 export const EPIC_LUCKYBOX_REWARDS = [
   {
@@ -1003,10 +941,6 @@ export const EPIC_LUCKYBOX_REWARDS = [
     probabilidad: "25.0%",
   },
 ] as const satisfies readonly LuckyboxReward[];
-
-/* ========================================================================== */
-/*                        RECOMPENSAS ADMIN                                   */
-/* ========================================================================== */
 
 export const ADMIN_LUCKYBOX_REWARDS = [
   {
@@ -1070,7 +1004,7 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "4.0%",
   },
   {
-     texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
+    texto: `Rol <@&${ROL_ESCLAVO_RAYI_ID}>`,
     valor: 0,
     tipo: "rol_esclavo_rayi",
     probabilidad: "3.0%",
@@ -1094,10 +1028,6 @@ export const ADMIN_LUCKYBOX_REWARDS = [
     probabilidad: "5.0%",
   },
 ] as const satisfies readonly LuckyboxReward[];
-
-/* ========================================================================== */
-/*                           PICK REWARD                                      */
-/* ========================================================================== */
 
 export function pickReward(
   cajaNombre: string,
@@ -1140,10 +1070,6 @@ export function pickReward(
   return rewards[rewards.length - 1];
 }
 
-/* ========================================================================== */
-/*                       NORMALIZAR NOMBRE                                    */
-/* ========================================================================== */
-
 function normalizeName(value: string): string {
   return value
     .trim()
@@ -1151,10 +1077,6 @@ function normalizeName(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
 }
-
-/* ========================================================================== */
-/*                       OBTENER ITEM ID                                      */
-/* ========================================================================== */
 
 function getLuckyboxItemId(
   cajaNombre: string,
@@ -1179,10 +1101,6 @@ function getLuckyboxItemId(
   }
 }
 
-/* ========================================================================== */
-/*                         OBTENER REWARDS                                    */
-/* ========================================================================== */
-
 function getRewardsArray(
   cajaNombre: string,
 ): readonly LuckyboxReward[] {
@@ -1202,10 +1120,6 @@ function getRewardsArray(
 
   return COMMON_LUCKYBOX_REWARDS;
 }
-
-/* ========================================================================== */
-/*                         INVENTARIO                                         */
-/* ========================================================================== */
 
 async function getUserInventory(
   guildId: string,
@@ -1269,10 +1183,6 @@ async function removeInventoryItem(
   );
 }
 
-/* ========================================================================== */
-/*                    BUSCAR ITEM EN INVENTARIO                               */
-/* ========================================================================== */
-
 function findLuckyboxInInventory(
   items: InventoryItem[],
   cajaNombre: string,
@@ -1325,10 +1235,6 @@ function findLuckyboxInInventory(
     return matchesId || matchesName;
   });
 }
-
-/* ========================================================================== */
-/*                       LOGS DE LUCKYBOX DROP                                */
-/* ========================================================================== */
 
 async function sendLuckyboxDropLog(
   guild: Guild,
@@ -1435,10 +1341,6 @@ async function sendLuckyboxDropLog(
     );
   }
 }
-
-/* ========================================================================== */
-/*                         TOP CASINO                                         */
-/* ========================================================================== */
 
 export async function syncTopCasinoRole(
   guild: Guild,
@@ -1585,10 +1487,6 @@ export async function syncTopCasinoRole(
   }
 }
 
-/* ========================================================================== */
-/*                       SINCRONIZACIÓN AUTOMÁTICA                            */
-/* ========================================================================== */
-
 let isIntervalStarted = false;
 
 function startAutoSync(
@@ -1621,10 +1519,6 @@ function startAutoSync(
     1000 * 60 * 60,
   );
 }
-
-/* ========================================================================== */
-/*                     LUCKYBOX DROP - HELPERS                               */
-/* ========================================================================== */
 
 function hasLuckyboxDropPermission(
   member: {
@@ -1737,10 +1631,6 @@ function createLuckyboxClaimedEmbed(
     })
     .setTimestamp();
 }
-
-/* ========================================================================== */
-/*                       HANDLE LUCKYBOX DROP                                 */
-/* ========================================================================== */
 
 async function handleLuckyboxDrop(
   sendReply: ReplyFunction,
@@ -1917,10 +1807,6 @@ async function handleLuckyboxDrop(
   }
 }
 
-/* ========================================================================== */
-/*                     HANDLE BOTÓN RECLAMAR                                  */
-/* ========================================================================== */
-
 export async function handleLuckyboxDropButton(
   interaction: ButtonInteraction,
 ): Promise<void> {
@@ -2086,10 +1972,6 @@ export async function handleLuckyboxDropButton(
   }
 }
 
-/* ========================================================================== */
-/*                     PERSISTENCIA DE COOLDOWN                               */
-/* ========================================================================== */
-
 async function loadCollectCooldowns(): Promise<void> {
   if (collectCooldownStoreLoaded) {
     return;
@@ -2194,34 +2076,6 @@ async function saveCollectCooldowns(): Promise<void> {
   return collectCooldownWriteQueue;
 }
 
-function getRemainingCollectCooldown(
-  guildId: string,
-  userId: string,
-  now = Date.now(),
-): number {
-  const key =
-    getCollectCooldownKey(
-      guildId,
-      userId,
-    );
-
-  const lastCollect =
-    collectCooldownStore[key];
-
-  if (
-    !lastCollect ||
-    !Number.isFinite(lastCollect)
-  ) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    COLLECT_COOLDOWN_MS -
-      (now - lastCollect),
-  );
-}
-
 function formatCollectRemaining(
   milliseconds: number,
 ): string {
@@ -2297,10 +2151,6 @@ function formatCollectRemaining(
   return parts.join(", ");
 }
 
-/* ========================================================================== */
-/*                    RESOLVER ROLES COLLECT                                  */
-/* ========================================================================== */
-
 function getCollectRolesForMember(
   member: {
     roles: {
@@ -2321,10 +2171,6 @@ function getCollectRolesForMember(
       ),
   );
 }
-
-/* ========================================================================== */
-/*                     CONSTRUIR RECOMPENSAS COLLECT                          */
-/* ========================================================================== */
 
 function getCollectRewards(
   collectRoles: readonly {
@@ -2369,10 +2215,6 @@ function getCollectRewards(
 
   return rewards;
 }
-
-/* ========================================================================== */
-/*                          HANDLE COLLECT (POSTGRES)                         */
-/* ========================================================================== */
 
 async function handleCollect(
   guild: Guild,
@@ -2675,10 +2517,6 @@ async function handleCollect(
   }
 }
 
-/* ========================================================================== */
-/*                         HANDLE INFO                                        */
-/* ========================================================================== */
-
 async function handleInfo(
   sendReply: ReplyFunction,
   cajaNombre: string,
@@ -2760,10 +2598,6 @@ async function handleInfo(
     embeds: [infoEmbed],
   });
 }
-
-/* ========================================================================== */
-/*                              HANDLE DAR                                    */
-/* ========================================================================== */
 
 async function handleDar(
   sendReply: ReplyFunction,
@@ -2884,10 +2718,6 @@ async function handleDar(
     });
   }
 }
-
-/* ========================================================================== */
-/*                             HANDLE ABRIR                                   */
-/* ========================================================================== */
 
 async function handleAbrir(
   sendReply: ReplyFunction,
@@ -3080,10 +2910,6 @@ async function handleAbrir(
   }
 }
 
-/* ========================================================================== */
-/*                         SLASH COMMAND /LUCKYBOX                            */
-/* ========================================================================== */
-
 export const data =
   new SlashCommandBuilder()
     .setName("luckybox")
@@ -3260,10 +3086,6 @@ export const data =
           ),
     );
 
-/* ========================================================================== */
-/*                         EXECUTE /LUCKYBOX                                  */
-/* ========================================================================== */
-
 export async function execute(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
@@ -3438,10 +3260,6 @@ export async function execute(
   );
 }
 
-/* ========================================================================== */
-/*                           PREFIX COMMAND                                   */
-/* ========================================================================== */
-
 export async function run(
   message: Message,
   args: string[],
@@ -3527,14 +3345,13 @@ export async function run(
     string,
     string
   > = {
-    comun:
-      "Mr Lucky Común",
-    raro:
-      "Mr Lucky Raro",
-    epico:
-      "Mr Lucky Épico",
-    admin:
-      "MR LUCKY ADMIN",
+    comun: "Mr Lucky Común",
+    común: "Mr Lucky Común",
+    raro: "Mr Lucky Raro",
+    epico: "Mr Lucky Épico",
+    épico: "Mr Lucky Épico",
+    admin: "Mr Lucky Admin",
+    "mr lucky admin": "Mr Lucky Admin",
   };
 
   const getCajaNombre =
@@ -3554,16 +3371,11 @@ export async function run(
     "común, raro, épico y admin";
 
   if (sub === "drop") {
-    const isSpecialUser =
-      message.author.id === LUCKYBOX_BOOSTER_USER_ID ||
-      message.author.id === BANG_USER_ID;
+    const isBoosterUser = message.author.id === LUCKYBOX_BOOSTER_USER_ID;
 
-    if (isSpecialUser) {
-      // Flujo exclusivo para Sowi o Bang (Usando canal por defecto o el que especifiquen)
-      const cajaArguments = args
-        .slice(offset)
-        .join(" ")
-        .trim();
+    // Si es Sowi (Booster), mantiene su canal exclusivo
+    if (isBoosterUser) {
+      const cajaArguments = args.slice(offset).join(" ").trim();
 
       if (!cajaArguments) {
         await message.reply(
@@ -3572,9 +3384,7 @@ export async function run(
         return;
       }
 
-      const cajaNombre =
-        getCajaNombre(cajaArguments);
-
+      const cajaNombre = getCajaNombre(cajaArguments);
       if (!cajaNombre) {
         await message.reply(
           `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
@@ -3582,31 +3392,17 @@ export async function run(
         return;
       }
 
-      // Si es Sowi va al canal de boosters, si es Bang usará el canal actual o el asignado
-      const targetChannelId =
-        message.author.id === LUCKYBOX_BOOSTER_USER_ID
-          ? LUCKYBOX_BOOSTER_CHANNEL_ID
-          : message.channelId;
+      const targetChannel = await message.guild.channels
+        .fetch(LUCKYBOX_BOOSTER_CHANNEL_ID)
+        .catch(() => null);
 
-      const targetChannel =
-        await message.guild.channels
-          .fetch(targetChannelId)
-          .catch(() => null);
-
-      if (
-        !targetChannel ||
-        !targetChannel.isTextBased() ||
-        !("send" in targetChannel)
-      ) {
-        await message.reply(
-          "❌ No se encontró el canal de destino.",
-        );
+      if (!targetChannel || !targetChannel.isTextBased() || !("send" in targetChannel)) {
+        await message.reply("❌ No se encontró el canal de boosters.");
         return;
       }
 
       await handleLuckyboxDrop(
-        (options) =>
-          message.reply(options),
+        (options) => message.reply(options),
         message.guild,
         message.author,
         cajaNombre,
@@ -3616,54 +3412,34 @@ export async function run(
       return;
     }
 
-    // Flujo obligatorio para Managers / Developers (El canal es OBLIGATORIO)
-    const mentionedChannel =
-      message.mentions.channels.first();
-
-    if (!mentionedChannel) {
-      await message.reply(
-        "❌ Uso obligatorio de canal: `-luckybox drop [caja] [#canal]`.",
-      );
-      return;
-    }
+    // Para Bang, Dev y Managers: el canal se extrae si se menciona, o usa el canal actual por defecto
+    const mentionedChannel = message.mentions.channels.first();
+    const targetChannel = mentionedChannel ?? message.channel;
 
     const cajaArguments = args
       .slice(offset)
-      .filter(
-        (arg) => !/^<#\d+>$/.test(arg),
-      )
+      .filter((arg) => !/^<#\d+>$/.test(arg))
       .join(" ")
       .trim();
 
     if (!cajaArguments) {
       await message.reply(
-        "❌ Uso correcto: `-luckybox drop [caja] [#canal]`.",
+        "❌ Uso correcto: `-luckybox drop [caja]` o `-luckybox drop [caja] [#canal]`.",
       );
       return;
     }
 
-    const cajaNombre =
-      getCajaNombre(cajaArguments);
+    const cajaNombre = getCajaNombre(cajaArguments);
 
     if (!cajaNombre) {
       await message.reply(
         `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
       );
-
       return;
     }
 
-    const targetChannel = mentionedChannel;
-
-    if (
-      !targetChannel ||
-      !targetChannel.isTextBased() ||
-      !("send" in targetChannel)
-    ) {
-      await message.reply(
-        "❌ No se pudo obtener un canal de texto válido.",
-      );
-
+    if (!targetChannel || !targetChannel.isTextBased() || !("send" in targetChannel)) {
+      await message.reply("❌ No se pudo obtener un canal de texto válido.");
       return;
     }
 
