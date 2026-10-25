@@ -18,7 +18,6 @@ const EMBED_COLOR = 0xffa500;
 
 // Roles autorizados para usar los comandos de dar y quitar roles.
 const AUTHORIZED_ROLE_IDS = [
-  "1539368076326473868", // Developer Tiago Jr
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
@@ -27,7 +26,7 @@ const AUTHORIZED_ROLE_IDS = [
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
-  "1541861480457183272", // Desarrolladores
+  "1541861480457183272", // Desarrollador
   "1522807097920720967", // Manager
 ];
 
