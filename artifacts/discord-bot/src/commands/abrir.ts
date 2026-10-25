@@ -21,7 +21,6 @@ const ROLES_POSTULACIONES = [
   "1512634750152478851", // Jefe Staff
   "1485101671875874997", // Administrador Elite
   "1455419124732657801", // Equipo Administrativo
-  "1539368076326473868", // Developer Tiago Jr
 ];
 
 const ROLES_TEMPORADA = [
