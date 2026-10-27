@@ -1,6 +1,6 @@
 
 import { and, eq } from "drizzle-orm";
-import { missions, missionProgress } from "../../database/schema/missions";
+import { missions, missionProgress } from "@workspace/db";
 
 // Ajustá esta importación a la ruta real de tu conexión Drizzle.
 import { db } from "../../database/database";
