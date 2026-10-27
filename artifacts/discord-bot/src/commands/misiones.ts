@@ -89,14 +89,12 @@ function resolverMenciones(
     (mencion, rolId, canalId) => {
       if (rolId) {
         const rol = guild.roles.cache.get(rolId);
-
-        return rol ? `<@&${rol.id}>` : "@rol desconocido";
+        return rol ? rol.toString() : mencion;
       }
 
       if (canalId) {
         const canal = guild.channels.cache.get(canalId);
-
-        return canal ? `<#${canal.id}>` : "#canal-desconocido";
+        return canal ? `<#${canal.id}>` : mencion;
       }
 
       return mencion;
