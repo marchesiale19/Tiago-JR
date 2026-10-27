@@ -7,12 +7,7 @@ import {
   type Guild,
 } from "discord.js";
 
-import {
-  db,
-  missions,
-  missionProgress,
-} from "../database/database";
-
+import { db, missions, missionProgress } from "../database/database";
 import { getWeekKey } from "../services/mission.service";
 import { and, eq } from "drizzle-orm";
 
@@ -22,7 +17,7 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(
   interaction: ChatInputCommandInteraction,
-): Promise<void> {
+) {
   if (!interaction.guild) {
     await interaction.reply({
       content: "Este comando solo se puede usar dentro de un servidor.",
@@ -37,9 +32,15 @@ export async function execute(
       interaction.user.id,
     );
 
-    await interaction.reply({ embeds: [embed] });
+    await interaction.reply({
+      embeds: [embed],
+      allowedMentions: { parse: ["roles"] },
+    });
   } catch (error) {
-    console.error("[Misiones] Error al consultar las misiones:", error);
+    console.error(
+      "[Misiones] Error al consultar las misiones:",
+      error,
+    );
 
     await interaction.reply({
       content:
@@ -52,7 +53,7 @@ export async function execute(
 export async function run(
   message: Message,
   _args: string[],
-): Promise<void> {
+) {
   if (!message.guild) {
     await message.reply(
       "Este comando solo se puede usar dentro de un servidor.",
@@ -66,9 +67,15 @@ export async function run(
       message.author.id,
     );
 
-    await message.reply({ embeds: [embed] });
+    await message.reply({
+      embeds: [embed],
+      allowedMentions: { parse: ["roles"] },
+    });
   } catch (error) {
-    console.error("[Misiones] Error al consultar las misiones:", error);
+    console.error(
+      "[Misiones] Error al consultar las misiones:",
+      error,
+    );
 
     await message.reply(
       "No se pudieron cargar las misiones. Intentá nuevamente más tarde.",
@@ -77,8 +84,8 @@ export async function run(
 }
 
 /**
- * Conserva los formatos de mención de Discord para que los roles
- * y canales se rendericen como menciones dentro del embed.
+ * Conserva las menciones válidas de roles y canales.
+ * Discord puede renderizarlas como menciones dentro del embed.
  */
 function resolverMenciones(
   texto: string,
@@ -89,12 +96,14 @@ function resolverMenciones(
     (mencion, rolId, canalId) => {
       if (rolId) {
         const rol = guild.roles.cache.get(rolId);
-        return rol ? rol.toString() : mencion;
+
+        return rol ? `<@&${rol.id}>` : "@rol desconocido";
       }
 
       if (canalId) {
         const canal = guild.channels.cache.get(canalId);
-        return canal ? `<#${canal.id}>` : mencion;
+
+        return canal ? `<#${canal.id}>` : "#canal-desconocido";
       }
 
       return mencion;
@@ -119,7 +128,7 @@ async function crearEmbedMisiones(
     .orderBy(missions.id);
 
   const embed = new EmbedBuilder()
-    .setTitle("Misiones por Frijoles")
+    .setTitle("🏆 Misiones por Frijoles")
     .setColor(0xf1c40f)
     .setDescription(
       activeMissions.length === 0
@@ -155,9 +164,9 @@ async function crearEmbedMisiones(
 
     const status = progress?.completed
       ? progress.paid
-        ? "Completada y pagada."
-        : "Completada; recompensa pendiente."
-      : "En progreso.";
+        ? "✅ Completada y pagada."
+        : "⏳ Completada; recompensa pendiente."
+      : "🔄 En progreso.";
 
     const description = [
       `**Recompensa:** ${Number(mission.reward).toLocaleString("es-AR")} frijoles`,
