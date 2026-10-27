@@ -29,6 +29,7 @@ import * as math from "./math";
 import * as racha from "./racha";
 import * as crearMision from "./crearmision";
 import * as misiones from "./misiones";
+import * as borrarmision from "./borrarmision";
 
 // Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
