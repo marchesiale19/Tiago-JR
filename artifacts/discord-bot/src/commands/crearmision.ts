@@ -12,7 +12,7 @@ import {
 import {
   canManageMissions,
   createMission,
-} from "../services/missions/mission.service";
+} from "../services/mission.service";
 
 export const crearmision = {
   data: new SlashCommandBuilder()
