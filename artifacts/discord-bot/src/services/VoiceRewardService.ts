@@ -7,8 +7,13 @@ import {
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@workspace/db";
-import { voiceRewardsTable } from "@workspace/db/schema";
+import {
+  voiceRewardsTable,
+  missions,
+  missionProgress,
+} from "@workspace/db/schema";
 import { unb } from "../lib/unbelievaboat";
+import { getWeekKey } from "./mission.service";
 
 const REWARD_SECONDS = 60 * 60;
 const REWARD_AMOUNT = 40_000;
@@ -121,7 +126,7 @@ async function ensureSession(
 }
 
 /**
- * Envía el aviso de recompensa por mensaje privado.
+ * Envía el aviso de recompensa de voz por mensaje privado.
  */
 async function notifyVoiceReward(
   client: Client,
@@ -150,6 +155,184 @@ async function notifyVoiceReward(
 }
 
 /**
+ * Procesa las misiones semanales de voz.
+ *
+ * mission.objective representa una cantidad de horas.
+ * El progreso de cada misión se guarda en segundos.
+ *
+ * Solo se consideran las misiones activas de la semana actual.
+ */
+async function processVoiceMissions(
+  client: Client,
+  guildId: string,
+  userId: string,
+  elapsedSeconds: number,
+): Promise<void> {
+  const activeMissions = await db
+    .select()
+    .from(missions)
+    .where(
+      and(
+        eq(missions.guildId, guildId),
+        eq(missions.weekKey, getWeekKey()),
+        eq(missions.active, true),
+      ),
+    );
+
+  for (const mission of activeMissions) {
+    if (mission.action.toLowerCase() !== "voz") {
+      continue;
+    }
+
+    const [existing] = await db
+      .select()
+      .from(missionProgress)
+      .where(
+        and(
+          eq(missionProgress.missionId, mission.id),
+          eq(missionProgress.guildId, guildId),
+          eq(missionProgress.userId, userId),
+        ),
+      )
+      .limit(1);
+
+    const targetSeconds = mission.objective * 60 * 60;
+    let progress = existing;
+
+    if (!progress) {
+      // No crear progreso vacío si todavía no hay tiempo válido.
+      if (elapsedSeconds <= 0) {
+        continue;
+      }
+
+      const total = elapsedSeconds;
+      const completed = total >= targetSeconds;
+      const now = new Date();
+
+      const [created] = await db
+        .insert(missionProgress)
+        .values({
+          missionId: mission.id,
+          guildId,
+          userId,
+          progressSeconds: total,
+          completed,
+          paid: false,
+          completedAt: completed ? now : null,
+        })
+        .returning();
+
+      if (!created) {
+        throw new Error(
+          `No se pudo crear el progreso de la misión ${mission.id}.`,
+        );
+      }
+
+      progress = created;
+    } else if (!progress.completed && elapsedSeconds > 0) {
+      const total = progress.progressSeconds + elapsedSeconds;
+      const completed = total >= targetSeconds;
+      const now = new Date();
+
+      const [updated] = await db
+        .update(missionProgress)
+        .set({
+          progressSeconds: total,
+          completed,
+          completedAt: completed ? now : null,
+        })
+        .where(
+          and(
+            eq(missionProgress.id, progress.id),
+            eq(missionProgress.completed, false),
+          ),
+        )
+        .returning();
+
+      if (updated) {
+        progress = updated;
+      } else {
+        // Volver a leer por si el progreso cambió durante la operación.
+        const [latest] = await db
+          .select()
+          .from(missionProgress)
+          .where(eq(missionProgress.id, progress.id))
+          .limit(1);
+
+        if (!latest) {
+          continue;
+        }
+
+        progress = latest;
+      }
+    }
+
+    // Una misión completada y pagada no vuelve a cobrar.
+    // Si quedó completada pero sin pagar, se vuelve a intentar.
+    if (!progress.completed || progress.paid) {
+      continue;
+    }
+
+    try {
+      // Se paga antes de marcar paid para que un error de la API
+      // no deje la misión marcada como pagada sin haber abonado.
+      await unb.editUserBalance(guildId, userId, {
+        bank: mission.reward,
+      });
+
+      const [paidProgress] = await db
+        .update(missionProgress)
+        .set({
+          paid: true,
+          paidAt: new Date(),
+        })
+        .where(
+          and(
+            eq(missionProgress.id, progress.id),
+            eq(missionProgress.paid, false),
+            eq(missionProgress.completed, true),
+          ),
+        )
+        .returning({ id: missionProgress.id });
+
+      if (!paidProgress) {
+        console.error(
+          `[Missions] La recompensa de "${mission.title}" se envió al banco, ` +
+          `pero no se pudo confirmar el estado del pago para ${userId}. ` +
+          `Revisá el saldo y la base de datos antes de reintentar manualmente.`,
+        );
+        continue;
+      }
+
+      console.log(
+        `[Missions] ${userId} completó "${mission.title}" ` +
+        `y recibió ${mission.reward} frijoles.`,
+      );
+
+      try {
+        const user = await client.users.fetch(userId);
+
+        await user.send(
+          `🎉 ¡Completaste la misión **${mission.title}** ` +
+          `y recibiste **${mission.reward.toLocaleString("es-AR")} frijoles**!`,
+        );
+      } catch (error) {
+        console.warn(
+          `[Missions] No se pudo notificar a ${userId}:`,
+          error,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[Missions] Error procesando el pago de "${mission.title}" ` +
+        `para ${userId}:`,
+        error,
+      );
+    }
+  }
+}
+
+/**
  * Guarda el tiempo transcurrido únicamente de una sesión válida.
  * Si sessionActive es false, la sesión se pausa.
  */
@@ -164,9 +347,10 @@ async function accrueTime(
 
   const now = new Date();
   let totalSeconds = record.accumulatedSeconds;
+  let elapsedSeconds = 0;
 
   if (record.sessionStartedAt !== null) {
-    const elapsedSeconds = Math.max(
+    elapsedSeconds = Math.max(
       0,
       Math.floor(
         (now.getTime() - record.sessionStartedAt.getTime()) / 1000,
@@ -185,6 +369,23 @@ async function accrueTime(
     })
     .where(eq(voiceRewardsTable.id, record.id));
 
+  // Las misiones utilizan el mismo tiempo válido de voz,
+  // pero mantienen su propio progreso independiente.
+  try {
+    await processVoiceMissions(
+      client,
+      guildId,
+      userId,
+      elapsedSeconds,
+    );
+  } catch (error) {
+    console.error(
+      `[Missions] Error actualizando las misiones de ${userId}:`,
+      error,
+    );
+  }
+
+  // Mantener el sistema original de recompensas por hora.
   await payPendingRewards(client, guildId, userId);
 }
 
@@ -342,6 +543,7 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
 
           const now = new Date();
           let recoveredSeconds = record.accumulatedSeconds;
+          let recoveredElapsedSeconds = 0;
 
           // Recuperar como máximo un minuto desde el último registro
           // y solo si la sesión anterior estaba activa en un VC permitido.
@@ -355,10 +557,12 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
               ),
             );
 
-            recoveredSeconds += Math.min(
+            recoveredElapsedSeconds = Math.min(
               elapsed,
               CHECK_INTERVAL_MS / 1000,
             );
+
+            recoveredSeconds += recoveredElapsedSeconds;
           }
 
           await db
@@ -369,6 +573,24 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
               updatedAt: now,
             })
             .where(eq(voiceRewardsTable.id, record.id));
+
+          // El tiempo recuperado solo cuenta para misiones si el usuario
+          // sigue conectado a un canal autorizado.
+          if (allowed && recoveredElapsedSeconds > 0) {
+            try {
+              await processVoiceMissions(
+                client,
+                guild.id,
+                state.id,
+                recoveredElapsedSeconds,
+              );
+            } catch (error) {
+              console.error(
+                `[Missions] Error recuperando progreso de ${state.id}:`,
+                error,
+              );
+            }
+          }
 
           await payPendingRewards(client, guild.id, state.id);
         },
