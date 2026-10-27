@@ -42,7 +42,8 @@ export async function execute(
     console.error("[Misiones] Error al consultar las misiones:", error);
 
     await interaction.reply({
-      content: "No se pudieron cargar las misiones. Intentá nuevamente más tarde.",
+      content:
+        "No se pudieron cargar las misiones. Intentá nuevamente más tarde.",
       ephemeral: true,
     });
   }
@@ -73,6 +74,34 @@ export async function run(
       "No se pudieron cargar las misiones. Intentá nuevamente más tarde.",
     );
   }
+}
+
+/**
+ * Conserva los formatos de mención de Discord para que los roles
+ * y canales se rendericen como menciones dentro del embed.
+ */
+function resolverMenciones(
+  texto: string,
+  guild: Guild,
+): string {
+  return texto.replace(
+    /<@&(\d+)>|<#(\d+)>/g,
+    (mencion, rolId, canalId) => {
+      if (rolId) {
+        const rol = guild.roles.cache.get(rolId);
+
+        return rol ? `<@&${rol.id}>` : "@rol desconocido";
+      }
+
+      if (canalId) {
+        const canal = guild.channels.cache.get(canalId);
+
+        return canal ? `<#${canal.id}>` : "#canal-desconocido";
+      }
+
+      return mencion;
+    },
+  );
 }
 
 async function crearEmbedMisiones(
@@ -134,14 +163,14 @@ async function crearEmbedMisiones(
 
     const description = [
       `**Recompensa:** ${Number(mission.reward).toLocaleString("es-AR")} frijoles`,
-      `**Acción:** ${mission.action}`,
+      `**Acción:** ${resolverMenciones(mission.action, guild)}`,
       `**Creada por:** ${creatorName}`,
       `**Progreso:** ${currentValue}/${mission.objective} horas`,
       `**Estado:** ${status}`,
     ].join("\n");
 
     embed.addFields({
-      name: `#${mission.id} — ${mission.title}`,
+      name: `#${mission.id} — ${resolverMenciones(mission.title, guild)}`,
       value: description,
       inline: false,
     });
