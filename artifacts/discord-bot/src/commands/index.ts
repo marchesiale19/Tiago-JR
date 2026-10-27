@@ -126,6 +126,7 @@ commands.set(
 );
 
 commands.set(misiones.data.name, misiones);
+commands.set(borrarmision.data.name, borrarmision);
 
 /* ============================================================
  * FLUJO DEL RANKED
