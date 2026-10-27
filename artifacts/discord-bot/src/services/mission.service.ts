@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { missions, missionProgress } from "../../database/schema/missions";
 
 // Ajustá esta importación a la ruta real de tu conexión Drizzle.
-import { db } from "../../database";
+import { db } from "../../database/database";
 
 export const MISSION_MANAGER_ROLES = [
   "1451383215603585140", // Owner
