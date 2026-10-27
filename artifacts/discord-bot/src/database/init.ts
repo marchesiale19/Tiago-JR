@@ -86,6 +86,55 @@ export async function initDatabase(
 
   logger.info("Math challenges table verified.");
 
+  // Crear las tablas de misiones si todavía no existen.
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS missions (
+      id SERIAL PRIMARY KEY,
+      guild_id VARCHAR(20) NOT NULL,
+      title VARCHAR(100) NOT NULL,
+      reward INTEGER NOT NULL,
+      action VARCHAR(30) NOT NULL,
+      objective INTEGER NOT NULL,
+      created_by VARCHAR(20) NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      week_key VARCHAR(10) NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT TRUE
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS missions_guild_week_idx
+    ON missions (guild_id, week_key, active)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS mission_progress (
+      id SERIAL PRIMARY KEY,
+      mission_id INTEGER NOT NULL
+        REFERENCES missions(id) ON DELETE CASCADE,
+      guild_id VARCHAR(20) NOT NULL,
+      user_id VARCHAR(20) NOT NULL,
+      progress_seconds INTEGER NOT NULL DEFAULT 0,
+      completed BOOLEAN NOT NULL DEFAULT FALSE,
+      paid BOOLEAN NOT NULL DEFAULT FALSE,
+      session_started_at TIMESTAMPTZ,
+      completed_at TIMESTAMPTZ,
+      paid_at TIMESTAMPTZ
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS mission_progress_unique
+    ON mission_progress (mission_id, guild_id, user_id)
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS mission_progress_user_idx
+    ON mission_progress (guild_id, user_id)
+  `);
+
+  logger.info("Mission tables verified.");
+
   const missingTables: string[] = [];
 
   for (const table of REQUIRED_TABLES) {
