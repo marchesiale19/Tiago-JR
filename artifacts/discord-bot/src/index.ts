@@ -2054,6 +2054,29 @@ client.on(
         return;
       }
 
+if (interaction.customId === "missions:create") {
+  try {
+    const { handleCreateMissionModal } = await import(
+      "./commands/crearmision"
+    );
+
+    await handleCreateMissionModal(interaction);
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error al procesar el modal de creación de misiones",
+    );
+
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ No se pudo crear la misión.",
+        ephemeral: true,
+      }).catch(() => {});
+    }
+  }
+
+  return;
+}
       return;
     }
 
