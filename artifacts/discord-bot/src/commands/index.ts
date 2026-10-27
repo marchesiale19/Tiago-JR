@@ -1,4 +1,3 @@
-
 import {
   Collection,
   type ChatInputCommandInteraction,
@@ -28,6 +27,7 @@ import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
 import * as math from "./math";
 import * as racha from "./racha";
+import * as crearMision from "./crearmision";
 
 // Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -113,6 +113,12 @@ commands.set(math.data.name, math);
 
 // Racha
 commands.set(racha.data.name, racha);
+
+/* ============================================================
+ * SISTEMA DE MISIONES
+ * ============================================================ */
+
+commands.set(crearMision.data.name, crearMision);
 
 /* ============================================================
  * FLUJO DEL RANKED
