@@ -1,15 +1,12 @@
 
 import { and, eq } from "drizzle-orm";
-import { missions, missionProgress } from "@workspace/db";
-
-// Ajustá esta importación a la ruta real de tu conexión Drizzle.
-import { db } from "../../database/database";
+import { missions, missionProgress } from "@workspace/db/schema";
 
 export const MISSION_MANAGER_ROLES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
-  "1485101671875874997", // Administrador Elite
+  "1485100476875874997", // Administrador Elite
   "1522434536796061816", // Desarrollador
   "1503876451315880016", // Administrador
   "1509760475653472287", // Administrador PB
@@ -19,12 +16,22 @@ export const MISSION_MANAGER_ROLES = [
 export const AFK_CHANNEL_ID = "1478566817579667600";
 export const VOICE_ACTION = "Voz";
 
+/**
+ * Comprueba si alguno de los roles del usuario
+ * le permite administrar las misiones.
+ */
 export function canManageMissions(roleIds: string[]): boolean {
   return MISSION_MANAGER_ROLES.some((id) => roleIds.includes(id));
 }
 
+/**
+ * Devuelve la clave de la semana actual según
+ * la zona horaria de Mato Grosso (America/Cuiaba).
+ *
+ * La semana comienza el lunes.
+ * Formato: YYYY-MM-DD, correspondiente al lunes.
+ */
 export function getWeekKey(date = new Date()): string {
-  // Fecha civil en la zona horaria de Mato Grosso.
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Cuiaba",
     year: "numeric",
@@ -32,9 +39,18 @@ export function getWeekKey(date = new Date()): string {
     day: "2-digit",
   }).formatToParts(date);
 
-  const get = (type: string) =>
-    parts.find((part) => part.type === type)!.value;
+  const get = (type: string): string => {
+    const value = parts.find((part) => part.type === type)?.value;
 
+    if (!value) {
+      throw new Error(`No se pudo obtener la parte de fecha: ${type}`);
+    }
+
+    return value;
+  };
+
+  // Se reconstruye la fecha usando UTC para calcular el lunes
+  // sin depender de la zona horaria del servidor.
   const localDate = new Date(
     `${get("year")}-${get("month")}-${get("day")}T12:00:00Z`,
   );
@@ -49,6 +65,9 @@ export function getWeekKey(date = new Date()): string {
   ].join("-");
 }
 
+/**
+ * Crea una misión para la semana actual.
+ */
 export async function createMission(input: {
   guildId: string;
   title: string;
@@ -68,16 +87,16 @@ export async function createMission(input: {
     throw new Error("La recompensa debe ser un entero positivo.");
   }
 
-  if (
-    !Number.isSafeInteger(input.objective) ||
-    input.objective <= 0
-  ) {
+  if (!Number.isSafeInteger(input.objective) || input.objective <= 0) {
     throw new Error("El objetivo debe ser un entero positivo.");
   }
 
-  if (action.toLowerCase() !== "voz") {
+  if (action.toLowerCase() !== VOICE_ACTION.toLowerCase()) {
     throw new Error("Por ahora, la única acción disponible es Voz.");
   }
+
+  // La conexión se importa solo cuando se necesita consultar la DB.
+  const { db } = await import("../../database/database");
 
   const [mission] = await db
     .insert(missions)
@@ -90,10 +109,20 @@ export async function createMission(input: {
     })
     .returning();
 
+  if (!mission) {
+    throw new Error("No se pudo crear la misión en la base de datos.");
+  }
+
   return mission;
 }
 
+/**
+ * Obtiene las misiones activas de la semana actual
+ * para el servidor indicado.
+ */
 export async function getActiveMissions(guildId: string) {
+  const { db } = await import("../../database/database");
+
   return db
     .select()
     .from(missions)
@@ -107,11 +136,17 @@ export async function getActiveMissions(guildId: string) {
     .orderBy(missions.id);
 }
 
+/**
+ * Obtiene el progreso de un usuario en una misión.
+ * Devuelve null si todavía no existe un registro.
+ */
 export async function getUserMissionProgress(
   guildId: string,
   userId: string,
   missionId: number,
 ) {
+  const { db } = await import("../../database/database");
+
   const [row] = await db
     .select()
     .from(missionProgress)
