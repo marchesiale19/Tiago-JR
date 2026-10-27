@@ -7,6 +7,7 @@ import {
   ActionRowBuilder,
   type ChatInputCommandInteraction,
   type ModalSubmitInteraction,
+  type Message,
 } from "discord.js";
 
 import {
@@ -19,7 +20,15 @@ export const crearmision = {
     .setName("crearmision")
     .setDescription("Crear una misión semanal por frijoles"),
 
-  async execute(interaction: ChatInputCommandInteraction) {
+  // Comando por prefijo: informar que solo se permite mediante slash.
+  async run(message: Message): Promise<void> {
+    await message.reply(
+      "❌ Este comando solo se puede utilizar mediante `/crearmision`. Usá el comando slash para crear una misión.",
+    );
+  },
+
+  // Comando slash: abrir el formulario para crear la misión.
+  async execute(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!interaction.guild || !interaction.member) {
       await interaction.reply({
         content: "Este comando solo se puede usar dentro de un servidor.",
@@ -86,7 +95,7 @@ export const crearmision = {
 
 export async function handleCreateMissionModal(
   interaction: ModalSubmitInteraction,
-) {
+): Promise<void> {
   if (interaction.customId !== "missions:create") return;
 
   if (!interaction.guild || !interaction.member) {
@@ -116,9 +125,15 @@ export async function handleCreateMissionModal(
     .getTextInputValue("objective")
     .trim();
 
-  if (!/^\d+$/.test(rewardText) || !/^\d+$/.test(objectiveText)) {
+  if (
+    !/^\d+$/.test(rewardText) ||
+    !/^\d+$/.test(objectiveText) ||
+    Number(rewardText) <= 0 ||
+    Number(objectiveText) <= 0
+  ) {
     await interaction.reply({
-      content: "La recompensa y el objetivo deben ser números enteros positivos.",
+      content:
+        "La recompensa y el objetivo deben ser números enteros positivos.",
       ephemeral: true,
     });
     return;
