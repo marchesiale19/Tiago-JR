@@ -118,7 +118,10 @@ commands.set(racha.data.name, racha);
  * SISTEMA DE MISIONES
  * ============================================================ */
 
-commands.set(crearMision.data.name, crearMision);
+commands.set(
+  crearMision.crearmision.data.name,
+  crearMision.crearmision,
+);
 
 /* ============================================================
  * FLUJO DEL RANKED
