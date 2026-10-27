@@ -6,7 +6,7 @@ export const MISSION_MANAGER_ROLES = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
-  "1485100476875874997", // Administrador Elite
+  "1485101676875874997", // Administrador Elite
   "1522434536796061816", // Desarrollador
   "1503876451315880016", // Administrador
   "1509760475653472287", // Administrador PB
@@ -25,9 +25,7 @@ export function canManageMissions(roleIds: string[]): boolean {
 }
 
 /**
- * Devuelve la clave de la semana actual según
- * la zona horaria de Mato Grosso (America/Cuiaba).
- *
+ * Obtiene la clave semanal según America/Cuiaba.
  * La semana comienza el lunes.
  * Formato: YYYY-MM-DD, correspondiente al lunes.
  */
@@ -49,8 +47,7 @@ export function getWeekKey(date = new Date()): string {
     return value;
   };
 
-  // Se reconstruye la fecha usando UTC para calcular el lunes
-  // sin depender de la zona horaria del servidor.
+  // Usar UTC evita depender de la zona horaria del servidor.
   const localDate = new Date(
     `${get("year")}-${get("month")}-${get("day")}T12:00:00Z`,
   );
@@ -95,8 +92,8 @@ export async function createMission(input: {
     throw new Error("Por ahora, la única acción disponible es Voz.");
   }
 
-  // La conexión se importa solo cuando se necesita consultar la DB.
-  const { db } = await import("../../database/database");
+  // Carga la conexión únicamente cuando se necesita usar la DB.
+  const { db } = await import("../database/database.ts");
 
   const [mission] = await db
     .insert(missions)
@@ -121,7 +118,7 @@ export async function createMission(input: {
  * para el servidor indicado.
  */
 export async function getActiveMissions(guildId: string) {
-  const { db } = await import("../../database/database");
+  const { db } = await import("../database/database.ts");
 
   return db
     .select()
@@ -145,7 +142,7 @@ export async function getUserMissionProgress(
   userId: string,
   missionId: number,
 ) {
-  const { db } = await import("../../database/database");
+  const { db } = await import("../database/database.ts");
 
   const [row] = await db
     .select()
