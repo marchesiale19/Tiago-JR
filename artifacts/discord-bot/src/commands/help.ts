@@ -111,11 +111,55 @@ const DROP_COMMAND_ROLES = [
   "1539368076326473868", // Developer Tiago Jr
 ];
 
+/*
+ * Roles que pueden ver en el help:
+ * /crearmision
+ * -borrarmision
+ *
+ * Estos son los roles solicitados específicamente
+ * para la administración de misiones.
+ */
+const MISSION_MANAGEMENT_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1503876451315880016", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
 /* =========================================================
  * TIPOS Y NIVEL DE ACCESO
  * ======================================================= */
 
 type AccessLevel = "user" | "staff" | "owner";
+
+/*
+ * Obtiene los IDs de los roles tanto si recibimos
+ * un GuildMember como si Discord devuelve los roles
+ * como un array en una interacción slash.
+ */
+function getRoleIds(
+  member: GuildMember | null | undefined,
+): string[] {
+  if (!member) return [];
+
+  const roles = (member as any).roles;
+
+  if (Array.isArray(roles)) {
+    return roles;
+  }
+
+  if (roles?.cache) {
+    return roles.cache.map(
+      (role: { id: string }) => role.id,
+    );
+  }
+
+  return [];
+}
 
 function getMemberAccessLevel(
   member: GuildMember | null | undefined,
@@ -135,13 +179,7 @@ function getMemberAccessLevel(
     }
   }
 
-  if (!member) return "user";
-
-  const roleCache = member.roles.cache;
-
-  if (!roleCache) return "user";
-
-  const roleIds = roleCache.map((role) => role.id);
+  const roleIds = getRoleIds(member);
 
   /*
    * Tier 1 = Owner.
@@ -181,10 +219,8 @@ function getMemberAccessLevel(
 function canGiveLuckybox(
   member: GuildMember | null | undefined,
 ): boolean {
-  if (!member) return false;
-
-  return member.roles.cache.some((role) =>
-    LUCKYBOX_GIVE_ROLES.includes(role.id),
+  return getRoleIds(member).some((id) =>
+    LUCKYBOX_GIVE_ROLES.includes(id),
   );
 }
 
@@ -196,10 +232,8 @@ function canGiveLuckybox(
 function canManageLottery(
   member: GuildMember | null | undefined,
 ): boolean {
-  if (!member) return false;
-
-  return member.roles.cache.some((role) =>
-    LOTTERY_MANAGEMENT_ROLES.includes(role.id),
+  return getRoleIds(member).some((id) =>
+    LOTTERY_MANAGEMENT_ROLES.includes(id),
   );
 }
 
@@ -210,20 +244,16 @@ function canManageLottery(
 function canUseClear(
   member: GuildMember | null | undefined,
 ): boolean {
-  if (!member) return false;
-
-  return member.roles.cache.some((role) =>
-    CLEAR_COMMAND_ROLES.includes(role.id),
+  return getRoleIds(member).some((id) =>
+    CLEAR_COMMAND_ROLES.includes(id),
   );
 }
 
 function canManageRoles(
   member: GuildMember | null | undefined,
 ): boolean {
-  if (!member) return false;
-
-  return member.roles.cache.some((role) =>
-    ROLE_MANAGEMENT_COMMAND_ROLES.includes(role.id),
+  return getRoleIds(member).some((id) =>
+    ROLE_MANAGEMENT_COMMAND_ROLES.includes(id),
   );
 }
 
@@ -235,10 +265,21 @@ function canManageRoles(
 function canUseDropCommands(
   member: GuildMember | null | undefined,
 ): boolean {
-  if (!member) return false;
+  return getRoleIds(member).some((id) =>
+    DROP_COMMAND_ROLES.includes(id),
+  );
+}
 
-  return member.roles.cache.some((role) =>
-    DROP_COMMAND_ROLES.includes(role.id),
+/*
+ * Comprueba si el usuario puede ver:
+ * /crearmision
+ * -borrarmision
+ */
+function canManageMissions(
+  member: GuildMember | null | undefined,
+): boolean {
+  return getRoleIds(member).some((id) =>
+    MISSION_MANAGEMENT_ROLES.includes(id),
   );
 }
 
@@ -296,7 +337,6 @@ function getCategories(
       ].join("\n"),
     },
 
-
     /* -----------------------------------------------------
      * RACHAS
      * --------------------------------------------------- */
@@ -309,7 +349,7 @@ function getCategories(
         "-racha — Consulta tu racha actual, tu récord personal y el progreso hacia la próxima recompensa.",
       ].join("\n"),
     },
-    
+
     /* -----------------------------------------------------
      * CASINO
      * --------------------------------------------------- */
@@ -345,6 +385,7 @@ function getCategories(
               "-bomb drop — Dropea una bomba en un canal.",
             ]
           : []),
+
         "-math — Participa en una trivia matemática apostando frijoles.",
         "-ppt — Juega un 1v1 de Piedra, Papel o Tijera apostando frijoles.",
         "-tateti — Juega un 5x5 de Ta-Te-Ti apostando frijoles contra otro usuario.",
@@ -391,6 +432,34 @@ function getCategories(
         "",
       ].join("\n"),
     },
+
+    /* -----------------------------------------------------
+     * MISIONES
+     * --------------------------------------------------- */
+    {
+      label: "Misiones",
+      description:
+        "Consulta y administra las misiones semanales por frijoles.",
+      emoji: "🏆",
+      title: "Misiones",
+      content: [
+        /*
+         * Disponible para todos los usuarios.
+         */
+        "-misiones — Consulta las misiones semanales, tu progreso y las recompensas disponibles.",
+
+        /*
+         * Estos comandos solamente aparecen para los roles
+         * autorizados en MISSION_MANAGEMENT_ROLES.
+         */
+        ...(canManageMissions(member)
+          ? [
+              "/crearmision — Crea una misión semanal por frijoles mediante un formulario.",
+              "-borrarmision — Elimina una misión semanal y su progreso asociado.",
+            ]
+          : []),
+      ].join("\n"),
+    },
   ];
 
   /*
@@ -430,13 +499,13 @@ function getCategories(
       content: [
         "-sanciones — Consulta la información de una sanción.",
 
-/* Estos comandos solamente aparecen para los roles autorizados. */
-...(canManageRoles(member)
-  ? [
-      "-dar rol — Otorga un rol a un usuario.",
-      "-quitar rol — Retira un rol de un usuario.",
-    ]
-  : []),
+        /* Estos comandos solamente aparecen para los roles autorizados. */
+        ...(canManageRoles(member)
+          ? [
+              "-dar rol — Otorga un rol a un usuario.",
+              "-quitar rol — Retira un rol de un usuario.",
+            ]
+          : []),
 
         /*
          * -clear solamente aparece para los roles
@@ -548,14 +617,12 @@ async function sendHelpMenu(
   /*
    * Pasamos también el miembro para comprobar
    * los roles específicos de Lucky Box, Lotería,
-   * -clear y los comandos drop.
+   * -clear, comandos drop y Misiones.
    */
   const categories = getCategories(
     access,
     member,
   );
-
-  const initialCat = categories[0];
 
   /* -------------------------------------------------------
    * CONSTRUCCIÓN DE LOS EMBEDS
@@ -569,23 +636,23 @@ async function sendHelpMenu(
       .filter((line) => /^\s*[-/]/.test(line))
       .length;
 
-// Destaca automáticamente el comando y separa su descripción.
-const formatCommandLines = (content: string): string =>
-  content
-    .split("\n")
-    .map((line) => {
-      const separator = line.indexOf(" — ");
+  // Destaca automáticamente el comando y separa su descripción.
+  const formatCommandLines = (content: string): string =>
+    content
+      .split("\n")
+      .map((line) => {
+        const separator = line.indexOf(" — ");
 
-      // Conserva las líneas vacías o que no sean comandos.
-      if (separator === -1) return line;
+        // Conserva las líneas vacías o que no sean comandos.
+        if (separator === -1) return line;
 
-      const commandName = line.slice(0, separator).trim();
-      const description = line.slice(separator + 3);
+        const commandName = line.slice(0, separator).trim();
+        const description = line.slice(separator + 3);
 
-      return `\`${commandName}\` — ${description}`;
-    })
-    .join("\n");
-  
+        return `\`${commandName}\` — ${description}`;
+      })
+      .join("\n");
+
   // Pantalla inicial del Centro de Ayuda.
   const buildHomeEmbed = () => {
     const embed = new EmbedBuilder()
@@ -626,7 +693,7 @@ const formatCommandLines = (content: string): string =>
       .setDescription(
         `${category.description}\n\n` +
           `**Comandos**\n` +
-formatCommandLines(category.content),
+          formatCommandLines(category.content),
       )
       .setImage(
         "https://i.postimg.cc/NftRNWyr/1783848277486.png",
