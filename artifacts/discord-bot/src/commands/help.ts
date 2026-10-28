@@ -569,6 +569,23 @@ async function sendHelpMenu(
       .filter((line) => /^\s*[-/]/.test(line))
       .length;
 
+// Destaca automáticamente el comando y separa su descripción.
+const formatCommandLines = (content: string): string =>
+  content
+    .split("\n")
+    .map((line) => {
+      const separator = line.indexOf(" — ");
+
+      // Conserva las líneas vacías o que no sean comandos.
+      if (separator === -1) return line;
+
+      const commandName = line.slice(0, separator).trim();
+      const description = line.slice(separator + 3);
+
+      return `\`${commandName}\` — ${description}`;
+    })
+    .join("\n");
+  
   // Pantalla inicial del Centro de Ayuda.
   const buildHomeEmbed = () => {
     const embed = new EmbedBuilder()
@@ -609,7 +626,7 @@ async function sendHelpMenu(
       .setDescription(
         `${category.description}\n\n` +
           `**Comandos**\n` +
-          category.content,
+formatCommandLines(category.content),
       )
       .setImage(
         "https://i.postimg.cc/NftRNWyr/1783848277486.png",
