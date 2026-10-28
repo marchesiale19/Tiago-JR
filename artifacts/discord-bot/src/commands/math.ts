@@ -1,3 +1,4 @@
+
 import {
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
@@ -17,16 +18,90 @@ import {
 
 import { db } from "../database/database";
 import { mathChallenges } from "@workspace/db/schema";
-import { generateMathQuestion } from "../utils/mathQuestionGenerator";
 import pkg from "unb-api";
+
 const { Client: UnbClient } = pkg;
 
-const TIME_LIMIT_MS = 6_000;
+const TIME_LIMIT_MS = 10_000;
 const COOLDOWN_MS = 20_000;
 const MIN_BET = 100;
 
-// Cliente de UnbelievaBoat idéntico al que usa ppt.ts
-const unb = new UnbClient(process.env.UNBELIEVABOAT_API_KEY as string);
+// Cliente de UnbelievaBoat
+const unb = new UnbClient(
+  process.env.UNBELIEVABOAT_API_KEY as string,
+);
+
+// Generador de preguntas matemáticas accesibles
+function generateMathQuestion(): {
+  expression: string;
+  answer: number;
+} {
+  const type = Math.floor(Math.random() * 3);
+
+  // 1. Raíces cuadradas exactas
+  if (type === 0) {
+    const roots = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 25, 30];
+
+    const root = roots[Math.floor(Math.random() * roots.length)];
+
+    return {
+      expression: `√${root * root}`,
+      answer: root,
+    };
+  }
+
+  // 2. Multiplicaciones sencillas y de cantidades mayores
+  if (type === 1) {
+    const multiplications: [number, number][] = [
+      [2, 5],
+      [4, 5],
+      [5, 5],
+      [10, 10],
+      [12, 5],
+      [15, 4],
+      [20, 5],
+      [25, 4],
+      [50, 2],
+      [100, 5],
+      [100, 10],
+      [100, 50],
+      [150, 2],
+      [200, 5],
+      [250, 5],
+      [500, 2],
+    ];
+
+    const [a, b] =
+      multiplications[
+        Math.floor(Math.random() * multiplications.length)
+      ];
+
+    return {
+      expression: `${a} × ${b}`,
+      answer: a * b,
+    };
+  }
+
+  // 3. Sumas y restas sencillas
+  const a = Math.floor(Math.random() * 91) + 10;
+  const b = Math.floor(Math.random() * 91) + 10;
+  const addition = Math.random() < 0.5;
+
+  if (addition) {
+    return {
+      expression: `${a} + ${b}`,
+      answer: a + b,
+    };
+  }
+
+  const larger = Math.max(a, b);
+  const smaller = Math.min(a, b);
+
+  return {
+    expression: `${larger} - ${smaller}`,
+    answer: larger - smaller,
+  };
+}
 
 export const data = new SlashCommandBuilder()
   .setName("math")
@@ -36,7 +111,7 @@ export const data = new SlashCommandBuilder()
       .setName("apuesta")
       .setDescription("Monto a apostar (Mínimo 100)")
       .setRequired(true)
-      .setMinValue(MIN_BET)
+      .setMinValue(MIN_BET),
   );
 
 type StartOptions = {
@@ -80,7 +155,11 @@ async function startChallenge(
       return;
     }
   } catch (error) {
-    console.error("[MATH] Error al consultar saldo en UnbelievaBoat:", error);
+    console.error(
+      "[MATH] Error al consultar saldo en UnbelievaBoat:",
+      error,
+    );
+
     await sendQuestion(
       "⚠️ No se pudo verificar tu saldo. Intentalo de nuevo en unos momentos.",
     );
@@ -127,8 +206,9 @@ async function startChallenge(
     return;
   }
 
-  // Validar Cooldown (20 segundos)
+  // Validar cooldown de 20 segundos
   const cooldownStart = new Date(now.getTime() - COOLDOWN_MS);
+
   const [lastChallenge] = await db
     .select({ createdAt: mathChallenges.createdAt })
     .from(mathChallenges)
@@ -143,7 +223,9 @@ async function startChallenge(
     .limit(1);
 
   if (lastChallenge) {
-    const elapsed = now.getTime() - lastChallenge.createdAt.getTime();
+    const elapsed =
+      now.getTime() - lastChallenge.createdAt.getTime();
+
     const remainingSeconds = Math.max(
       1,
       Math.ceil((COOLDOWN_MS - elapsed) / 1_000),
@@ -157,7 +239,7 @@ async function startChallenge(
 
   const question = generateMathQuestion();
 
-  // 2. Registrar reto en la BD (estado: pending) antes de cobrar
+  // 2. Registrar reto en la BD antes de cobrar
   const [challenge] = await db
     .insert(mathChallenges)
     .values({
@@ -172,40 +254,57 @@ async function startChallenge(
 
   // 3. Descontar apuesta
   try {
-    await unb.editUserBalance(guildId, userId, { cash: -betAmount });
+    await unb.editUserBalance(guildId, userId, {
+      cash: -betAmount,
+    });
   } catch (error) {
     console.error("[MATH] Error al descontar apuesta:", error);
+
     await db
       .update(mathChallenges)
-      .set({ status: "cancelled", completedAt: new Date() })
+      .set({
+        status: "cancelled",
+        completedAt: new Date(),
+      })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await sendQuestion("⚠️ Error al procesar la apuesta en el sistema de economía.");
+    await sendQuestion(
+      "⚠️ Error al procesar la apuesta en el sistema de economía.",
+    );
     return;
   }
 
   // 4. Publicar pregunta en Discord
   let prompt: Message;
+
   try {
     prompt = await sendQuestion(
       `🧠 **Reto matemático por $${betAmount}**\n` +
         `Resolvé: **${question.expression} = ?**\n` +
-        `Tenés **6 segundos** para responder en este canal.`,
+        `Tenés **8 segundos** para responder en este canal.`,
     );
   } catch (error) {
-    // Failsafe: Si falla el envío del mensaje, se cancela y reembolsa inmediatamente
+    // Si falla el envío, cancelar el reto y devolver la apuesta
     await db
       .update(mathChallenges)
-      .set({ status: "cancelled", completedAt: new Date() })
+      .set({
+        status: "cancelled",
+        completedAt: new Date(),
+      })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await unb.editUserBalance(guildId, userId, { cash: betAmount });
+    await unb.editUserBalance(guildId, userId, {
+      cash: betAmount,
+    });
+
     throw error;
   }
 
   // Activar temporizador
   const startedAt = new Date();
-  const expiresAt = new Date(startedAt.getTime() + TIME_LIMIT_MS);
+  const expiresAt = new Date(
+    startedAt.getTime() + TIME_LIMIT_MS,
+  );
 
   await db
     .update(mathChallenges)
@@ -217,7 +316,7 @@ async function startChallenge(
     })
     .where(eq(mathChallenges.id, challenge.id));
 
-  // Escuchar respuesta
+  // Escuchar únicamente la respuesta del jugador
   const collector = channel.createMessageCollector({
     time: TIME_LIMIT_MS,
     max: 1,
@@ -228,14 +327,17 @@ async function startChallenge(
 
   const answer = await new Promise<Message | null>((resolve) => {
     collector.once("collect", (message) => resolve(message));
+
     collector.once("end", (collected) => {
-      if (collected.size === 0) resolve(null);
+      if (collected.size === 0) {
+        resolve(null);
+      }
     });
   });
 
   const finishedAt = new Date();
 
-  // Caso: Tiempo agotado -> Reembolso completo
+  // 5. Tiempo agotado: devolver apuesta completa
   if (!answer) {
     await db
       .update(mathChallenges)
@@ -245,7 +347,9 @@ async function startChallenge(
       })
       .where(eq(mathChallenges.id, challenge.id));
 
-    await unb.editUserBalance(guildId, userId, { cash: betAmount });
+    await unb.editUserBalance(guildId, userId, {
+      cash: betAmount,
+    });
 
     await channel.send(
       `⌛ Se terminó el tiempo de <@${userId}>. ` +
@@ -256,10 +360,11 @@ async function startChallenge(
     return;
   }
 
-  // Evaluar respuesta
+  // 6. Evaluar respuesta
   const rawAnswer = answer.content.trim();
   const isInteger = /^-?\d+$/.test(rawAnswer);
-  const correct = isInteger && Number(rawAnswer) === question.answer;
+  const correct =
+    isInteger && Number(rawAnswer) === question.answer;
 
   await db
     .update(mathChallenges)
@@ -271,8 +376,12 @@ async function startChallenge(
     .where(eq(mathChallenges.id, challenge.id));
 
   if (correct) {
+    // Respuesta correcta: pagar el doble de la apuesta
     const reward = betAmount * 2;
-    await unb.editUserBalance(guildId, userId, { cash: reward });
+
+    await unb.editUserBalance(guildId, userId, {
+      cash: reward,
+    });
 
     await channel.send(
       `✅ ¡Correcto, <@${userId}>! ` +
@@ -280,6 +389,7 @@ async function startChallenge(
         `🎉 ¡Ganaste **$${reward}** (2x de tu apuesta)!`,
     );
   } else {
+    // Respuesta incorrecta: se pierde la apuesta
     await channel.send(
       `❌ Respuesta incorrecta, <@${userId}>. ` +
         `La respuesta correcta era **${question.answer}**.\n` +
@@ -299,7 +409,11 @@ export async function execute(
     return;
   }
 
-  const betAmount = interaction.options.getInteger("apuesta", true);
+  const betAmount = interaction.options.getInteger(
+    "apuesta",
+    true,
+  );
+
   await interaction.deferReply();
 
   try {
@@ -316,6 +430,7 @@ export async function execute(
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
+
     await interaction.editReply(
       "No pude completar el reto. Revisá los registros del bot.",
     );
@@ -345,6 +460,7 @@ export async function run(
 
   try {
     const channel = message.channel as TextBasedChannel;
+
     await startChallenge({
       guildId: message.guildId,
       channelId: message.channelId,
@@ -355,6 +471,7 @@ export async function run(
     });
   } catch (error) {
     console.error("[MATH] Error al ejecutar el reto:", error);
+
     await message.reply(
       "No pude completar el reto. Revisá los registros del bot.",
     );
