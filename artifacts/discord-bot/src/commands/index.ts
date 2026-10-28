@@ -29,6 +29,7 @@ import * as racha from "./racha";
 import * as crearMision from "./crearmision";
 import * as misiones from "./misiones";
 import * as borrarmision from "./borrarmision";
+import * as resetcasino from "./resetcasino";
 
 // Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -84,6 +85,7 @@ export const commands: Collection<string, BotCommand> =
 
 commands.set(postular.data.name, postular);
 commands.set(sanciones.data.name, sanciones);
+commands.set(resetcasino.data.name, resetcasino);
 
 commands.set(rolesCommand.data.data.name, {
   data: rolesCommand.data.data,
