@@ -58,7 +58,13 @@ const BOMB_LOG_CHANNEL_ID = "1557861035677843576";
 /* ========================================================================== */
 
 const BOMB_DROP_AUTHORIZED_ROLES: readonly string[] = [
-  "1539368076326473868", // Developer Tiago Jr
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1503876451315880016", // Administrador
+  "1509760475653472287", // Administrador [PB]
   "1522807097920720967", // Manager
 ];
 
