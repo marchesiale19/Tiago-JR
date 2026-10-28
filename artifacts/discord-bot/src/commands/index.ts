@@ -109,9 +109,6 @@ commands.set(asignarRangoData.name, {
 });
 commands.set(leaderboard.data.name, leaderboard);
 
-// Reto matemático: /math y -math
-commands.set(math.data.name, math);
-
 // Racha
 commands.set(racha.data.name, racha);
 
