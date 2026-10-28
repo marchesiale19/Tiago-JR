@@ -25,7 +25,6 @@ import * as bomb from "./bomb";
 import * as tateti from "./tateti";
 import * as ppt from "./ppt";
 import * as leaderboard from "./leaderboard";
-import * as math from "./math";
 import * as racha from "./racha";
 import * as crearMision from "./crearmision";
 import * as misiones from "./misiones";
