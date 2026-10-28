@@ -558,17 +558,54 @@ async function sendHelpMenu(
   const initialCat = categories[0];
 
   /* -------------------------------------------------------
-   * CONSTRUCCIÓN DEL EMBED
+   * CONSTRUCCIÓN DE LOS EMBEDS
    * ----------------------------------------------------- */
 
-  const buildEmbed = (
-    category: CategoryData,
-  ) => {
+  // Cuenta los comandos visibles de cada categoría.
+  // El resumen respeta los permisos aplicados en getCategories.
+  const countCommands = (category: CategoryData): number =>
+    category.content
+      .split("\n")
+      .filter((line) => /^\s*[-/]/.test(line))
+      .length;
+
+  // Pantalla inicial del Centro de Ayuda.
+  const buildHomeEmbed = () => {
+    const embed = new EmbedBuilder()
+      .setColor("Orange")
+      .setTitle("📖 TIAGO JR • Centro de Ayuda")
+      .setDescription(
+        [
+          "¡Bienvenido al **Centro de Ayuda de TIAGO JR**!",
+          "",
+          "Seleccioná una categoría en el menú para consultar sus comandos. Podés cambiar de categoría sin cerrar el panel.",
+          "",
+          "🔹 Comandos organizados por función.",
+          "🔹 Navegación rápida mediante menú desplegable.",
+          "🔹 Los comandos restringidos no aparecen si no tenés los permisos necesarios.",
+        ].join("\n"),
+      );
+
+    for (const category of categories) {
+      embed.addFields({
+        name: `${category.emoji} ${category.label}`,
+        value: `${countCommands(category)} comando(s)`,
+        inline: true,
+      });
+    }
+
+    return embed
+      .setFooter({
+        text: "TIAGO JR • Centro de Ayuda • Seleccioná una categoría",
+      })
+      .setTimestamp();
+  };
+
+  // Embed de una categoría seleccionada.
+  const buildEmbed = (category: CategoryData) => {
     return new EmbedBuilder()
       .setColor("Orange")
-      .setTitle(
-        `${category.emoji} ${category.title}`,
-      )
+      .setTitle(`${category.emoji} ${category.title}`)
       .setDescription(
         `${category.description}\n\n` +
           `**Comandos**\n` +
@@ -639,14 +676,14 @@ async function sendHelpMenu(
 
   if (editMethod) {
     response = await replyMethod({
-      embeds: [buildEmbed(initialCat)],
+      embeds: [buildHomeEmbed()],
       components:
         buildComponents() as any,
       fetchReply: true,
     });
   } else {
     response = await replyMethod({
-      embeds: [buildEmbed(initialCat)],
+      embeds: [buildHomeEmbed()],
       components:
         buildComponents() as any,
     });
@@ -729,7 +766,7 @@ async function sendHelpMenu(
         ) {
           await button.update({
             embeds: [
-              buildEmbed(initialCat),
+              buildHomeEmbed(),
             ],
             components:
               buildComponents() as any,
