@@ -130,6 +130,25 @@ const MISSION_MANAGEMENT_ROLES = [
   "1522807097920720967", // Manager
 ];
 
+/*
+ * Roles que pueden ver en el help:
+ * -resetcasino
+ * -resetinv
+ *
+ * La comprobación de permisos real también debe mantenerse
+ * dentro de las implementaciones de ambos comandos.
+ */
+const CASINO_RESET_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1503876451315880016", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
 /* =========================================================
  * TIPOS Y NIVEL DE ACCESO
  * ======================================================= */
@@ -283,6 +302,19 @@ function canManageMissions(
   );
 }
 
+/*
+ * Comprueba si el usuario puede ver:
+ * -resetcasino
+ * -resetinv
+ */
+function canResetCasino(
+  member: GuildMember | null | undefined,
+): boolean {
+  return getRoleIds(member).some((id) =>
+    CASINO_RESET_ROLES.includes(id),
+  );
+}
+
 /* =========================================================
  * CATEGORÍAS DEL HELP
  * ======================================================= */
@@ -363,6 +395,17 @@ function getCategories(
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
         "-bomb info — Muestra información detallada sobre las Bombas.",
+
+        /*
+         * Estos comandos solamente aparecen para los roles
+         * autorizados a reiniciar el casino y los inventarios.
+         */
+        ...(canResetCasino(member)
+          ? [
+              "-resetcasino — Reinicia los balances del casino de todos los usuarios.",
+              "-resetinv — Elimina masivamente las cajas Mr Lucky de los inventarios de los usuarios.",
+            ]
+          : []),
 
         /*
          * Este comando solamente aparece si el usuario
@@ -617,7 +660,7 @@ async function sendHelpMenu(
   /*
    * Pasamos también el miembro para comprobar
    * los roles específicos de Lucky Box, Lotería,
-   * -clear, comandos drop y Misiones.
+   * -clear, comandos drop, Misiones y reseteos del casino.
    */
   const categories = getCategories(
     access,
