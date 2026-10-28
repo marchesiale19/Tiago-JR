@@ -25,7 +25,7 @@ const ROLES_ADMIN_AUTORIZADOS = [
   "1522807097920720967", // Manager
 ];
 
-// IDs oficiales de las Mr Lucky en UnbelievaBoat (extraídos de tu sistema actual)
+// IDs oficiales de las Mr Lucky en UnbelievaBoat
 const LUCKYBOX_ITEM_IDS = [
   "1545211721772305804", // Mr Lucky Común
   "1548866970819101248", // Mr Lucky Raro
@@ -35,8 +35,8 @@ const LUCKYBOX_ITEM_IDS = [
 
 async function ejecutarResetInventarioLucky(guildId: string): Promise<{ success: boolean; totalRemovidos: number; usuariosAfectados: number; error?: string }> {
   try {
-    // Obtenemos el leaderboard del casino o los usuarios con actividad para revisar sus inventarios
-    const leaderboardData = await unb.getGuildLeaderboard(guildId, { limit: 100 });
+    // Ampliamos el límite a 1000 para abarcar a la gran mayoría de usuarios del servidor
+    const leaderboardData = await unb.getGuildLeaderboard(guildId, { limit: 1000 });
     const users = Array.isArray(leaderboardData) ? leaderboardData : (leaderboardData as any)?.users ?? [];
 
     if (!users || users.length === 0) {
@@ -51,7 +51,6 @@ async function ejecutarResetInventarioLucky(guildId: string): Promise<{ success:
       if (!userId) continue;
 
       try {
-        // Obtenemos el inventario del usuario mediante unb-api
         const inventoryResult = await unb.getInventoryItems(guildId, userId);
         const items = (inventoryResult as any)?.items ?? [];
 
@@ -64,7 +63,6 @@ async function ejecutarResetInventarioLucky(guildId: string): Promise<{ success:
           const quantity = Number(item.quantity ?? item.quantiy ?? item.count ?? 0);
 
           if (LUCKYBOX_ITEM_IDS.includes(itemId) && quantity > 0) {
-            // Removemos todas las unidades de esa caja que tenga el usuario en su inventario
             await unb.removeInventoryItem(guildId, userId, itemId, quantity);
             totalRemovidos += quantity;
             userTieneLuckyboxes = true;
@@ -81,14 +79,14 @@ async function ejecutarResetInventarioLucky(guildId: string): Promise<{ success:
 
     return { success: true, totalRemovidos, usuariosAfectados };
   } catch (err: any) {
-    logger.error({ err, guildId }, "Error crítico al ejecutar el reseteo de inventarios de Luckybox.");
+    logger.error({ err, guildId }, "Error crítico al ejecutar el reseteo masivo de inventarios.");
     return { success: false, totalRemovidos: 0, usuariosAfectados: 0, error: err?.message || "Error desconocido" };
   }
 }
 
 export const data = new SlashCommandBuilder()
   .setName("resetinv")
-  .setDescription("⚠️ [ADMIN] Remueve todas las cajas Mr Lucky de los inventarios de los usuarios.");
+  .setDescription("⚠️ [ADMIN] Remueve todas las cajas Mr Lucky de los inventarios de los usuarios de forma masiva.");
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
@@ -115,7 +113,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const embed = new EmbedBuilder()
     .setColor(0xED4245)
-    .setTitle("⚠️ Inventarios de Luckybox Reseteados")
+    .setTitle("⚠️ Inventarios de Luckybox Reseteados (Masivo)")
     .setDescription(`Todas las cajas Mr Lucky fueron retiradas de los inventarios por <@${interaction.user.id}>.`)
     .addFields(
       { name: "📦 Cajas eliminadas en total", value: `\`${resultado.totalRemovidos}\``, inline: true },
@@ -140,7 +138,7 @@ export async function run(message: Message, _args: string[]): Promise<void> {
     return;
   }
 
-  const processingMsg = await message.reply("⏳ Escaneando y removiendo las cajas Mr Lucky de los inventarios... Por favor espera.");
+  const processingMsg = await message.reply("⏳ Escaneando masivamente los inventarios del servidor... Esto puede tardar unos segundos.");
 
   const resultado = await ejecutarResetInventarioLucky(message.guildId);
 
@@ -151,7 +149,7 @@ export async function run(message: Message, _args: string[]): Promise<void> {
 
   const embed = new EmbedBuilder()
     .setColor(0xED4245)
-    .setTitle("⚠️ Inventarios de Luckybox Reseteados")
+    .setTitle("⚠️ Inventarios de Luckybox Reseteados (Masivo)")
     .setDescription(`Todas las cajas Mr Lucky fueron retiradas de los inventarios por <@${message.author.id}>.`)
     .addFields(
       { name: "📦 Cajas eliminadas en total", value: `\`${resultado.totalRemovidos}\``, inline: true },
