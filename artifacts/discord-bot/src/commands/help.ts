@@ -425,8 +425,8 @@ function getCategories(
      */
     ...(canManageEconomy(member)
       ? [
-          "-darplata @usuario <cantidad> <cash|bank> — Añade frijoles al efectivo o banco de un usuario.",
-          "-quitarplata @usuario <cantidad> <cash|bank> — Retira frijoles del efectivo o banco de un usuario.",
+          "-darplata — Añade frijoles al efectivo o banco de un usuario.",
+          "-quitarplata — Retira frijoles del efectivo o banco de un usuario.",
         ]
       : []),
 
