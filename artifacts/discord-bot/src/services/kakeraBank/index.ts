@@ -11,6 +11,7 @@ const SOURCE_GUILD_ID = "1437644356977823884";
 const MUDAE_BOT_ID = "432610292342587392";
 const SANTIAGO_ID = "909216958891823104";
 const LOG_CHANNEL_ID = "1562578969377636464";
+const ALERT_USER_ID = "1318045186684751922";
 
 const BEANS_PER_KAKERA = 1_000;
 const MAX_KAKERA_PER_TRANSFER = 100_000;
@@ -33,8 +34,11 @@ async function publishLog(
     }
 
     await channel.send({
-      content,
-      allowedMentions: { parse: [] },
+      content: `${content}\n\n<@${ALERT_USER_ID}>`,
+      allowedMentions: {
+        users: [ALERT_USER_ID],
+        parse: [],
+      },
     });
   } catch (error) {
     logger.error(
