@@ -348,17 +348,22 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 ];
 
 /* ========================================================================== */
-/*                       ROLES AUTORIZADOS PARA DROP                          */
+/*                         ROLES AUTORIZADOS PARA DROP                        */
 /* ========================================================================== */
 
-const LUCKYBOX_DROP_AUTHORIZED_ROLES:
-  readonly string[] = [
-    "1522434536796061816", // Desarrollador[cite: 4]
-    "1522807097920720967", // Manager[cite: 4]
-  ];
+const LUCKYBOX_DROP_AUTHORIZED_ROLES: readonly string[] = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1503876451315880016", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
 
-// ID de Bang
-const BANG_USER_ID = "944483765667893248";
+// ID exclusivo para Sowi (mantiene su comportamiento de booster y su canal restringido)
+const LUCKYBOX_BOOSTER_USER_ID = "1503876451315880016";
 
 /* ========================================================================== */
 /*                     LÍMITES DE LUCKYBOX DROP                              */
@@ -1532,8 +1537,10 @@ function hasLuckyboxDropPermission(
     };
   },
 ): boolean {
-  if (member.id === LUCKYBOX_BOOSTER_USER_ID || member.id === BANG_USER_ID) {
-    return true;
+  // Si es Sowi, NO dejamos que pase por los roles generales de Admin
+  // para forzarla a usar únicamente su lógica de booster en su canal exclusivo.
+  if (member.id === LUCKYBOX_BOOSTER_USER_ID) {
+    return true; // Su propia restricción de canal ya se encarga de limitarla más abajo
   }
 
   return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
