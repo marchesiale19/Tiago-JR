@@ -149,6 +149,24 @@ const CASINO_RESET_ROLES = [
   "1522807097920720967", // Manager
 ];
 
+
+/*
+ * Roles que pueden ver en el help:
+ * -darplata
+ * -quitarplata
+ */
+const ECONOMY_MANAGEMENT_ROLES = [
+  "1451383215603585140", // Owner
+  "1508266687689003039", // Co-Owner
+  "1512634750152478851", // Jefe Staff
+  "1485101671875874997", // Administrador Elite
+  "1522434536796061816", // Desarrollador
+  "1503876451315880016", // Administrador
+  "1509760475653472287", // Administrador [PB]
+  "1522807097920720967", // Manager
+];
+
+
 /* =========================================================
  * TIPOS Y NIVEL DE ACCESO
  * ======================================================= */
@@ -315,6 +333,15 @@ function canResetCasino(
   );
 }
 
+
+function canManageEconomy(
+  member: GuildMember | null | undefined,
+): boolean {
+  return getRoleIds(member).some((id) =>
+    ECONOMY_MANAGEMENT_ROLES.includes(id),
+  );
+}
+
 /* =========================================================
  * CATEGORÍAS DEL HELP
  * ======================================================= */
@@ -385,12 +412,24 @@ function getCategories(
     /* -----------------------------------------------------
      * CASINO
      * --------------------------------------------------- */
-    {
-      label: "Casino",
-      description: "Sistema de economía.",
-      emoji: "🎰",
-      title: "Casino",
-      content: [
+  
+{
+  label: "Casino",
+  description: "Sistema de economía.",
+  emoji: "🎰",
+  title: "Casino",
+  content: [
+    /*
+     * Solo Manager y los rangos superiores autorizados
+     * pueden ver estos comandos en el help.
+     */
+    ...(canManageEconomy(member)
+      ? [
+          "-darplata @usuario <cantidad> <cash|bank> — Añade frijoles al efectivo o banco de un usuario.",
+          "-quitarplata @usuario <cantidad> <cash|bank> — Retira frijoles del efectivo o banco de un usuario.",
+        ]
+      : []),
+
         "-luckybox abrir — Abre una Lucky Box.",
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
