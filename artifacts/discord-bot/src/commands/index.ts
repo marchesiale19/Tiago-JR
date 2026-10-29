@@ -31,6 +31,7 @@ import * as misiones from "./misiones";
 import * as borrarmision from "./borrarmision";
 import * as resetcasino from "./resetcasino";
 import * as resetinv from "./resetinv";
+import * as economyCommand from "./economy";
 
 // Flujo de ranked
 import * as buscarPartida from "./buscar-partida";
@@ -94,6 +95,20 @@ commands.set(rolesCommand.data.data.name, {
   execute: rolesCommand.data.execute,
   run: rolesCommand.data.run,
 });
+
+/* ============================================================
+ * GESTIÓN DE ECONOMÍA
+ * ============================================================ */
+
+commands.set(
+  economyCommand.darplata.data.name,
+  economyCommand.darplata,
+);
+
+commands.set(
+  economyCommand.quitarplata.data.name,
+  economyCommand.quitarplata,
+);
 
 /* ============================================================
  * TEMPORADAS, RANKING Y PERFILES
