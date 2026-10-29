@@ -205,16 +205,18 @@ async function executeEconomyAction(
   try {
     const embed = await modifyBalance(action, options);
 
-    if (reply.editReply) {
-      await reply.editReply({
-        embeds: [embed],
-      });
-    } else {
-      await reply.reply({
-        embeds: [embed],
-        allowedMentions: { users: [options.targetId] },
-      });
-    }
+  const response = {
+  embeds: [embed],
+  allowedMentions: {
+    users: [options.targetId],
+  },
+};
+
+if (reply.editReply) {
+  await reply.editReply(response);
+} else {
+  await reply.reply(response);
+}
 
     logger.info(
       {
@@ -421,16 +423,23 @@ function createEconomyCommand(action: EconomyAction) {
         // No se aplica ninguna excepción de permisos.
       }
 
-      const targetUser = await message.client.users
-        .fetch(targetId)
-        .catch(() => null);
+     const targetUser = await message.client.users
+  .fetch(targetId)
+  .catch(() => null);
 
-      if (targetUser?.bot) {
-        await message.reply(
-          "❌ No podés gestionar la economía de un bot.",
-        );
-        return;
-      }
+if (!targetUser) {
+  await message.reply(
+    "❌ No se pudo encontrar ese usuario de Discord.",
+  );
+  return;
+}
+
+if (targetUser.bot) {
+  await message.reply(
+    "❌ No podés gestionar la economía de un bot.",
+  );
+  return;
+}
 
       await executeEconomyAction(
         action,
