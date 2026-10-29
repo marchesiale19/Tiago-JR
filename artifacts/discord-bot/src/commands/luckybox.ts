@@ -186,6 +186,8 @@ const ROL_TOP_CASINO_ID =
 
 const ROL_REQUERIDO_ABRIR_ID = "1543094224403308639";
 
+const ROL_SUPER_BOOSTER_ID = "1529006891605295276";
+
 /* ========================================================================== */
 /*                                  TIPOS                                     */
 /* ========================================================================== */
@@ -275,7 +277,13 @@ export const COLLECT_ROLES = {
       },
     ],
   },
-
+  
+SUPER_BOOSTER: {
+    roleId: "1529006891605295276",
+    roleName: "⚡ Super Booster",
+    rewards: [], 
+  },
+  
   MEJOR_MIEMBRO: {
     roleId: "1525558946272772247",
     roleName: "⭐️ヽMEJOR MIEMBRO",
@@ -2220,6 +2228,43 @@ function getCollectRewards(
   return rewards;
 }
 
+function pickSuperBoosterReward(): { tipo: "caja" | "bomba"; nombre: string; costo?: number } {
+  const rand = Math.random() * 100;
+  let acumulado = 0;
+
+  // Probabilidades de cajas (Mayor chance, bajando a medida que es más rara)
+  const cajas = [
+    { nombre: "Mr Lucky Común", prob: 40.0 },
+    { nombre: "Mr Lucky Raro", prob: 22.0 },
+    { nombre: "Mr Lucky Épico", prob: 8.0 },
+    { nombre: "Mr Lucky Admin", prob: 3.0 },
+  ];
+
+  for (const caja of cajas) {
+    acumulado += caja.prob;
+    if (rand <= acumulado) {
+      return { tipo: "caja", nombre: caja.nombre };
+    }
+  }
+
+  // Probabilidades de bombas (Menor chance general, bajando si es más cara/rara)
+  const bombas = [
+    { nombre: "Bomba Común", costo: 30000, prob: 15.0 },
+    { nombre: "Bomba Rara", costo: 100000, prob: 8.0 },
+    { nombre: "Bomba Épica", costo: 400000, prob: 3.0 },
+    { nombre: "Bomba Admin", costo: 1000000, prob: 1.0 },
+  ];
+
+  for (const bomba of bombas) {
+    acumulado += bomba.prob;
+    if (rand <= acumulado) {
+      return { tipo: "bomba", nombre: bomba.nombre, costo: bomba.costo };
+    }
+  }
+
+  return { tipo: "caja", nombre: "Mr Lucky Común" };
+}
+
 async function handleCollect(
   guild: Guild,
   user: User,
@@ -2237,7 +2282,7 @@ async function handleCollect(
       return;
     }
 
-    const collectRoles = getCollectRolesForMember(member);
+   const collectRoles = getCollectRolesForMember(member);
 
     if (collectRoles.length === 0) {
       const embed = new EmbedBuilder()
@@ -2253,6 +2298,7 @@ async function handleCollect(
             `<@&${COLLECT_ROLES.MIEMBRO_DEL_MES.roleId}>`,
             `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
             `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
+            `<@&${ROL_SUPER_BOOSTER_ID}>`,
           ].join("\n"),
           inline: false,
         })
@@ -2265,6 +2311,10 @@ async function handleCollect(
       return;
     }
 
+    // Identificamos si tiene el rol exclusivo de Super Booster
+    const isSuperBooster = member.roles.cache.has(ROL_SUPER_BOOSTER_ID);
+    const activeCooldownMs = isSuperBooster ? 2 * 24 * 60 * 60 * 1000 : COLLECT_COOLDOWN_MS;
+
     const existingCooldown = await db.query.cooldownsTable.findFirst({
       where: and(
         eq(cooldownsTable.guildId, guild.id),
@@ -2273,16 +2323,15 @@ async function handleCollect(
     });
 
     const now = Date.now();
-    const COLLECT_COOLDOWN_MS = 6 * 24 * 60 * 60 * 1000;
 
     if (existingCooldown) {
       const lastCollectTime = new Date(existingCooldown.lastCollect).getTime();
       const elapsed = now - lastCollectTime;
-      const remaining = COLLECT_COOLDOWN_MS - elapsed;
+      const remaining = activeCooldownMs - elapsed;
 
       if (remaining > 0) {
         const nextCollectTimestamp = Math.ceil(
-          (lastCollectTime + COLLECT_COOLDOWN_MS) / 1000,
+          (lastCollectTime + activeCooldownMs) / 1000,
         );
 
         const roleText = collectRoles
@@ -2313,7 +2362,7 @@ async function handleCollect(
             },
           )
           .setFooter({
-            text: "El cooldown es de 6 días por servidor y usuario.",
+            text: isSuperBooster ? "El cooldown de Super Booster es de 2 días." : "El cooldown es de 6 días por servidor y usuario.",
           })
           .setTimestamp();
 
@@ -2322,6 +2371,71 @@ async function handleCollect(
       }
     }
 
+    const collectDate = new Date();
+
+    // LÓGICA EXCLUSIVA PARA SUPER BOOSTER
+    if (isSuperBooster) {
+      const reward = pickSuperBoosterReward();
+
+      if (reward.tipo === "caja") {
+        const itemId = getLuckyboxItemId(reward.nombre);
+        if (!itemId) {
+          throw new Error(`La caja "${reward.nombre}" no tiene un ID válido configurado.`);
+        }
+
+        await addInventoryItem(guild.id, user.id, itemId, 1);
+
+        if (existingCooldown) {
+          await db.update(cooldownsTable).set({ lastCollect: collectDate }).where(and(eq(cooldownsTable.guildId, guild.id), eq(cooldownsTable.userId, user.id)));
+        } else {
+          await db.insert(cooldownsTable).values({ guildId: guild.id, userId: user.id, lastCollect: collectDate });
+        }
+
+        const nextCollectTimestamp = Math.ceil((collectDate.getTime() + activeCooldownMs) / 1000);
+
+        const successEmbed = new EmbedBuilder()
+          .setColor(0x57F287)
+          .setTitle("⚡ ¡Collect de Super Booster Exitoso!")
+          .setDescription(`<@${user.id}>, reclamaste tu collect especial y obtuviste una caja: **${reward.nombre}** añadida a tu inventario.`)
+          .addFields(
+            { name: "📦 Recompensa", value: `• **${reward.nombre}** × \`1\``, inline: false },
+            { name: "⏳ Próximo collect", value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`, inline: false }
+          )
+          .setFooter({ text: "Sistema de Super Booster • Cooldown de 2 días" })
+          .setTimestamp();
+
+        await sendReply({ embeds: [successEmbed] });
+        return;
+      } else {
+        // Es una bomba: se le descuenta plata del efectivo (cash)
+        const costo = reward.costo ?? 0;
+        await unb.editUserBalance(guild.id, user.id, { cash: -costo });
+
+        if (existingCooldown) {
+          await db.update(cooldownsTable).set({ lastCollect: collectDate }).where(and(eq(cooldownsTable.guildId, guild.id), eq(cooldownsTable.userId, user.id)));
+        } else {
+          await db.insert(cooldownsTable).values({ guildId: guild.id, userId: user.id, lastCollect: collectDate });
+        }
+
+        const nextCollectTimestamp = Math.ceil((collectDate.getTime() + activeCooldownMs) / 1000);
+
+        const bombEmbed = new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle("💣 ¡Te explotó una bomba en el Collect!")
+          .setDescription(`<@${user.id}>, tuviste mala suerte y te cayó una **${reward.nombre}**. Se te descontaron \`${costo.toLocaleString()} Frijoles\` de tu balance.`)
+          .addFields(
+            { name: "💥 Castigo aplicado", value: `• **${reward.nombre}** (-${costo.toLocaleString()} Frijoles)`, inline: false },
+            { name: "⏳ Próximo collect", value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`, inline: false }
+          )
+          .setFooter({ text: "Sistema de Super Booster • Cooldown de 2 días" })
+          .setTimestamp();
+
+        await sendReply({ embeds: [bombEmbed] });
+        return;
+      }
+    }
+
+    // LÓGICA NORMAL PARA LOS DEMÁS ROLES DE COLLECT
     const rewards = getCollectRewards(collectRoles);
 
     if (rewards.length === 0) {
@@ -2391,8 +2505,6 @@ async function handleCollect(
 
       throw err;
     }
-
-    const collectDate = new Date();
 
     if (existingCooldown) {
       await db
