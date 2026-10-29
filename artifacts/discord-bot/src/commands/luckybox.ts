@@ -798,9 +798,6 @@ const activeLuckyboxDrops =
     ActiveLuckyboxDrop
   >();
 
-const LUCKYBOX_BOOSTER_USER_ID =
-  "1503876451315880016";
-
 const LUCKYBOX_BOOSTER_CHANNEL_ID =
   "1453079776951537835";
 
