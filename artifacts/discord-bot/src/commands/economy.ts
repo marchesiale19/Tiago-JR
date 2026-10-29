@@ -1,22 +1,26 @@
 
 import {
   EmbedBuilder,
-  Message,
   MessageFlags,
   SlashCommandBuilder,
-  ChatInputCommandInteraction,
-  GuildMember,
-  User,
+  type ChatInputCommandInteraction,
+  type GuildMember,
+  type Message,
+  type User,
 } from "discord.js";
 
-import { unb } from "../lib/unb";
-import { logger } from "../utils/logger";
+import pkg from "unb-api";
+const { Client: UnbClient } = pkg;
 
-// ─────────────────────────────────────────────
-// Configuración
-// ─────────────────────────────────────────────
+import { logger } from "../lib/logger";
 
-const PREFIX = "-";
+/* ============================================================
+ * CONFIGURACIÓN
+ * ============================================================ */
+
+const API_KEY = process.env.UNBELIEVABOAT_API_KEY;
+
+const unb = new UnbClient(API_KEY ?? "");
 
 const AUTHORIZED_ROLE_IDS = [
   "1451383215603585140", // Owner
@@ -29,26 +33,32 @@ const AUTHORIZED_ROLE_IDS = [
   "1522807097920720967", // Manager
 ] as const;
 
-type EconomyAction = "darplata" | "quitarplata";
-type EconomyLocation = "cash" | "bank";
+type EconomyAction = "add" | "remove";
+type BalancePlace = "cash" | "bank";
 
-interface EconomyInput {
-  action: EconomyAction;
+interface EconomyOptions {
   guildId: string;
-  moderator: User;
-  member: GuildMember;
-  target: User;
+  targetId: string;
+  actorId: string;
+  actorName: string;
   amount: number;
-  location: EconomyLocation;
+  place: BalancePlace;
+  targetUser?: User;
 }
 
-type EconomyResult =
-  | { success: true; embed: EmbedBuilder }
-  | { success: false; error: string };
+interface EconomyReply {
+  reply: (options: any) => Promise<any>;
+  editReply?: (options: any) => Promise<any>;
+}
 
-// ─────────────────────────────────────────────
-// Validaciones
-// ─────────────────────────────────────────────
+const PLACE_LABELS: Record<BalancePlace, string> = {
+  cash: "Efectivo",
+  bank: "Banco",
+};
+
+/* ============================================================
+ * PERMISOS
+ * ============================================================ */
 
 function hasEconomyPermission(member: GuildMember): boolean {
   return AUTHORIZED_ROLE_IDS.some((roleId) =>
@@ -56,408 +66,394 @@ function hasEconomyPermission(member: GuildMember): boolean {
   );
 }
 
-function isValidAmount(amount: number): boolean {
-  return Number.isSafeInteger(amount) && amount > 0;
+async function checkSlashPermission(
+  interaction: ChatInputCommandInteraction,
+): Promise<boolean> {
+  if (!interaction.guild) {
+    await interaction.reply({
+      content: "❌ Este comando solo se puede usar en un servidor.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  const member = await interaction.guild.members
+    .fetch(interaction.user.id)
+    .catch(() => null);
+
+  if (!member || !hasEconomyPermission(member)) {
+    await interaction.reply({
+      content: "❌ No tenés permiso para gestionar la economía.",
+      flags: MessageFlags.Ephemeral,
+    });
+    return false;
+  }
+
+  return true;
 }
 
-function isValidLocation(
-  location: string,
-): location is EconomyLocation {
-  return location === "cash" || location === "bank";
+/* ============================================================
+ * VALIDACIÓN
+ * ============================================================ */
+
+function validateAmount(amount: number): void {
+  if (!Number.isSafeInteger(amount) || amount <= 0) {
+    throw new Error(
+      "La cantidad debe ser un número entero positivo.",
+    );
+  }
 }
 
-function createUsageMessage(action: EconomyAction): string {
-  return (
-    `❌ Uso correcto: \`${PREFIX}${action} <@usuario|ID> <cantidad> <cash|bank>\`\n` +
-    `Ejemplo: \`${PREFIX}${action} @Usuario 500 cash\``
+function validatePlace(place: string): asserts place is BalancePlace {
+  if (place !== "cash" && place !== "bank") {
+    throw new Error(
+      'El lugar debe ser exactamente "cash" o "bank".',
+    );
+  }
+}
+
+function ensureApiKey(): void {
+  if (!API_KEY) {
+    throw new Error(
+      "Falta configurar la variable UNBELIEVABOAT_API_KEY.",
+    );
+  }
+}
+
+/* ============================================================
+ * OPERACIÓN DE ECONOMÍA
+ * ============================================================ */
+
+async function modifyBalance(
+  action: EconomyAction,
+  options: EconomyOptions,
+): Promise<EmbedBuilder> {
+  ensureApiKey();
+  validateAmount(options.amount);
+  validatePlace(options.place);
+
+  const signedAmount =
+    action === "add" ? options.amount : -options.amount;
+
+  await unb.editUserBalance(
+    options.guildId,
+    options.targetId,
+    {
+      [options.place]: signedAmount,
+    },
   );
-}
 
-// ─────────────────────────────────────────────
-// Embed de confirmación
-// ─────────────────────────────────────────────
-
-function createEconomyEmbed(
-  input: EconomyInput,
-): EmbedBuilder {
-  const isAddition = input.action === "darplata";
+  const isAdd = action === "add";
+  const target = options.targetUser
+    ? `${options.targetUser} (${options.targetUser.username})`
+    : `<@${options.targetId}>`;
 
   return new EmbedBuilder()
-    .setColor(isAddition ? 0x2ecc71 : 0xe74c3c)
+    .setColor(isAdd ? 0x2ecc71 : 0xe74c3c)
     .setTitle(
-      isAddition
-        ? "💵 Dinero añadido correctamente"
+      isAdd
+        ? "💰 Dinero añadido correctamente"
         : "💸 Dinero retirado correctamente",
     )
     .setDescription(
-      isAddition
-        ? "Se ha añadido dinero a la cuenta del usuario."
-        : "Se ha descontado dinero de la cuenta del usuario.",
+      isAdd
+        ? `Se añadieron **${options.amount.toLocaleString("es-ES")} frijoles** al saldo de ${target}.`
+        : `Se retiraron **${options.amount.toLocaleString("es-ES")} frijoles** del saldo de ${target}.`,
     )
     .addFields(
       {
-        name: "Responsable",
-        value: `${input.moderator} (\`${input.moderator.id}\`)`,
-        inline: false,
-      },
-      {
-        name: "Usuario objetivo",
-        value: `${input.target} (\`${input.target.id}\`)`,
-        inline: false,
-      },
-      {
-        name: "Cantidad",
-        value: `\`${input.amount.toLocaleString("es-ES")}\``,
+        name: "👮 Responsable",
+        value: `<@${options.actorId}>`,
         inline: true,
       },
       {
-        name: "Cuenta",
-        value:
-          input.location === "cash"
-            ? "💵 Cash / Efectivo"
-            : "🏦 Bank / Banco",
+        name: "👤 Usuario afectado",
+        value: `<@${options.targetId}>`,
         inline: true,
       },
       {
-        name: "Operación",
-        value: isAddition ? "Adición (+)" : "Retirada (-)",
+        name: "💵 Cantidad",
+        value: `**${options.amount.toLocaleString("es-ES")} frijoles**`,
+        inline: true,
+      },
+      {
+        name: "🏦 Lugar",
+        value: PLACE_LABELS[options.place],
+        inline: true,
+      },
+      {
+        name: "🧾 Tipo de saldo",
+        value: `\`${options.place}\``,
         inline: true,
       },
     )
     .setFooter({
-      text: `Economía • ${input.action}`,
+      text: "Gestión de economía • UnbelievaBoat",
     })
     .setTimestamp();
 }
 
-// ─────────────────────────────────────────────
-// Lógica común: permisos, validación y UnbelievaBoat
-// ─────────────────────────────────────────────
+/* ============================================================
+ * EJECUCIÓN COMPARTIDA
+ * ============================================================ */
 
-async function executeEconomy(
-  input: EconomyInput,
-): Promise<EconomyResult> {
-  if (!hasEconomyPermission(input.member)) {
-    return {
-      success: false,
-      error: "⛔ No tienes un rol autorizado para gestionar la economía.",
-    };
-  }
-
-  if (!isValidAmount(input.amount)) {
-    return {
-      success: false,
-      error: "❌ La cantidad debe ser un número entero positivo.",
-    };
-  }
-
-  if (!isValidLocation(input.location)) {
-    return {
-      success: false,
-      error: "❌ El lugar debe ser `cash` o `bank`.",
-    };
-  }
-
-  const amount =
-    input.action === "darplata"
-      ? input.amount
-      : -input.amount;
-
+async function executeEconomyAction(
+  action: EconomyAction,
+  options: EconomyOptions,
+  reply: EconomyReply,
+): Promise<void> {
   try {
-    await unb.editUserBalance(
-      input.guildId,
-      input.target.id,
-      input.location === "cash"
-        ? { cash: amount }
-        : { bank: amount },
-    );
+    const embed = await modifyBalance(action, options);
+
+    if (reply.editReply) {
+      await reply.editReply({
+        embeds: [embed],
+      });
+    } else {
+      await reply.reply({
+        embeds: [embed],
+        allowedMentions: { users: [options.targetId] },
+      });
+    }
 
     logger.info(
-      `[ECONOMY] ${input.action}: moderator=${input.moderator.id}, ` +
-      `target=${input.target.id}, amount=${amount}, ` +
-      `location=${input.location}, guild=${input.guildId}`,
+      {
+        action,
+        guildId: options.guildId,
+        actorId: options.actorId,
+        targetId: options.targetId,
+        amount: options.amount,
+        place: options.place,
+      },
+      "Economy balance modified",
     );
-
-    return {
-      success: true,
-      embed: createEconomyEmbed(input),
-    };
-  } catch (error) {
+  } catch (err) {
     logger.error(
-      `[ECONOMY] Error en ${input.action}: ${String(error)}`,
+      {
+        err,
+        action,
+        guildId: options.guildId,
+        actorId: options.actorId,
+        targetId: options.targetId,
+        amount: options.amount,
+        place: options.place,
+      },
+      "Error modifying UnbelievaBoat balance",
     );
 
-    return {
-      success: false,
-      error:
-        "❌ No se pudo actualizar el saldo. Comprueba la configuración de UnbelievaBoat e inténtalo de nuevo.",
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : "Error desconocido al modificar el saldo.";
+
+    const response = {
+      content: `❌ No se pudo modificar el saldo: ${errorMessage}`,
+      embeds: [],
     };
+
+    if (reply.editReply) {
+      await reply.editReply(response).catch(() => {});
+    } else {
+      await reply.reply(response).catch(() => {});
+    }
   }
 }
 
-// ─────────────────────────────────────────────
-// Definiciones de Slash Commands
-// ─────────────────────────────────────────────
+/* ============================================================
+ * COMANDO FACTORY
+ * ============================================================ */
 
-export const economySlashCommands = [
-  new SlashCommandBuilder()
-    .setName("darplata")
-    .setDescription("Añade dinero al balance de un usuario.")
+function createEconomyCommand(action: EconomyAction) {
+  const isAdd = action === "add";
+  const commandName = isAdd ? "darplata" : "quitarplata";
+
+  const data = new SlashCommandBuilder()
+    .setName(commandName)
+    .setDescription(
+      isAdd
+        ? "Añade dinero al saldo de un usuario."
+        : "Retira dinero del saldo de un usuario.",
+    )
     .addUserOption((option) =>
       option
         .setName("usuario")
-        .setDescription("Usuario que recibirá el dinero.")
+        .setDescription("Usuario que recibirá o perderá el dinero.")
         .setRequired(true),
     )
     .addIntegerOption((option) =>
       option
         .setName("cantidad")
-        .setDescription("Cantidad de dinero que se añadirá.")
+        .setDescription("Cantidad de frijoles.")
         .setMinValue(1)
         .setRequired(true),
     )
     .addStringOption((option) =>
       option
         .setName("lugar")
-        .setDescription("Cuenta que recibirá el dinero.")
+        .setDescription("Saldo que se modificará.")
         .addChoices(
-          { name: "Cash", value: "cash" },
-          { name: "Bank", value: "bank" },
+          { name: "Cash (efectivo)", value: "cash" },
+          { name: "Bank (banco)", value: "bank" },
         )
         .setRequired(true),
-    ),
+    );
 
-  new SlashCommandBuilder()
-    .setName("quitarplata")
-    .setDescription("Retira dinero del balance de un usuario.")
-    .addUserOption((option) =>
-      option
-        .setName("usuario")
-        .setDescription("Usuario al que se le retirará el dinero.")
-        .setRequired(true),
-    )
-    .addIntegerOption((option) =>
-      option
-        .setName("cantidad")
-        .setDescription("Cantidad de dinero que se retirará.")
-        .setMinValue(1)
-        .setRequired(true),
-    )
-    .addStringOption((option) =>
-      option
-        .setName("lugar")
-        .setDescription("Cuenta de la que se retirará el dinero.")
-        .addChoices(
-          { name: "Cash", value: "cash" },
-          { name: "Bank", value: "bank" },
-        )
-        .setRequired(true),
-    ),
-].map((command) => command.toJSON());
+  return {
+    data,
 
-// ─────────────────────────────────────────────
-// Handler Slash Commands
-// ─────────────────────────────────────────────
+    async execute(
+      interaction: ChatInputCommandInteraction,
+    ): Promise<void> {
+      if (!(await checkSlashPermission(interaction))) {
+        return;
+      }
 
-export async function handleEconomySlash(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  const commandName = interaction.commandName;
+      const target = interaction.options.getUser("usuario", true);
+      const amount = interaction.options.getInteger("cantidad", true);
+      const place = interaction.options.getString("lugar", true);
 
-  if (
-    commandName !== "darplata" &&
-    commandName !== "quitarplata"
-  ) {
-    return;
-  }
+      if (target.bot) {
+        await interaction.reply({
+          content: "❌ No podés gestionar la economía de un bot.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
 
-  if (!interaction.inGuild() || !interaction.guildId) {
-    await interaction.reply({
-      content: "❌ Este comando solo puede utilizarse en un servidor.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+      try {
+        validateAmount(amount);
+        validatePlace(place);
+      } catch (err) {
+        await interaction.reply({
+          content:
+            err instanceof Error
+              ? `❌ ${err.message}`
+              : "❌ Los argumentos no son válidos.",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
 
-  const guild = interaction.guild;
+      await interaction.deferReply();
 
-  if (!guild) {
-    await interaction.reply({
-      content: "❌ No se pudo obtener el servidor.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+      await executeEconomyAction(
+        action,
+        {
+          guildId: interaction.guildId!,
+          targetId: target.id,
+          targetUser: target,
+          actorId: interaction.user.id,
+          actorName: interaction.user.username,
+          amount,
+          place,
+        },
+        {
+          reply: (options) => interaction.reply(options),
+          editReply: (options) => interaction.editReply(options),
+        },
+      );
+    },
 
-  let member: GuildMember;
+    async run(
+      message: Message,
+      args: string[],
+    ): Promise<void> {
+      if (!message.guild || !message.guildId || !message.member) {
+        await message.reply(
+          "❌ Este comando solo se puede usar en un servidor.",
+        );
+        return;
+      }
 
-  try {
-    member = await guild.members.fetch(interaction.user.id);
-  } catch (error) {
-    logger.error(`[ECONOMY] No se pudo obtener el miembro: ${String(error)}`);
+      if (!hasEconomyPermission(message.member)) {
+        await message.reply(
+          "❌ No tenés permiso para gestionar la economía.",
+        );
+        return;
+      }
 
-    await interaction.reply({
-      content: "❌ No se pudieron verificar tus roles.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+      // Uso: -darplata @usuario 5000 cash
+      // Uso: -quitarplata ID_USUARIO 5000 bank
+      const targetToken = args[0];
+      const amountToken = args[1];
+      const placeToken = args[2]?.toLowerCase();
 
-  // Comprobar permisos ANTES de diferir la interacción.
-  if (!hasEconomyPermission(member)) {
-    await interaction.reply({
-      content: "⛔ No tienes permisos para utilizar este comando.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+      if (!targetToken || !amountToken || !placeToken) {
+        await message.reply({
+          content:
+            `❌ Uso correcto: \`-${commandName} @usuario <cantidad> <cash|bank>\``,
+        });
+        return;
+      }
 
-  const target = interaction.options.getUser("usuario", true);
-  const amount = interaction.options.getInteger("cantidad", true);
-  const location = interaction.options.getString("lugar", true);
+      const mentionMatch = targetToken.match(/^<@!?(\d+)>$/);
+      const targetId = mentionMatch?.[1] ??
+        (/^\d{15,22}$/.test(targetToken) ? targetToken : null);
 
-  if (!isValidAmount(amount) || !isValidLocation(location)) {
-    await interaction.reply({
-      content: "❌ La cantidad o el lugar indicado no son válidos.",
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
+      if (!targetId) {
+        await message.reply(
+          "❌ Debés indicar una mención o un ID de usuario válido.",
+        );
+        return;
+      }
 
-  await interaction.deferReply();
+      if (!/^\d+$/.test(amountToken)) {
+        await message.reply(
+          "❌ La cantidad debe ser un número entero positivo.",
+        );
+        return;
+      }
 
-  const result = await executeEconomy({
-    action: commandName,
-    guildId: interaction.guildId,
-    moderator: interaction.user,
-    member,
-    target,
-    amount,
-    location,
-  });
+      const amount = Number(amountToken);
 
-  if (!result.success) {
-    await interaction.editReply({
-      content: result.error,
-    });
-    return;
-  }
+      try {
+        validateAmount(amount);
+        validatePlace(placeToken);
+      } catch (err) {
+        await message.reply(
+          `❌ ${err instanceof Error ? err.message : "Argumentos inválidos."}`,
+        );
+        return;
+      }
 
-  await interaction.editReply({
-    embeds: [result.embed],
-  });
+      if (targetId === message.author.id && !isAdd) {
+        // Se permite retirar dinero al propio usuario si el staff lo autoriza.
+        // No se aplica ninguna excepción de permisos.
+      }
+
+      const targetUser = await message.client.users
+        .fetch(targetId)
+        .catch(() => null);
+
+      if (targetUser?.bot) {
+        await message.reply(
+          "❌ No podés gestionar la economía de un bot.",
+        );
+        return;
+      }
+
+      await executeEconomyAction(
+        action,
+        {
+          guildId: message.guildId,
+          targetId,
+          targetUser: targetUser ?? undefined,
+          actorId: message.author.id,
+          actorName: message.author.username,
+          amount,
+          place: placeToken,
+        },
+        {
+          reply: (options) => message.reply(options),
+        },
+      );
+    },
+  };
 }
 
-// ─────────────────────────────────────────────
-// Handler de comandos con prefijo
-// ─────────────────────────────────────────────
+/* ============================================================
+ * EXPORTACIONES
+ * ============================================================ */
 
-export async function handleEconomyPrefix(
-  message: Message,
-): Promise<boolean> {
-  if (!message.guild || message.author.bot) {
-    return false;
-  }
-
-  const args = message.content.trim().split(/\s+/);
-  const commandName = args[0]?.toLowerCase();
-
-  if (
-    commandName !== "-darplata" &&
-    commandName !== "-quitarplata"
-  ) {
-    return false;
-  }
-
-  const action = commandName.slice(1) as EconomyAction;
-
-  // Rechazar argumentos ausentes o adicionales.
-  if (args.length !== 4) {
-    await message.reply(createUsageMessage(action));
-    return true;
-  }
-
-  const [, rawTarget, rawAmount, rawLocation] = args;
-
-  // Admite @mención, <@ID>, <@!ID> o ID numérico.
-  const mentionMatch = rawTarget.match(/^<@!?(\d+)>$/);
-  const targetId = mentionMatch?.[1] ??
-    (/^\d{17,20}$/.test(rawTarget) ? rawTarget : null);
-
-  if (!targetId) {
-    await message.reply(
-      "❌ Debes indicar una mención válida o el ID del usuario.\n" +
-      createUsageMessage(action),
-    );
-    return true;
-  }
-
-  // Solo enteros positivos escritos en formato decimal.
-  if (!/^\d+$/.test(rawAmount)) {
-    await message.reply(
-      "❌ La cantidad debe ser un número entero positivo.",
-    );
-    return true;
-  }
-
-  const amount = Number(rawAmount);
-  const location = rawLocation.toLowerCase();
-
-  if (!isValidAmount(amount)) {
-    await message.reply(
-      "❌ La cantidad debe ser mayor que cero y un entero seguro.",
-    );
-    return true;
-  }
-
-  if (!isValidLocation(location)) {
-    await message.reply(
-      "❌ El lugar debe ser `cash` o `bank`.",
-    );
-    return true;
-  }
-
-  // Verificar los permisos antes de llamar a UnbelievaBoat.
-  const member = message.member;
-
-  if (!member || !hasEconomyPermission(member)) {
-    // Los mensajes de prefijo no admiten respuestas efímeras nativas.
-    await message.reply(
-      "⛔ No tienes permisos para utilizar este comando.",
-    );
-    return true;
-  }
-
-  let target: User;
-
-  try {
-    target = await message.client.users.fetch(targetId);
-  } catch (error) {
-    logger.error(`[ECONOMY] No se encontró el usuario: ${String(error)}`);
-
-    await message.reply("❌ No se pudo encontrar ese usuario.");
-    return true;
-  }
-
-  const result = await executeEconomy({
-    action,
-    guildId: message.guild.id,
-    moderator: message.author,
-    member,
-    target,
-    amount,
-    location,
-  });
-
-  if (!result.success) {
-    await message.reply(result.error);
-    return true;
-  }
-
-  await message.reply({
-    embeds: [result.embed],
-    allowedMentions: { repliedUser: false },
-  });
-
-  return true;
-}
+export const darplata = createEconomyCommand("add");
+export const quitarplata = createEconomyCommand("remove");
