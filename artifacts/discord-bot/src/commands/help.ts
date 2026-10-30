@@ -69,7 +69,7 @@ const LUCKYBOX_GIVE_ROLES = [
  * - Manager
  */
 const LOTTERY_MANAGEMENT_ROLES = [
-  "1539368076326473868", // Developer Tiago Jr
+  "1522434536796061816", // Desarrollador
   "1522807097920720967", // Manager
 ];
 
