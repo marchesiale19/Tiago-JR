@@ -93,6 +93,14 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
   ],
+  ws: {
+    version: 10,
+    compress: true,
+  },
+  rest: {
+    timeout: 30000,
+    retries: 5,
+  },
 });
 
 /* ============================================================
@@ -3182,36 +3190,6 @@ client.on(
  * BOT STARTUP
  * ============================================================ */
 
-async function probarConexionDiscord(): Promise<void> {
-  return new Promise((resolve) => {
-    console.log("[DIAGNÓSTICO] Probando DNS e IP de gateway.discord.gg...");
-    dns.lookup("gateway.discord.gg", { all: true }, (err, addresses) => {
-      if (err) {
-        console.error("❌ [DIAGNÓSTICO DNS ERROR]:", err);
-      } else {
-        console.log("🌐 [DIAGNÓSTICO DNS OK] IPs resueltas:", addresses);
-      }
-
-      console.log("[DIAGNÓSTICO] Probando petición HTTPS a discord.com...");
-      const req = https.get("https://discord.com/api/v10/gateway", (res) => {
-        console.log(`✅ [DIAGNÓSTICO HTTPS OK] Status Code: ${res.statusCode}`);
-        resolve();
-      });
-
-      req.on("error", (e) => {
-        console.error("❌ [DIAGNÓSTICO HTTPS ERROR]:", e);
-        resolve();
-      });
-
-      req.setTimeout(5000, () => {
-        console.error("❌ [DIAGNÓSTICO HTTPS TIMEOUT] La petición tardó más de 5s");
-        req.destroy();
-        resolve();
-      });
-    });
-  });
-}
-
 async function iniciarBot(): Promise<void> {
   const discordToken = process.env["DISCORD_BOT_TOKEN"];
 
@@ -3220,10 +3198,7 @@ async function iniciarBot(): Promise<void> {
     return;
   }
 
-  // Ejecutamos la prueba de red primero
-  await probarConexionDiscord();
-
-  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
+  console.log("[DEBUG] Configurando manejadores de eventos de red y WS...");
 
   client.on("error", (error) => {
     console.error("❌ [DISCORD CLIENT ERROR]:", error);
@@ -3233,22 +3208,13 @@ async function iniciarBot(): Promise<void> {
     console.error(`❌ [DISCORD SHARD ERROR] Shard ${id}:`, error);
   });
 
-  client.on("debug", (info) => {
-    if (info.includes("Connect") || info.includes("Heartbeat") || info.includes("WS")) {
-      console.log(`[DISCORD WS DEBUG] ${info}`);
-    }
+  client.on("warn", (info) => {
+    console.warn(`⚠️ [DISCORD WARN]: ${info}`);
   });
 
   try {
-    console.log("[DEBUG] Ejecutando client.login()...");
-    
-    const loginPromise = client.login(discordToken);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Timeout: La conexión con Discord tardó demasiado en responder.")), 15000)
-    );
-
-    await Promise.race([loginPromise, timeoutPromise]);
-    
+    console.log("[DEBUG] Ejecutando client.login() con reintentos de red...");
+    await client.login(discordToken);
     console.log("[DEBUG] ¡client.login() finalizó con éxito!");
   } catch (err) {
     console.error("[DEBUG] ❌ Error crítico en client.login():", err);
