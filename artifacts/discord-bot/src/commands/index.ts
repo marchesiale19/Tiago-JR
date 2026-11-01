@@ -177,7 +177,7 @@ commands.set(emparejamiento.data.name, emparejamiento);
  * GESTIÓN DE HELP
  * ============================================================ */
 
-commands.set(helpData.name, {
+commands.set("help", {
   data: helpData,
   execute: helpExecute,
 });
