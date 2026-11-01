@@ -3190,11 +3190,22 @@ async function iniciarBot(): Promise<void> {
 
   console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
+  // Añadimos un listener temporal para ver si hay errores de socket
+  client.on("error", (error) => {
+    console.error("❌ [DISCORD CLIENT ERROR]:", error);
+  });
+
+  client.on("shardError", (error, id) => {
+    console.error(`❌ [DISCORD SHARD ERROR] Shard ${id}:`, error);
+  });
+
   try {
+    console.log("[DEBUG] Ejecutando client.login()...");
     await client.login(discordToken);
+    console.log("[DEBUG] ¡client.login() finalizó con éxito!");
   } catch (err) {
-    console.error("[DEBUG] ❌ Error al conectar con Discord:", err);
-    logger.error({ err }, "Discord login failed");
+    console.error("[DEBUG] ❌ Error crítico en client.login():", err);
+    logger.error({ err }, "Discord login failed completely");
   }
 }
 
