@@ -3190,7 +3190,6 @@ async function iniciarBot(): Promise<void> {
 
   console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
-  // Añadimos un listener temporal para ver si hay errores de socket
   client.on("error", (error) => {
     console.error("❌ [DISCORD CLIENT ERROR]:", error);
   });
@@ -3201,7 +3200,15 @@ async function iniciarBot(): Promise<void> {
 
   try {
     console.log("[DEBUG] Ejecutando client.login()...");
-    await client.login(discordToken);
+    
+    // Creamos una promesa de timeout de 15 segundos por si la red de Render bloquea el WebSocket
+    const loginPromise = client.login(discordToken);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Timeout: La conexión con Discord tardó demasiado en responder (posible bloqueo de red/puerto o intents deshabilitados).")), 15000)
+    );
+
+    await Promise.race([loginPromise, timeoutPromise]);
+    
     console.log("[DEBUG] ¡client.login() finalizó con éxito!");
   } catch (err) {
     console.error("[DEBUG] ❌ Error crítico en client.login():", err);
