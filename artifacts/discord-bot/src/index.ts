@@ -3181,195 +3181,93 @@ client.on(
  * ============================================================ */
 
 async function iniciarBot(): Promise<void> {
-  const discordToken =
-    process.env[
-      "DISCORD_BOT_TOKEN"
-    ];
+  const discordToken = process.env["DISCORD_BOT_TOKEN"];
 
   if (!discordToken) {
-    console.error(
-      "❌ Falta el DISCORD_BOT_TOKEN.",
-    );
-
+    console.error("❌ Falta el DISCORD_BOT_TOKEN.");
     return;
   }
 
-  console.log(
-    "[DEBUG] Intentando conectar el cliente de Discord...",
-  );
+  console.log("[DEBUG] Intentando conectar el cliente de Discord...");
 
   try {
-    await client.login(
-      discordToken,
-    );
-
-    console.log(
-      `[DEBUG] ¡Login exitoso como ${client.user?.tag}! El bot está encendido.`,
-    );
-
-    /* --------------------------------------------------------
-     * GLOBAL COMMAND REGISTRATION
-     * -------------------------------------------------------- */
-
-    const clientId =
-      process.env[
-        "DISCORD_CLIENT_ID"
-      ];
-
-    if (clientId) {
-      try {
-        const rest =
-          new REST().setToken(
-            discordToken,
-          );
-
-        const body =
-          Array.from(
-            commands.values(),
-          ).map((c) =>
-            c.data.toJSON(),
-          );
-
-        await rest.put(
-          Routes.applicationCommands(
-            clientId,
-          ),
-          {
-            body,
-          },
-        );
-
-        console.log(
-          "✅ Comandos registrados correctamente en Discord.",
-        );
-      } catch (err) {
-        console.error(
-          "❌ Error registrando comandos:",
-          err,
-        );
-
-        logger.error(
-          { err },
-          "Error registering Discord commands",
-        );
-      }
-    } else {
-      console.warn(
-        "⚠️ DISCORD_CLIENT_ID no está configurado. Se omitió el registro global de comandos.",
-      );
-    }
+    await client.login(discordToken);
   } catch (err) {
-    console.error(
-      "[DEBUG] ❌ Error al conectar con Discord:",
-      err,
-    );
-
-    logger.error(
-      { err },
-      "Discord login failed",
-    );
-
-    /*
-     * IMPORTANTE:
-     * No cerramos el proceso aquí.
-     *
-     * Render necesita que el servidor HTTP siga vivo
-     * para detectar el puerto y mantener el Web Service.
-     */
+    console.error("[DEBUG] ❌ Error al conectar con Discord:", err);
+    logger.error({ err }, "Discord login failed");
   }
 }
+
+/* ============================================================
+ * GLOBAL COMMAND REGISTRATION
+ * ============================================================ */
+
+async function registrarComandosGlobales() {
+  const discordToken = process.env["DISCORD_BOT_TOKEN"];
+  const clientId = process.env["DISCORD_CLIENT_ID"];
+
+  if (!discordToken || !clientId) {
+    console.warn("⚠️ Faltan credenciales para registrar los comandos globales automáticamente.");
+    return;
+  }
+
+  try {
+    const rest = new REST().setToken(discordToken);
+    const body = Array.from(commands.values()).map((c) => c.data.toJSON());
+
+    await rest.put(Routes.applicationCommands(clientId), { body });
+    console.log("✅ Comandos registrados correctamente en Discord.");
+  } catch (err) {
+    console.error("❌ Error registrando comandos:", err);
+    logger.error({ err }, "Error registering Discord commands");
+  }
+}
+
+client.once(Events.ClientReady, async () => {
+  await registrarComandosGlobales();
+});
 
 /* ============================================================
  * GLOBAL ERROR PROTECTION
  * ============================================================ */
 
-process.on(
-  "uncaughtException",
-  (err) => {
-    console.error(
-      "❌ UNCAUGHT EXCEPTION:",
-      err,
-    );
+process.on("uncaughtException", (err) => {
+  console.error("❌ UNCAUGHT EXCEPTION:", err);
+  logger.error({ err }, "Uncaught exception");
+});
 
-    logger.error(
-      { err },
-      "Uncaught exception",
-    );
-  },
-);
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ UNHANDLED REJECTION:", reason);
+  logger.error({ reason }, "Unhandled promise rejection");
+});
 
-process.on(
-  "unhandledRejection",
-  (reason) => {
-    console.error(
-      "❌ UNHANDLED REJECTION:",
-      reason,
-    );
+process.on("SIGTERM", () => {
+  console.log("⚠️ SIGTERM recibido. Cerrando conexiones...");
+  server.close(() => {
+    console.log("✅ Servidor HTTP cerrado.");
+  });
 
-    logger.error(
-      { reason },
-      "Unhandled promise rejection",
-    );
-  },
-);
+  if (client.isReady()) {
+    client.destroy();
+  }
+});
 
-process.on(
-  "SIGTERM",
-  () => {
-    console.log(
-      "⚠️ SIGTERM recibido. Cerrando conexiones...",
-    );
+process.on("SIGINT", () => {
+  console.log("⚠️ SIGINT recibido. Cerrando conexiones...");
+  server.close(() => {
+    console.log("✅ Servidor HTTP cerrado.");
+  });
 
-    server.close(() => {
-      console.log(
-        "✅ Servidor HTTP cerrado.",
-      );
-    });
-
-    if (client.isReady()) {
-      client.destroy();
-    }
-  },
-);
-
-process.on(
-  "SIGINT",
-  () => {
-    console.log(
-      "⚠️ SIGINT recibido. Cerrando conexiones...",
-    );
-
-    server.close(() => {
-      console.log(
-        "✅ Servidor HTTP cerrado.",
-      );
-    });
-
-    if (client.isReady()) {
-      client.destroy();
-    }
-  },
-);
+  if (client.isReady()) {
+    client.destroy();
+  }
+});
 
 /* ============================================================
  * START
  * ============================================================ */
 
 iniciarBot().catch((err) => {
-  console.error(
-    "[DEBUG] Error crítico en la inicialización:",
-    err,
-  );
-
-  logger.error(
-    { err },
-    "Critical initialization error",
-  );
-
-  /*
-   * No hacemos process.exit(1).
-   *
-   * El health server debe continuar funcionando
-   * para que Render pueda mantener el servicio activo.
-   */
+  console.error("[DEBUG] Error crítico en la inicialización:", err);
+  logger.error({ err }, "Critical initialization error");
 });
