@@ -553,19 +553,19 @@ function createBombDropEmbed(
   const config = BOMB_CONFIG[bombType];
 
   return new EmbedBuilder()
-    .setColor(config.color)
-    .setTitle(`💣 ¡Se ha soltado una ${config.name}!`)
+    .setColor(BOMB_DROP_ORANGE)
+    .setTitle("🎁 ¡Bomba soltada!")
     .setDescription(
-      "¡El primero en presionar **Reclamar** activará la bomba!\n\n" +
-        "💀 **Advertencia:** este drop NO tiene premio.",
+      `¡Se ha soltado una **${config.name}**!\n\n` +
+      `El primero en presionar **Reclamar** activa la bomba.`,
     )
     .addFields({
-      name: "💣 Bomba",
+      name: "📦 Bomba",
       value: `**${config.name}**`,
       inline: true,
     })
     .setFooter({
-      text: "Sistema de Bomb Drop • Buena suerte... la vas a necesitar.",
+      text: "Sistema de Bomba • Drop disponible",
     })
     .setTimestamp();
 }
@@ -698,7 +698,7 @@ function createBombDropButton(
   const button = new ButtonBuilder()
     .setCustomId(`${BOMB_DROP_BUTTON_PREFIX}:${dropId}`)
     .setLabel("Reclamar")
-    .setEmoji("💣")
+    .setEmoji("🎁")
     .setStyle(ButtonStyle.Primary)
     .setDisabled(disabled);
 
@@ -724,25 +724,43 @@ function createBombActivatedEmbed(
       `<@${user.id}> activó la **${config.name}**.`,
     )
     .addFields(
+     function createBombActivatedEmbed(
+  bombType: BombType,
+  user: User,
+  amount: number,
+): EmbedBuilder {
+  const config = BOMB_CONFIG[bombType];
+
+  return new EmbedBuilder()
+    .setColor(BOMB_DROP_GREEN)
+    .setTitle("🎁 ¡Bomba activada!")
+    .setDescription(
+      `La **${config.name}** fue activada correctamente.`,
+    )
+    .addFields(
       {
-        name: "👤 Usuario",
+        name: "📦 Bomba",
+        value: `**${config.name}**`,
+        inline: true,
+      },
+      {
+        name: "👤 Activada por",
         value: `<@${user.id}>`,
         inline: true,
       },
       {
         name: "💸 Dinero perdido",
-        value:
-          `**-${formatMoney(Math.abs(amount))} ${BOMB_COIN_EMOJI}**`,
+        value: `**-${formatMoney(Math.abs(amount))} ${BOMB_COIN_EMOJI}**`,
         inline: true,
       },
       {
-        name: "💣 Estado",
+        name: "✅ Estado",
         value: "`ACTIVADA`",
         inline: false,
       },
     )
     .setFooter({
-      text: "Sistema de Bomb Drop • Gracias por participar.",
+      text: "Sistema de Bomba • Drop finalizado",
     })
     .setTimestamp();
 }
