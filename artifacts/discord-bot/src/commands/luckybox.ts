@@ -1419,12 +1419,18 @@ export async function syncTopCasinoRole(
       };
     }
 
+    // Aseguramos la carga de todos los miembros del servidor en caché
     await guild.members.fetch();
 
     let addedCount = 0;
     let removedCount = 0;
 
-    for (const [, member] of role.members) {
+    // Recorremos la caché global de miembros del servidor para quitar el rol a quienes ya no están en el Top 10
+    for (const [, member] of guild.members.cache) {
+      if (!member.roles.cache.has(ROL_TOP_CASINO_ID)) {
+        continue;
+      }
+
       if (!topUserIds.has(member.id)) {
         try {
           await member.roles.remove(
@@ -1445,6 +1451,7 @@ export async function syncTopCasinoRole(
       }
     }
 
+    // Asignamos el rol a los nuevos usuarios que ingresaron al Top 10
     for (const userData of topUsers) {
       const userId =
         userData?.user_id ??
