@@ -184,6 +184,8 @@ const ROL_OMG_BRO_ID =
 const ROL_TOP_CASINO_ID =
   "1546068235072442398";
 
+const GUILD_TOP_CASINO_ID = "1437644356977823884";
+
 const ROL_REQUERIDO_ABRIR_ID = "1543094224403308639";
 
 const ROL_SUPER_BOOSTER_ID = "1529006891605295276";
@@ -1356,6 +1358,16 @@ export async function syncTopCasinoRole(
   guild: Guild,
 ): Promise<SyncTopCasinoResult> {
   try {
+    if (guild.id !== GUILD_TOP_CASINO_ID) {
+      return {
+        success: false,
+        added: 0,
+        removed: 0,
+        error:
+          "Este servidor no tiene configurado el leaderboard de UnbelievaBoat.",
+      };
+    }
+
     const leaderboardData =
       await unb.getGuildLeaderboard(
         guild.id,
@@ -1514,11 +1526,18 @@ function startAutoSync(
   setInterval(
     async () => {
       try {
-        for (
-          const [, guild] of clientInstance.guilds.cache
-        ) {
-          await syncTopCasinoRole(guild);
+        const guild = clientInstance.guilds.cache.get(
+          GUILD_TOP_CASINO_ID,
+        );
+
+        if (!guild) {
+          logger.warn(
+            "No se encontró el servidor configurado para el Top Casino.",
+          );
+          return;
         }
+
+        await syncTopCasinoRole(guild);
       } catch (err) {
         logger.error(
           { err },
@@ -2550,7 +2569,7 @@ async function handleCollect(
       "Mr Lucky Común",
       "Mr Lucky Raro",
       "Mr Lucky Épico",
-      "MR LUCKY ADMIN",
+      "Mr Lucky Admin",
     ];
 
     const rewardText = rewardOrder
@@ -3151,8 +3170,8 @@ export const data =
                     value: "Mr Lucky Épico",
                   },
                   {
-                    name: "MR LUCKY ADMIN",
-                    value: "MR LUCKY ADMIN",
+                    name: "Mr Lucky Admin",
+                    value: "Mr Lucky Admin",
                   },
                 ),
           ),
@@ -3195,8 +3214,8 @@ export const data =
                     value: "Mr Lucky Épico",
                   },
                   {
-                    name: "MR LUCKY ADMIN",
-                    value: "MR LUCKY ADMIN",
+                    name: "Mr Lucky Admin",
+                    value: "Mr Lucky Admin",
                   },
                 ),
           ),
