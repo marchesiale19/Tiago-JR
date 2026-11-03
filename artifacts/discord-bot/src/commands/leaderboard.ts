@@ -38,38 +38,68 @@ export const data = new SlashCommandBuilder()
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId || !interaction.guild) {
-    await interaction.reply({ content: "Este comando solo se usa en servidores.", ephemeral: true });
+    await interaction.reply({
+      content: "Este comando solo se usa en servidores.",
+      ephemeral: true,
+    });
     return;
   }
 
   const subcommand = interaction.options.getSubcommand();
+
   if (subcommand === "sync") {
     if (!tienePermisoSync(interaction.member)) {
-      await interaction.reply({ content: "❌ No tienes los permisos ni roles necesarios para usar este comando.", ephemeral: true });
+      await interaction.reply({
+        content: "❌ No tienes los permisos ni roles necesarios para usar este comando.",
+        ephemeral: true,
+      });
       return;
     }
 
     await interaction.deferReply({ flags: 64 });
 
-    const result = await syncTopCasinoRole(interaction.guild);
+    try {
+      const result = await syncTopCasinoRole(interaction.guild);
 
-    const embed = new EmbedBuilder().setTitle("📊 Sincronización de Top Casino").setTimestamp();
-    if (result.success) {
-      embed.setColor("Green")
-        .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
-        .addFields(
-          { name: "✨ Roles Añadidos", value: `${result.added} usuarios`, inline: true },
-          { name: "🔻 Roles Retirados", value: `${result.removed} usuarios`, inline: true }
-        );
-    } else {
-      embed.setColor("Red").setDescription(`❌ Error: \`${result.error}\``);
+      const embed = new EmbedBuilder()
+        .setTitle("📊 Sincronización de Top Casino")
+        .setTimestamp();
+
+      if (result.success) {
+        embed
+          .setColor("Green")
+          .setDescription("¡El rol del Top 10 se ha sincronizado correctamente!")
+          .addFields(
+            {
+              name: "✨ Roles Añadidos",
+              value: `${result.added} usuarios`,
+              inline: true,
+            },
+            {
+              name: "🔻 Roles Retirados",
+              value: `${result.removed} usuarios`,
+              inline: true,
+            },
+          );
+      } else {
+        embed
+          .setColor("Red")
+          .setDescription(`❌ Error: \`${result.error}\``);
+      }
+
+      await interaction.editReply({ embeds: [embed] });
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Error desconocido";
+
+      await interaction.editReply({
+        content: `❌ Ocurrió un error al sincronizar el Top Casino: \`${errorMessage}\``,
+      });
     }
-    
-    await interaction.editReply({ embeds: [embed] });
   }
 }
 
-export async function run(message: Message, args: string[]): Promise<void> {
+export async function run(message: Message, args: string[]): Promise<void> { 
   if (!message.guildId || !message.guild) {
     await message.reply("Este comando solo se usa en servidores.");
     return;
