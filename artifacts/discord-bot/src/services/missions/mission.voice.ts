@@ -78,12 +78,12 @@ async function payCompletedMission(
 
   if (!progress || progress.paid || !progress.completed) return;
 
-  await unb.editUserBalance(
-    member.guild.id,
-    member.id,
-    mission.reward,
-    "bank",
-  );
+ await unb.editUserBalance(
+  member.guild.id,
+  member.id,
+  { bank: mission.reward },
+  `Recompensa por completar misión #${mission.id}`,
+);
 
   await db
     .update(missionProgress)
