@@ -15,3 +15,4 @@ export * from "./voice-streak-history";
 export * from "./voice-streak-rewards";
 export * from "./mathChallenges";
 export * from "./missions";
+export * from "./staff-help";
