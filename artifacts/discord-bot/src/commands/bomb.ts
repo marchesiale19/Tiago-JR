@@ -721,20 +721,6 @@ function createBombActivatedEmbed(
     .setColor(0xff0000)
     .setTitle("💥 ¡Bomba activada!")
     .setDescription(
-      `<@${user.id}> activó la **${config.name}**.`,
-    )
-    .addFields(
-     function createBombActivatedEmbed(
-  bombType: BombType,
-  user: User,
-  amount: number,
-): EmbedBuilder {
-  const config = BOMB_CONFIG[bombType];
-
-  return new EmbedBuilder()
-    .setColor(BOMB_DROP_GREEN)
-    .setTitle("🎁 ¡Bomba activada!")
-    .setDescription(
       `La **${config.name}** fue activada correctamente.`,
     )
     .addFields(
