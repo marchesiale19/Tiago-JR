@@ -1,4 +1,3 @@
-
 import {
   Events,
   type Client,
@@ -57,6 +56,7 @@ async function withUserLock<T>(
   const previous = userLocks.get(key) ?? Promise.resolve();
 
   let release!: () => void;
+
   const current = new Promise<void>((resolve) => {
     release = resolve;
   });
@@ -92,8 +92,6 @@ async function getRecord(guildId: string, userId: string) {
 
 /**
  * Crea el registro si no existe.
- * Una sesión solo empieza o continúa cuando el usuario
- * está en un canal autorizado.
  */
 async function ensureSession(
   guildId: string,
@@ -120,35 +118,68 @@ async function ensureSession(
     guildId,
     userId,
     accumulatedSeconds: 0,
+    pendingRewardHours: 0,
+    pendingRewardAmount: 0,
     sessionStartedAt: now,
     updatedAt: now,
   });
 }
 
 /**
- * Envía el aviso de recompensa de voz por mensaje privado.
+ * Envía un único resumen privado cuando el usuario
+ * termina su sesión de voz.
+ *
+ * Si falla el envío, conserva las recompensas pendientes.
  */
 async function notifyVoiceReward(
   client: Client,
   guildId: string,
   userId: string,
 ): Promise<void> {
+  const record = await getRecord(guildId, userId);
+
+  if (!record || record.pendingRewardHours <= 0) return;
+
   try {
     const user = await client.users.fetch(userId);
 
     await user.send({
       content:
-        `🎉 **¡Ganaste una recompensa!**\n\n` +
-        `¡Recibiste **${REWARD_AMOUNT.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>** ` +
-        `en tu banco del <#1483361912904224799> por completar una hora en canales de voz. ¡Seguí así! 🎧`,
+        `🎧 **¡Terminaste tu sesión de voz!**\n\n` +
+        `⏱️ Tiempo recompensado: **${record.pendingRewardHours} horas**\n` +
+        `💰 Dinero acumulado: **${record.pendingRewardAmount.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>**\n\n` +
+        `¡Gracias por jugar en nuestros canales de voz! ❤️`,
     });
 
+    await db
+      .update(voiceRewardsTable)
+      .set({
+        pendingRewardHours: 0,
+        pendingRewardAmount: 0,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(voiceRewardsTable.id, record.id),
+          eq(
+            voiceRewardsTable.pendingRewardHours,
+            record.pendingRewardHours,
+          ),
+          eq(
+            voiceRewardsTable.pendingRewardAmount,
+            record.pendingRewardAmount,
+          ),
+        ),
+      );
+
     console.log(
-      `[VoiceRewards] Aviso privado enviado a ${userId}.`,
+      `[VoiceRewards] Resumen enviado a ${userId}: ` +
+      `${record.pendingRewardHours} horas, ` +
+      `${record.pendingRewardAmount} frijoles.`,
     );
   } catch (error) {
     console.warn(
-      `[VoiceRewards] No se pudo enviar el aviso privado a ${userId}:`,
+      `[VoiceRewards] No se pudo enviar el resumen a ${userId}:`,
       error,
     );
   }
@@ -158,9 +189,7 @@ async function notifyVoiceReward(
  * Procesa las misiones semanales de voz.
  *
  * mission.objective representa una cantidad de horas.
- * El progreso de cada misión se guarda en segundos.
- *
- * Solo se consideran las misiones activas de la semana actual.
+ * El progreso se guarda en segundos.
  */
 async function processVoiceMissions(
   client: Client,
@@ -168,6 +197,8 @@ async function processVoiceMissions(
   userId: string,
   elapsedSeconds: number,
 ): Promise<void> {
+  if (elapsedSeconds <= 0) return;
+
   const activeMissions = await db
     .select()
     .from(missions)
@@ -200,11 +231,6 @@ async function processVoiceMissions(
     let progress = existing;
 
     if (!progress) {
-      // No crear progreso vacío si todavía no hay tiempo válido.
-      if (elapsedSeconds <= 0) {
-        continue;
-      }
-
       const total = elapsedSeconds;
       const completed = total >= targetSeconds;
       const now = new Date();
@@ -229,7 +255,7 @@ async function processVoiceMissions(
       }
 
       progress = created;
-    } else if (!progress.completed && elapsedSeconds > 0) {
+    } else if (!progress.completed) {
       const total = progress.progressSeconds + elapsedSeconds;
       const completed = total >= targetSeconds;
       const now = new Date();
@@ -252,30 +278,23 @@ async function processVoiceMissions(
       if (updated) {
         progress = updated;
       } else {
-        // Volver a leer por si el progreso cambió durante la operación.
         const [latest] = await db
           .select()
           .from(missionProgress)
           .where(eq(missionProgress.id, progress.id))
           .limit(1);
 
-        if (!latest) {
-          continue;
-        }
+        if (!latest) continue;
 
         progress = latest;
       }
     }
 
-    // Una misión completada y pagada no vuelve a cobrar.
-    // Si quedó completada pero sin pagar, se vuelve a intentar.
     if (!progress.completed || progress.paid) {
       continue;
     }
 
     try {
-      // Se paga antes de marcar paid para que un error de la API
-      // no deje la misión marcada como pagada sin haber abonado.
       await unb.editUserBalance(guildId, userId, {
         bank: mission.reward,
       });
@@ -298,8 +317,7 @@ async function processVoiceMissions(
       if (!paidProgress) {
         console.error(
           `[Missions] La recompensa de "${mission.title}" se envió al banco, ` +
-          `pero no se pudo confirmar el estado del pago para ${userId}. ` +
-          `Revisá el saldo y la base de datos antes de reintentar manualmente.`,
+          `pero no se pudo confirmar el pago para ${userId}.`,
         );
         continue;
       }
@@ -333,8 +351,7 @@ async function processVoiceMissions(
 }
 
 /**
- * Guarda el tiempo transcurrido únicamente de una sesión válida.
- * Si sessionActive es false, la sesión se pausa.
+ * Acumula tiempo válido y actualiza las misiones.
  */
 async function accrueTime(
   client: Client,
@@ -369,8 +386,7 @@ async function accrueTime(
     })
     .where(eq(voiceRewardsTable.id, record.id));
 
-  // Las misiones utilizan el mismo tiempo válido de voz,
-  // pero mantienen su propio progreso independiente.
+  // Las misiones utilizan el mismo tiempo válido de voz.
   try {
     await processVoiceMissions(
       client,
@@ -385,12 +401,14 @@ async function accrueTime(
     );
   }
 
-  // Mantener el sistema original de recompensas por hora.
+  // Pagar las horas completas sin enviar DMs individuales.
   await payPendingRewards(client, guildId, userId);
 }
 
 /**
- * Paga las horas completas que estén pendientes.
+ * Paga todas las horas completas pendientes.
+ *
+ * No envía mensajes privados.
  */
 async function payPendingRewards(
   client: Client,
@@ -413,6 +431,9 @@ async function payPendingRewards(
       .set({
         accumulatedSeconds:
           record.accumulatedSeconds - REWARD_SECONDS,
+        pendingRewardHours: record.pendingRewardHours + 1,
+        pendingRewardAmount:
+          record.pendingRewardAmount + REWARD_AMOUNT,
         updatedAt: new Date(),
       })
       .where(
@@ -433,10 +454,9 @@ async function payPendingRewards(
     }
 
     console.log(
-      `[VoiceRewards] ${userId} recibió ${REWARD_AMOUNT} en el banco.`,
+      `[VoiceRewards] ${userId} recibió ${REWARD_AMOUNT} en el banco. ` +
+      `Recompensas pendientes de resumen: ${record.pendingRewardHours + 1}.`,
     );
-
-    await notifyVoiceReward(client, guildId, userId);
   }
 }
 
@@ -458,19 +478,21 @@ async function handleVoiceUpdate(
     const wasAllowed = isAllowedVoiceChannel(oldState.channelId);
     const isAllowed = isAllowedVoiceChannel(newState.channelId);
 
-    // Sale de un VC permitido hacia uno no permitido,
-    // o se desconecta: guardar el tiempo válido y pausar.
+    // Sale de un VC autorizado o se desconecta.
     if (wasAllowed && !isAllowed) {
       await accrueTime(client, guildId, userId, false);
 
+      // Un único resumen al salir de todos los VC autorizados.
+      await notifyVoiceReward(client, guildId, userId);
+
       console.log(
-        `[VoiceRewards] ${userId} salió de un VC autorizado en ${guildId}.`,
+        `[VoiceRewards] ${userId} salió de los VC autorizados en ${guildId}.`,
       );
+
       return;
     }
 
-    // Entra a un VC permitido desde fuera del sistema
-    // o desde un canal no autorizado.
+    // Entra a un VC autorizado.
     if (!wasAllowed && isAllowed) {
       await ensureSession(guildId, userId);
       await payPendingRewards(client, guildId, userId);
@@ -478,20 +500,22 @@ async function handleVoiceUpdate(
       console.log(
         `[VoiceRewards] ${userId} entró a un VC autorizado en ${guildId}.`,
       );
+
       return;
     }
 
-    // Cambia entre dos VC autorizados: no reiniciar.
+    // Cambio entre dos VC autorizados: continúa la sesión.
     if (wasAllowed && isAllowed) {
       console.log(
         `[VoiceRewards] ${userId} cambió entre VC autorizados en ${guildId}.`,
       );
     }
-
-    // Los cambios entre canales no autorizados no cuentan.
   });
 }
 
+/**
+ * Comprueba periódicamente el tiempo de los usuarios.
+ */
 async function checkUser(
   client: Client,
   guildId: string,
@@ -503,8 +527,6 @@ async function checkUser(
 
     if (!guild || !voiceState?.channelId) return;
     if (voiceState.member?.user.bot) return;
-
-    // No acumular ni iniciar sesiones en canales no permitidos.
     if (!isAllowedVoiceChannel(voiceState.channelId)) return;
 
     const record = await getRecord(guildId, userId);
@@ -519,9 +541,9 @@ async function checkUser(
 }
 
 /**
- * Recupera las sesiones de usuarios conectados después
- * de que el bot se reinicie, sin contar todo el tiempo
- * durante el cual Render estuvo apagado.
+ * Recupera las sesiones después de un reinicio.
+ *
+ * No cuenta todo el tiempo que Render estuvo apagado.
  */
 async function recoverConnectedUsers(client: Client): Promise<void> {
   for (const guild of client.guilds.cache.values()) {
@@ -545,15 +567,12 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
           let recoveredSeconds = record.accumulatedSeconds;
           let recoveredElapsedSeconds = 0;
 
-          // Recuperar como máximo un minuto desde el último registro
-          // y solo si la sesión anterior estaba activa en un VC permitido.
           if (record.sessionStartedAt !== null) {
             const elapsed = Math.max(
               0,
               Math.floor(
                 (now.getTime() -
-                  record.sessionStartedAt.getTime()) /
-                  1000,
+                  record.sessionStartedAt.getTime()) / 1000,
               ),
             );
 
@@ -574,8 +593,6 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
             })
             .where(eq(voiceRewardsTable.id, record.id));
 
-          // El tiempo recuperado solo cuenta para misiones si el usuario
-          // sigue conectado a un canal autorizado.
           if (allowed && recoveredElapsedSeconds > 0) {
             try {
               await processVoiceMissions(
@@ -599,6 +616,9 @@ async function recoverConnectedUsers(client: Client): Promise<void> {
   }
 }
 
+/**
+ * Inicializa el sistema de recompensas de voz.
+ */
 export function setupVoiceRewards(client: Client): void {
   client.on(Events.VoiceStateUpdate, (oldState, newState) => {
     void handleVoiceUpdate(client, oldState, newState).catch((error) => {
