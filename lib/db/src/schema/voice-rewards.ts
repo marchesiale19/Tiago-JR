@@ -1,3 +1,4 @@
+
 import {
   pgTable,
   text,
@@ -16,6 +17,16 @@ export const voiceRewardsTable = pgTable(
 
     // Segundos acumulados que todavía no completan una hora.
     accumulatedSeconds: integer("accumulated_seconds")
+      .notNull()
+      .default(0),
+
+    // Tiempo acumulado para el próximo resumen privado.
+    summarySeconds: integer("summary_seconds")
+      .notNull()
+      .default(0),
+
+    // Dinero ganado desde el último resumen enviado.
+    summaryEarned: integer("summary_earned")
       .notNull()
       .default(0),
 
