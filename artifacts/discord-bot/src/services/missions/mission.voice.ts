@@ -13,14 +13,36 @@ import {
 } from "../../database/schema/missions";
 
 import { getWeekKey } from "./mission.service";
-
-// Reemplazá esta importación por la instancia existente en Tiago-JR.
 import { unb } from "../../lib/unbelievaboat";
 
+// ÚNICOS canales de voz donde se permite acumular progreso.
+const MISSION_VOICE_CHANNEL_IDS = [
+  "1452030683588333568",
+  "1478541699041984583",
+  "1452030713791774882",
+  "1452030742602453174",
+  "1452174467441627208",
+  "1462162035185029356",
+  "1462517911607316480",
+  "1478541393470292211",
+  "1478541114695749702",
+  "1553554498436333599",
+  "1538256157347418183",
+  "1538784135802523699",
+  "1538784288051564545",
+  "1538784348277309480",
+] as const;
+
+/**
+ * Comprueba si el miembro está en un canal autorizado
+ * y cumple las condiciones para acumular progreso.
+ */
 export function isEligibleVoiceState(state: VoiceState): boolean {
   return Boolean(
     state.channelId &&
-    state.channelId !== "1478566817579667600" &&
+    MISSION_VOICE_CHANNEL_IDS.includes(
+      state.channelId as (typeof MISSION_VOICE_CHANNEL_IDS)[number]
+    ) &&
     !state.selfMute &&
     !state.serverMute &&
     !state.selfDeaf &&
@@ -56,12 +78,6 @@ async function payCompletedMission(
 
   if (!progress || progress.paid || !progress.completed) return;
 
-  /*
-   * IMPORTANTE:
-   * Confirmá la firma de editUserBalance con la versión del
-   * cliente UnbelievaBoat que ya está instalada en el proyecto.
-   * Este ejemplo usa la forma guildId, userId, amount, "bank".
-   */
   await unb.editUserBalance(
     member.guild.id,
     member.id,
@@ -90,14 +106,13 @@ async function payCompletedMission(
     });
   } catch {
     // El usuario puede tener los MD cerrados.
-    // La recompensa no debe retirarse por un fallo de notificación.
   }
 }
 
 /**
- * Cierra el intervalo válido anterior, guarda los segundos y
- * comienza un nuevo intervalo si el estado actual es elegible.
+ * Actualiza el progreso de voz de un miembro.
  *
+ * Solo acumula tiempo cuando eligible es true.
  * Llamar desde voiceStateUpdate y desde el proceso periódico.
  */
 export async function updateMemberVoiceProgress(
@@ -135,7 +150,6 @@ export async function updateMemberVoiceProgress(
 
     if (!progress || progress.completed) continue;
 
-    // Solo se suman intervalos previamente iniciados.
     const elapsedSeconds = progress.sessionStartedAt
       ? Math.max(
           0,
