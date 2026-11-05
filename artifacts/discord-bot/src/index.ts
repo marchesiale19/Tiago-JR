@@ -3206,6 +3206,11 @@ client.on(
 client.on(
   Events.MessageCreate,
   async (message) => {
+    // 1. Filtrar para que solo actúe en el servidor y canal autorizados de Staff Help
+    if (!message.guild || message.author.bot) return;
+    if (message.guild.id !== STAFF_HELP_CONFIG.guildId) return;
+    if (message.channel.id !== STAFF_HELP_CONFIG.channelId) return;
+
     try {
       await handleStaffHelpRequest(message);
     } catch (err) {
