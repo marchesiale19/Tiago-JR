@@ -62,7 +62,7 @@ export function buildStaffHelpEmbed(
       },
     )
     .setFooter({
-      text: "Tiago-JR • Sistema de asistencia",
+      text: "Tiago JR • Sistema de asistencia",
     })
     .setTimestamp();
 }
