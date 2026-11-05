@@ -40,8 +40,8 @@ export function buildStaffHelpEmbed(
     )
     .setTitle("📩 Solicitud de asistencia")
     .setDescription(
-      "Un miembro del equipo ha solicitado asistencia del Staff.\n\n" +
-      "Para tomar esta solicitud, un responsable autorizado debe responder **Hola** a este mensaje.\n" +
+      "Un miembro del equipo ha solicitado asistencia de los superiores.\n\n" +
+      "Para tomar esta solicitud, un superior debe responder ``Hola``.\n" +
       "Toda la conversación debe mantenerse respondiendo directamente a este mensaje original.",
     )
     .addFields(
