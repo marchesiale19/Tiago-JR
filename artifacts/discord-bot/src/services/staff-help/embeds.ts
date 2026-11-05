@@ -42,7 +42,7 @@ export function buildStaffHelpEmbed(
     .setDescription(
       "Un miembro del equipo ha solicitado asistencia de los superiores.\n\n" +
       "Para tomar esta solicitud, un superior debe responder ``Hola``.\n" +
-      "Toda la conversación debe mantenerse respondiendo directamente a este mensaje original.",
+      "Una vez finalizada la ayuda, el encargado debe poner ``Listo`` para terminar la sesión.",
     )
     .addFields(
       {
