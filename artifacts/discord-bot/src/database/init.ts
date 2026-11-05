@@ -137,6 +137,79 @@ export async function initDatabase(
 
   logger.info("Mission tables verified.");
 
+  // Crear las estructuras de Staff Help si todavía no existen.
+  await db.execute(sql`
+    DO $$
+    BEGIN
+      CREATE TYPE staff_help_status AS ENUM (
+        'pending',
+        'in_progress',
+        'completed',
+        'abandoned'
+      );
+    EXCEPTION
+      WHEN duplicate_object THEN NULL;
+    END;
+    $$;
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS staff_help_requests (
+      id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      requester_id TEXT NOT NULL,
+      request_message_id TEXT NOT NULL UNIQUE,
+      claim_message_id TEXT,
+      assignee_id TEXT,
+      status staff_help_status NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      claimed_at TIMESTAMPTZ,
+      last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS
+      staff_help_active_requester_unique
+    ON staff_help_requests (guild_id, requester_id)
+    WHERE status IN ('pending', 'in_progress')
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS staff_help_status_activity_idx
+    ON staff_help_requests (status, last_activity_at)
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS staff_help_assignee_idx
+    ON staff_help_requests (assignee_id)
+  `);
+
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS staff_help_history (
+      id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      request_id INTEGER NOT NULL
+        REFERENCES staff_help_requests(id) ON DELETE CASCADE,
+      actor_id TEXT,
+      action TEXT NOT NULL,
+      message_id TEXT,
+      previous_assignee_id TEXT,
+      new_assignee_id TEXT,
+      details TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+
+  await db.execute(sql`
+    CREATE INDEX IF NOT EXISTS staff_help_history_request_idx
+    ON staff_help_history (request_id, created_at)
+  `);
+
+  logger.info("Staff Help tables verified.");
+
   const missingTables: string[] = [];
 
   for (const table of REQUIRED_TABLES) {
