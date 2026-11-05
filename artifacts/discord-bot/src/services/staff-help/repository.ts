@@ -17,7 +17,7 @@ type CreateRequestData = {
 type ClaimRequestData = {
   requestId: number;
   assigneeId: string;
-  claimMessageId: string;
+  claimMessageId?: string | null;
 };
 
 async function registerHistory(
@@ -114,6 +114,29 @@ export async function getStaffHelpRequestByMessage(
 }
 
 /**
+ * Busca la solicitud pendiente más antigua en un canal específico.
+ */
+export async function getPendingStaffHelpRequestByChannel(
+  guildId: string,
+  channelId: string,
+) {
+  const [request] = await db
+    .select()
+    .from(staffHelpRequestsTable)
+    .where(
+      and(
+        eq(staffHelpRequestsTable.guildId, guildId),
+        eq(staffHelpRequestsTable.channelId, channelId),
+        eq(staffHelpRequestsTable.status, "pending"),
+      ),
+    )
+    .orderBy(staffHelpRequestsTable.createdAt)
+    .limit(1);
+
+  return request ?? null;
+}
+
+/**
  * Asigna una solicitud pendiente.
  * La actualización condicional garantiza que solo gane el primer responsable.
  */
@@ -126,7 +149,7 @@ export async function claimStaffHelpRequest(
       .set({
         status: "in_progress",
         assigneeId: data.assigneeId,
-        claimMessageId: data.claimMessageId,
+        claimMessageId: data.claimMessageId ?? null,
         claimedAt: new Date(),
         lastActivityAt: new Date(),
         updatedAt: new Date(),
@@ -147,7 +170,7 @@ export async function claimStaffHelpRequest(
       requestId: request.id,
       actorId: data.assigneeId,
       action: "claimed",
-      messageId: data.claimMessageId,
+      messageId: data.claimMessageId ?? null,
       newAssigneeId: data.assigneeId,
     });
 
