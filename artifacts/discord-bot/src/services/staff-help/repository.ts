@@ -99,6 +99,28 @@ export async function getActiveStaffHelpRequest(
 }
 
 /**
+ * Busca una solicitud en progreso asignada a un moderador específico.
+ */
+export async function getActiveStaffHelpRequestByAssignee(
+  guildId: string,
+  assigneeId: string,
+) {
+  const [request] = await db
+    .select()
+    .from(staffHelpRequestsTable)
+    .where(
+      and(
+        eq(staffHelpRequestsTable.guildId, guildId),
+        eq(staffHelpRequestsTable.assigneeId, assigneeId),
+        eq(staffHelpRequestsTable.status, "in_progress"),
+      ),
+    )
+    .limit(1);
+
+  return request ?? null;
+}
+
+/**
  * Busca una solicitud por el ID de su mensaje original.
  */
 export async function getStaffHelpRequestByMessage(
