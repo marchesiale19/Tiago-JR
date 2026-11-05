@@ -150,6 +150,11 @@ export async function handleStaffHelpActivity(
     );
 
     if (!finished) return;
+    try {
+      await message.react("✅");
+    } catch {
+      // La finalización no depende de que se pueda añadir la reacción.
+    }
 
     const original = await getOriginalRequestMessage(
       message,
