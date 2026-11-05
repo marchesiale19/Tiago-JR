@@ -5,8 +5,8 @@ export const STAFF_HELP_CONFIG = {
   channelId: "1497646203242807416",
 
   // Tiempo máximo de inactividad: 5 minutos
-  timeoutMs: 5 * 60 * 1000,
-
+timeoutMs: 15 * 60 * 1000,
+  
   // Frecuencia de comprobación: 15 segundos
   workerIntervalMs: 15 * 1000,
 
