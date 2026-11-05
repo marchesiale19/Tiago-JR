@@ -12,6 +12,7 @@ import {
 import {
   getPendingStaffHelpRequestByChannel,
   getActiveStaffHelpRequest,
+  getActiveStaffHelpRequestByAssignee,
   claimStaffHelpRequest,
   updateStaffHelpActivity,
   finishStaffHelpRequest,
@@ -113,11 +114,11 @@ export async function handleStaffHelpActivity(
     return;
   }
 
-  // 2. SI ESCRIBEN "LISTO": Buscar la solicitud activa asignada a este moderador en el canal.
+// 2. SI ESCRIBEN "LISTO": Buscar la solicitud activa asignada a este moderador en el canal.
   if (content === "listo") {
     if (!canHandleStaffHelp(member)) return;
 
-    const request = await getActiveStaffHelpRequest(
+    const request = await getActiveStaffHelpRequestByAssignee(
       message.guild.id,
       message.author.id,
     );
@@ -162,8 +163,8 @@ export async function handleStaffHelpActivity(
     return;
   }
 
-  // 3. OTRAS MENSUALES EN ATENCIÓN: Si manda cualquier otro mensaje en el canal durante la atención.
-  const activeRequest = await getActiveStaffHelpRequest(
+ // 3. OTRAS MENSUALES EN ATENCIÓN: Si manda cualquier otro mensaje en el canal durante la atención.
+  const activeRequest = await getActiveStaffHelpRequestByAssignee(
     message.guild.id,
     message.author.id,
   );
