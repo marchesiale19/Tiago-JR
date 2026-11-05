@@ -10,8 +10,8 @@ import {
 } from "./permissions";
 
 import {
-  getStaffHelpRequestByMessage,
   getPendingStaffHelpRequestByChannel,
+  getActiveStaffHelpRequest,
   claimStaffHelpRequest,
   updateStaffHelpActivity,
   finishStaffHelpRequest,
@@ -69,7 +69,7 @@ export async function handleStaffHelpActivity(
 
   const member = message.member as GuildMember | null;
 
-  // 1. SI ESCRIBEN "HOLA": Busca la solicitud pendiente más antigua del canal (sin requerir reply).
+  // 1. SI ESCRIBEN "HOLA": Reclamar la solicitud pendiente más antigua del canal.
   if (content === "hola") {
     if (!canHandleStaffHelp(member)) return;
 
@@ -113,36 +113,24 @@ export async function handleStaffHelpActivity(
     return;
   }
 
-  // 2. PARA "LISTO" O ACTIVIDAD: Requerimos que respondan (reply) al mensaje original del bot.
-  const referenceId = message.reference?.messageId;
-  if (!referenceId) return;
-
-  const request = await getStaffHelpRequestByMessage(referenceId);
-
-  if (!request) return;
-
-  if (
-    request.guildId !== message.guild.id ||
-    request.channelId !== message.channel.id
-  ) {
-    return;
-  }
-
-  if (
-    request.status === "completed" ||
-    request.status === "abandoned"
-  ) {
-    return;
-  }
-
-  // A partir de aquí, la solicitud está en atención.
-  if (request.status !== "in_progress") return;
-
-  // Solamente el responsable asignado puede continuar la conversación.
-  if (request.assigneeId !== message.author.id) return;
-
-  // Finalización mediante "Listo".
+  // 2. SI ESCRIBEN "LISTO": Buscar la solicitud activa asignada a este moderador en el canal.
   if (content === "listo") {
+    if (!canHandleStaffHelp(member)) return;
+
+    const request = await getActiveStaffHelpRequest(
+      message.guild.id,
+      message.author.id,
+    );
+
+    if (
+      !request ||
+      request.channelId !== message.channel.id ||
+      request.status !== "in_progress" ||
+      request.assigneeId !== message.author.id
+    ) {
+      return;
+    }
+
     const finished = await finishStaffHelpRequest(
       request.id,
       message.author.id,
@@ -150,6 +138,7 @@ export async function handleStaffHelpActivity(
     );
 
     if (!finished) return;
+
     try {
       await message.react("✅");
     } catch {
@@ -173,10 +162,22 @@ export async function handleStaffHelpActivity(
     return;
   }
 
-  // Cualquier otra respuesta válida del responsable actualiza su actividad.
-  await updateStaffHelpActivity(
-    request.id,
+  // 3. OTRAS MENSUALES EN ATENCIÓN: Si manda cualquier otro mensaje en el canal durante la atención.
+  const activeRequest = await getActiveStaffHelpRequest(
+    message.guild.id,
     message.author.id,
-    message.id,
   );
+
+  if (
+    activeRequest &&
+    activeRequest.channelId === message.channel.id &&
+    activeRequest.status === "in_progress" &&
+    activeRequest.assigneeId === message.author.id
+  ) {
+    await updateStaffHelpActivity(
+      activeRequest.id,
+      message.author.id,
+      message.id,
+    );
+  }
 }
