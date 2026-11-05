@@ -3305,15 +3305,52 @@ process.on("unhandledRejection", (reason) => {
   logger.error({ reason }, "Unhandled promise rejection");
 });
 
-process.on("SIGTERM", () => {
-  console.log("⚠️ SIGTERM recibido. Cerrando conexiones...");
+/* ============================================================
+ * GRACEFUL SHUTDOWN
+ * ============================================================ */
+
+let shuttingDown = false;
+
+function shutdown(signal: string): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log(
+    `⚠️ ${signal} recibido. Cerrando conexiones...`,
+  );
+
+  // Detener el trabajador de Staff Help
+  try {
+    stopStaffHelpTimeoutWorker();
+
+    console.log(
+      "✅ StaffHelpTimeoutWorker detenido.",
+    );
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error deteniendo StaffHelpTimeoutWorker",
+    );
+  }
+
+  // Cerrar servidor HTTP
   server.close(() => {
     console.log("✅ Servidor HTTP cerrado.");
   });
 
+  // Desconectar Discord
   if (client.isReady()) {
     client.destroy();
+    console.log("✅ Cliente de Discord desconectado.");
   }
+}
+
+process.on("SIGTERM", () => {
+  shutdown("SIGTERM");
+});
+
+process.on("SIGINT", () => {
+  shutdown("SIGINT");
 });
 
 process.on("SIGINT", () => {
