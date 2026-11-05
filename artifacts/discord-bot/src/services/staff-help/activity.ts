@@ -11,6 +11,7 @@ import {
 
 import {
   getStaffHelpRequestByMessage,
+  getPendingStaffHelpRequestByChannel,
   claimStaffHelpRequest,
   updateStaffHelpActivity,
   finishStaffHelpRequest,
@@ -62,42 +63,23 @@ export async function handleStaffHelpActivity(
 
   if (message.channel.id !== STAFF_HELP_CONFIG.channelId) return;
 
-  // Todas las interacciones deben responder al mensaje original del bot.
-  const referenceId = message.reference?.messageId;
-
-  if (!referenceId) return;
-
-  const request = await getStaffHelpRequestByMessage(referenceId);
-
-  if (!request) return;
-
-  if (
-    request.guildId !== message.guild.id ||
-    request.channelId !== message.channel.id
-  ) {
-    return;
-  }
-
-  if (
-    request.status === "completed" ||
-    request.status === "abandoned"
-  ) {
-    return;
-  }
-
   const content = message.content.trim().toLowerCase();
 
   if (!content) return;
 
   const member = message.member as GuildMember | null;
 
-  // Una solicitud pendiente solamente puede ser reclamada con "Hola".
-  if (request.status === "pending") {
-    if (content !== "hola") return;
-
+  // 1. SI ESCRIBEN "HOLA": Busca la solicitud pendiente más antigua del canal (sin requerir reply).
+  if (content === "hola") {
     if (!canHandleStaffHelp(member)) return;
 
-    // El solicitante no puede asignarse su propia solicitud.
+    const request = await getPendingStaffHelpRequestByChannel(
+      message.guild.id,
+      message.channel.id,
+    );
+
+    if (!request) return;
+
     if (message.author.id === request.requesterId) return;
 
     const claimed = await claimStaffHelpRequest({
@@ -106,7 +88,6 @@ export async function handleStaffHelpActivity(
       claimMessageId: message.id,
     });
 
-    // Otro responsable pudo reclamarla primero.
     if (!claimed) return;
 
     try {
@@ -129,6 +110,28 @@ export async function handleStaffHelpActivity(
       );
     }
 
+    return;
+  }
+
+  // 2. PARA "LISTO" O ACTIVIDAD: Requerimos que respondan (reply) al mensaje original del bot.
+  const referenceId = message.reference?.messageId;
+  if (!referenceId) return;
+
+  const request = await getStaffHelpRequestByMessage(referenceId);
+
+  if (!request) return;
+
+  if (
+    request.guildId !== message.guild.id ||
+    request.channelId !== message.channel.id
+  ) {
+    return;
+  }
+
+  if (
+    request.status === "completed" ||
+    request.status === "abandoned"
+  ) {
     return;
   }
 
