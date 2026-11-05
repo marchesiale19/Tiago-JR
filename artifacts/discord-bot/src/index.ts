@@ -177,6 +177,16 @@ client.once(Events.ClientReady, (readyClient) => {
           "Error inicializando VoiceStreakService",
         );
       }
+            // Inicialización del sistema Staff Help
+      try {
+        startStaffHelpTimeoutWorker(readyClient);
+        console.log("✅ StaffHelpTimeoutWorker inicializado.");
+      } catch (err) {
+        logger.error(
+          { err },
+          "Error inicializando StaffHelpTimeoutWorker",
+        );
+      }
     })
        .catch((error) => {
       console.error(
