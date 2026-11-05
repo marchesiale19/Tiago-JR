@@ -18,9 +18,9 @@ timeoutMs: 15 * 60 * 1000,
 
   // Roles autorizados para atender solicitudes
   assigneeRoleIds: [
-    "1452784726413672643",  // Moderador
-    "1509760381525164123",  // Moderador PB
     "1522808445391212674",  // Support
+    "1509760381525164123",  // Moderador PB
+    "1452784726413672643",  // Moderador
     "1522807097920720967",  // Manager
   ],
 } as const;
