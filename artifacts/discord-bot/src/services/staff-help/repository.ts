@@ -99,25 +99,30 @@ export async function getActiveStaffHelpRequest(
 }
 
 /**
- * Busca una solicitud en progreso asignada a un moderador específico.
+ * Busca una solicitud en progreso asignada a un moderador específico de forma segura.
  */
 export async function getActiveStaffHelpRequestByAssignee(
   guildId: string,
   assigneeId: string,
 ) {
-  const [request] = await db
-    .select()
-    .from(staffHelpRequestsTable)
-    .where(
-      and(
-        eq(staffHelpRequestsTable.guildId, guildId),
-        eq(staffHelpRequestsTable.assigneeId, assigneeId),
-        eq(staffHelpRequestsTable.status, "in_progress"),
-      ),
-    )
-    .limit(1);
+  try {
+    const result = await db
+      .select()
+      .from(staffHelpRequestsTable)
+      .where(
+        and(
+          eq(staffHelpRequestsTable.guildId, guildId),
+          eq(staffHelpRequestsTable.assigneeId, assigneeId),
+          eq(staffHelpRequestsTable.status, "in_progress"),
+        ),
+      )
+      .limit(1);
 
-  return request ?? null;
+    return result[0] ?? null;
+  } catch (err) {
+    logger.error({ err, guildId, assigneeId }, "Error recuperando solicitud activa por assignee");
+    return null;
+  }
 }
 
 /**
