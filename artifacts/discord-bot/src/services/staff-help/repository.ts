@@ -20,7 +20,7 @@ type ClaimRequestData = {
   claimMessageId?: string | null;
 };
 
-import { logger } from "./lib/logger";
+import { logger } from "../../lib/logger";
 async function registerHistory(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   data: {
