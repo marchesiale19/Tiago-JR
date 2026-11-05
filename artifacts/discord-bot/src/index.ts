@@ -3200,6 +3200,33 @@ client.on(
 );
 
 /* ============================================================
+ * STAFF HELP
+ * ============================================================ */
+
+client.on(
+  Events.MessageCreate,
+  async (message) => {
+    try {
+      await handleStaffHelpRequest(message);
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error procesando una solicitud de Staff Help",
+      );
+    }
+
+    try {
+      await handleStaffHelpActivity(message);
+    } catch (err) {
+      logger.error(
+        { err },
+        "Error procesando la actividad de Staff Help",
+      );
+    }
+  },
+);
+
+/* ============================================================
  * BOT STARTUP
  * ============================================================ */
 
