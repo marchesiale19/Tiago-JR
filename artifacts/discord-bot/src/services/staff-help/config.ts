@@ -2,7 +2,7 @@
 export const STAFF_HELP_CONFIG = {
   // Servidor y canal
   guildId: "1437644356977823884",
-channelId: "1534891104380649554",
+channelId: "1497646203242807416",
   
   // Tiempo máximo de inactividad: 5 minutos
 timeoutMs: 15 * 60 * 1000,
