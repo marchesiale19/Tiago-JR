@@ -1,4 +1,4 @@
-import { logger } from "../../../lib/logger";
+import { logger } from "../../lib/logger";
 import { and, eq, inArray, lt } from "drizzle-orm";
 import {
   db,
