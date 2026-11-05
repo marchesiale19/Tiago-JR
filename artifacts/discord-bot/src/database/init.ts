@@ -26,6 +26,8 @@ const REQUIRED_TABLES = [
   "math_challenges",
   "missions",
   "mission_progress",
+  "staff_help_requests",
+  "staff_help_history",
 ] as const;
 
 export async function initDatabase(
