@@ -45,7 +45,7 @@ const unb = new UnbClient(UNBELIEVABOAT_API_KEY);
 const BOMB_COIN_EMOJI =
   "<:MonedaServer:1524674026188967956>";
 
-const BOMB_DROP_ORANGE = 0xffa500; 
+const BOMB_DROP_ORANGE = 0xffa500;
 
 /* ========================================================================== */
 /*                         LOGS GLOBALES DE BOMB DROPS                        */
