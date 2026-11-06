@@ -1571,10 +1571,10 @@ function hasLuckyboxDropPermission(
     };
   },
 ): boolean {
-  // Si es Sowi, NO dejamos que pase por los roles generales de Admin
-  // para forzarla a usar únicamente su lógica de booster en su canal exclusivo.
- if (LUCKYBOX_BOOSTER_USER_IDS.includes(member.id)) { return true; }
-}
+  // Si es uno de los usuarios especiales de boosters, se les otorga permiso automático
+  if (LUCKYBOX_BOOSTER_USER_IDS.includes(member.id)) {
+    return true; 
+  }
 
   return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
     (roleId) =>
