@@ -1573,7 +1573,7 @@ function hasLuckyboxDropPermission(
 ): boolean {
   // Si es Sowi, NO dejamos que pase por los roles generales de Admin
   // para forzarla a usar únicamente su lógica de booster en su canal exclusivo.
- if (LUCKYBOX_BOOSTER_USER_IDS.includes(member.id)) { return true; }[cite: 1]
+ if (LUCKYBOX_BOOSTER_USER_IDS.includes(member.id)) { return true; }
 }
 
   return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
@@ -1762,7 +1762,7 @@ async function handleLuckyboxDrop(
         dropId,
       );
 
-    const isBoosterDrop = LUCKYBOX_BOOSTER_USER_IDS.includes(moderatorUser.id);[cite: 1]
+    const isBoosterDrop = LUCKYBOX_BOOSTER_USER_IDS.includes(moderatorUser.id);
 
     const dropMessage =
       await targetChannel.send({
@@ -3514,7 +3514,7 @@ export async function run(
     "común, raro, épico y admin";
 
   if (sub === "drop") {
-const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(message.author.id);[cite: 1]
+const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(message.author.id);
     // Si es Sowi (Booster), mantiene su canal exclusivo
     if (isBoosterUser) {
       const cajaArguments = args.slice(offset).join(" ").trim();
