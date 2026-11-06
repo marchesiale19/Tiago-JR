@@ -372,8 +372,11 @@ const LUCKYBOX_DROP_AUTHORIZED_ROLES: readonly string[] = [
   "1522807097920720967", // Manager
 ];
 
-// ID exclusivo para Sowi (mantiene su comportamiento de booster y su canal restringido)
-const LUCKYBOX_BOOSTER_USER_ID = "1503876451315880016";
+// IDs exclusivos de usuarios con comportamiento de booster y canal restringido
+const LUCKYBOX_BOOSTER_USER_IDS: readonly string[] = [
+  "1503876451315880016", // Sowi
+  "909216958891823104",  // Santiago
+];
 
 /* ========================================================================== */
 /*                     LÍMITES DE LUCKYBOX DROP                              */
@@ -666,7 +669,7 @@ async function checkLuckyboxDropLimit(
   limit: number;
   reason?: string;
 }> {
-  const isBoosterUser = userId === LUCKYBOX_BOOSTER_USER_ID;
+const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(userId);[cite: 1]
   const usageKey = getDropUsageKey(cajaNombre);
 
   if (isBoosterUser && usageKey !== "admin") {
@@ -1570,9 +1573,8 @@ function hasLuckyboxDropPermission(
 ): boolean {
   // Si es Sowi, NO dejamos que pase por los roles generales de Admin
   // para forzarla a usar únicamente su lógica de booster en su canal exclusivo.
-  if (member.id === LUCKYBOX_BOOSTER_USER_ID) {
-    return true; // Su propia restricción de canal ya se encarga de limitarla más abajo
-  }
+ if (LUCKYBOX_BOOSTER_USER_IDS.includes(member.id)) { return true; }[cite: 1]
+}
 
   return LUCKYBOX_DROP_AUTHORIZED_ROLES.some(
     (roleId) =>
@@ -1760,8 +1762,7 @@ async function handleLuckyboxDrop(
         dropId,
       );
 
-    const isBoosterDrop =
-      moderatorUser.id === LUCKYBOX_BOOSTER_USER_ID;
+    const isBoosterDrop = LUCKYBOX_BOOSTER_USER_IDS.includes(moderatorUser.id);[cite: 1]
 
     const dropMessage =
       await targetChannel.send({
@@ -3513,8 +3514,7 @@ export async function run(
     "común, raro, épico y admin";
 
   if (sub === "drop") {
-    const isBoosterUser = message.author.id === LUCKYBOX_BOOSTER_USER_ID;
-
+const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(message.author.id);[cite: 1]
     // Si es Sowi (Booster), mantiene su canal exclusivo
     if (isBoosterUser) {
       const cajaArguments = args.slice(offset).join(" ").trim();
