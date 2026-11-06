@@ -669,7 +669,7 @@ async function checkLuckyboxDropLimit(
   limit: number;
   reason?: string;
 }> {
-const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(userId);[cite: 1]
+const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(userId);
   const usageKey = getDropUsageKey(cajaNombre);
 
   if (isBoosterUser && usageKey !== "admin") {
