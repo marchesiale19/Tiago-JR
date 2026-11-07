@@ -162,15 +162,9 @@ try {
         pendingRewardAmount: 0,
         updatedAt: new Date(),
       })
-      .where(
-        and(
-          eq(voiceRewardsTable.id, record.id),
-          eq(
-            voiceRewardsTable.pendingRewardHours,
-            record.pendingRewardHours,
-          ),
-        ),
-      );
+     .where(
+  eq(voiceRewardsTable.id, record.id),
+);
 
     console.log(
       `[VoiceRewards] Resumen enviado a ${userId}: ` +
