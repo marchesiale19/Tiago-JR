@@ -32,10 +32,6 @@ import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
-import { handleStaffHelpRequest } from "./services/staff-help/service";
-import { handleStaffHelpActivity } from "./services/staff-help/activity";
-import { startStaffHelpTimeoutWorker, stopStaffHelpTimeoutWorker } from "./services/staff-help/timeout";
-import { STAFF_HELP_CONFIG } from "./services/staff-help/config";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
