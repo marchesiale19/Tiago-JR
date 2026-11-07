@@ -3279,20 +3279,6 @@ function shutdown(signal: string): void {
     `⚠️ ${signal} recibido. Cerrando conexiones...`,
   );
 
-  // Detener el trabajador de Staff Help
-  try {
-    stopStaffHelpTimeoutWorker();
-
-    console.log(
-      "✅ StaffHelpTimeoutWorker detenido.",
-    );
-  } catch (err) {
-    logger.error(
-      { err },
-      "Error deteniendo StaffHelpTimeoutWorker",
-    );
-  }
-
   // Cerrar servidor HTTP
   server.close(() => {
     console.log("✅ Servidor HTTP cerrado.");
