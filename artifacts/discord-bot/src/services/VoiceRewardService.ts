@@ -136,18 +136,22 @@ async function notifyVoiceReward(
   guildId: string,
   userId: string,
 ): Promise<void> {
-  const record = await getRecord(guildId, userId);
+ const record = await getRecord(guildId, userId);
 
-  if (!record || record.pendingRewardHours <= 0) return;
+if (!record || record.pendingRewardHours <= 0) return;
 
-  try {
+const pendingRewardAmount = Number(
+  record.pendingRewardAmount ?? 0,
+);
+
+try {
     const user = await client.users.fetch(userId);
 
     await user.send({
       content:
         `🎧 **¡Terminaste tu sesión de voz!**\n\n` +
         `⏱️ Tiempo recompensado: **${record.pendingRewardHours} horas**\n` +
-        `💰 Dinero acumulado: **${record.pendingRewardAmount.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>**\n\n` +
+        `💰 Dinero acumulado: **${pendingRewardAmount.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>**\n\n` +
         `¡Gracias por jugar en nuestros canales de voz! ❤️`,
     });
 
@@ -432,8 +436,8 @@ async function payPendingRewards(
         accumulatedSeconds:
           record.accumulatedSeconds - REWARD_SECONDS,
         pendingRewardHours: record.pendingRewardHours + 1,
-        pendingRewardAmount:
-          record.pendingRewardAmount + REWARD_AMOUNT,
+       pendingRewardAmount:
+  Number(record.pendingRewardAmount ?? 0) + REWARD_AMOUNT,
         updatedAt: new Date(),
       })
       .where(
