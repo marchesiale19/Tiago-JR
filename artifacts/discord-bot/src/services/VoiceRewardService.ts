@@ -169,17 +169,13 @@ try {
             voiceRewardsTable.pendingRewardHours,
             record.pendingRewardHours,
           ),
-          eq(
-            voiceRewardsTable.pendingRewardAmount,
-            record.pendingRewardAmount,
-          ),
         ),
       );
 
     console.log(
       `[VoiceRewards] Resumen enviado a ${userId}: ` +
       `${record.pendingRewardHours} horas, ` +
-      `${record.pendingRewardAmount} frijoles.`,
+`${pendingRewardAmount} frijoles.`,
     );
   } catch (error) {
     console.warn(
@@ -436,7 +432,7 @@ async function payPendingRewards(
         accumulatedSeconds:
           record.accumulatedSeconds - REWARD_SECONDS,
         pendingRewardHours: record.pendingRewardHours + 1,
-       pendingRewardAmount:
+pendingRewardAmount:
   Number(record.pendingRewardAmount ?? 0) + REWARD_AMOUNT,
         updatedAt: new Date(),
       })
