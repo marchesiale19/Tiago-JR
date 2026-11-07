@@ -152,15 +152,26 @@ const BOMB_LIMITS: Record<BombType, number> = {
 
 const BOMB_TIME_ZONE = "America/Sao_Paulo";
 
+// Excepciones personales del sistema de Bomb Drops.
+const SPECIAL_BOMB_USER_IDS = new Set([
+  "1503876451315880016", // Sowi
+  "909216958891823104",  // Santiago
+]);
+const BOMB_BOOSTER_CHANNEL_ID = "1453079776951537835";
+const BOMB_BOOSTER_ROLE_ID = "1453071091340808466";
+
 interface BombLimitStore {
   daily: Record<string, number>;
   weekends: Record<string, number>;
+  weekly: Record<string, number>;
 }
+
+type BombLimitPeriod = "daily" | "weekends" | "weekly";
 
 interface BombLimitReservation {
   key: string;
   type: BombType;
-  weekend: boolean;
+  period: BombLimitPeriod;
 }
 
 const BOMB_LIMITS_FILE = join(
@@ -183,6 +194,7 @@ function loadBombLimits(): BombLimitStore {
       return {
         daily: parsed.daily ?? {},
         weekends: parsed.weekends ?? {},
+        weekly: parsed.weekly ?? {},
       };
     }
   } catch (error) {
@@ -195,6 +207,7 @@ function loadBombLimits(): BombLimitStore {
   return {
     daily: {},
     weekends: {},
+    weekly: {},
   };
 }
 
@@ -262,15 +275,30 @@ function getWeekendKey(dateKey: string): string {
   return date.toISOString().slice(0, 10);
 }
 
+function getWeekKey(dateKey: string): string {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year!, month! - 1, day!));
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return date.toISOString().slice(0, 10);
+}
+
 function reserveBombDrop(
   guildId: string,
   bombType: BombType,
+  userId: string,
 ): {
   allowed: boolean;
   reason?: string;
   reservation?: BombLimitReservation;
 } {
   const { dateKey, weekday } = getBrazilDateInfo();
+  const isSpecialUser = SPECIAL_BOMB_USER_IDS.has(userId);
+
+  // Sowi y Santiago tienen comunes, raras y épicas ilimitadas.
+  if (isSpecialUser && bombType !== "admin") {
+    return { allowed: true };
+  }
 
   if (
     bombType === "admin" &&
@@ -284,29 +312,40 @@ function reserveBombDrop(
     };
   }
 
-  const weekend = bombType === "admin";
+  const period: BombLimitPeriod =
+    isSpecialUser && bombType === "admin"
+      ? "weekly"
+      : bombType === "admin"
+        ? "weekends"
+        : "daily";
 
-  const periodKey = weekend
-    ? getWeekendKey(dateKey)
-    : dateKey;
+  const periodKey =
+    period === "weekly"
+      ? getWeekKey(dateKey)
+      : period === "weekends"
+        ? getWeekendKey(dateKey)
+        : dateKey;
 
-  const key = weekend
-    ? `${guildId}:admin:${periodKey}`
-    : `${guildId}:${bombType}:${periodKey}`;
+  const key =
+    period === "weekly"
+      ? `${guildId}:${userId}:admin:${periodKey}`
+      : period === "weekends"
+        ? `${guildId}:admin:${periodKey}`
+        : `${guildId}:${bombType}:${periodKey}`;
 
-  const store = weekend
-    ? bombLimitStore.weekends
-    : bombLimitStore.daily;
-
+  const store = bombLimitStore[period];
   const currentCount = store[key] ?? 0;
-  const limit = BOMB_LIMITS[bombType];
+  const limit = period === "weekly" ? 1 : BOMB_LIMITS[bombType];
 
   if (currentCount >= limit) {
     return {
       allowed: false,
-      reason: weekend
-        ? `⛔ Ya se alcanzó el límite de **${limit} Bombas Admin por fin de semana**. El cupo se renueva el próximo sábado.`
-        : `⛔ Se agotó el cupo de **${limit} ${BOMB_CONFIG[bombType].name} por día**. Probá nuevamente mañana.`,
+      reason:
+        period === "weekly"
+          ? "⛔ Ya utilizaste tu única **Bomba Admin de esta semana**. El cupo se renueva el lunes."
+          : period === "weekends"
+            ? `⛔ Ya se alcanzó el límite de **${limit} Bombas Admin por fin de semana**. El cupo se renueva el próximo sábado.`
+            : `⛔ Se agotó el cupo de **${limit} ${BOMB_CONFIG[bombType].name} por día**. Probá nuevamente mañana.`,
     };
   }
 
@@ -318,7 +357,7 @@ function reserveBombDrop(
     reservation: {
       key,
       type: bombType,
-      weekend,
+      period,
     },
   };
 }
@@ -326,9 +365,7 @@ function reserveBombDrop(
 function releaseBombDropReservation(
   reservation: BombLimitReservation,
 ): void {
-  const store = reservation.weekend
-    ? bombLimitStore.weekends
-    : bombLimitStore.daily;
+  const store = bombLimitStore[reservation.period];
 
   const currentCount = store[reservation.key] ?? 0;
 
@@ -478,6 +515,7 @@ function pickBombReward(bombType: BombType): number {
 
 function hasBombDropPermission(
   member: {
+    id: string;
     roles: {
       cache: {
         has: (roleId: string) => boolean;
@@ -485,8 +523,11 @@ function hasBombDropPermission(
     };
   },
 ): boolean {
-  return BOMB_DROP_AUTHORIZED_ROLES.some((roleId) =>
-    member.roles.cache.has(roleId),
+  return (
+    SPECIAL_BOMB_USER_IDS.has(member.id) ||
+    BOMB_DROP_AUTHORIZED_ROLES.some((roleId) =>
+      member.roles.cache.has(roleId),
+    )
   );
 }
 
@@ -797,6 +838,7 @@ async function handleBombDrop(
     const limitResult = reserveBombDrop(
       guild.id,
       bombType,
+      moderatorUser.id,
     );
 
     if (!limitResult.allowed) {
@@ -815,10 +857,24 @@ async function handleBombDrop(
 
     const embed = createBombDropEmbed(bombType);
     const row = createBombDropButton(dropId);
+    const isSpecialUser = SPECIAL_BOMB_USER_IDS.has(moderatorUser.id);
 
+    if (isSpecialUser) {
+      embed.addFields({
+        name: "🔔 Aviso para boosters",
+        value: `<@&${BOMB_BOOSTER_ROLE_ID}>`,
+      });
+    }
+
+    // Las menciones dentro de embeds no generan notificaciones por sí solas.
+    // Por eso también se envía el rol en el contenido del mensaje.
     const dropMessage = await targetChannel.send({
+      content: isSpecialUser ? `<@&${BOMB_BOOSTER_ROLE_ID}>` : undefined,
       embeds: [embed],
       components: [row],
+      allowedMentions: isSpecialUser
+        ? { roles: [BOMB_BOOSTER_ROLE_ID] }
+        : { parse: [] },
     });
 
     dropCreated = true;
@@ -1151,8 +1207,8 @@ export const data = new SlashCommandBuilder()
       .addStringOption((option) =>
         option
           .setName("bomba")
-          .setDescription("Elegí el tipo de bomba.")
-          .setRequired(true)
+          .setDescription("Elegí el tipo de bomba. Si sos Sowi o Santiago y la omitís, se lanzará una común.")
+          .setRequired(false)
           .addChoices(
             { name: "💣 Bomba Común", value: "comun" },
             { name: "💣 Bomba Rara", value: "raro" },
@@ -1238,12 +1294,15 @@ export async function execute(
     return;
   }
 
-  const bombValue = interaction.options.getString(
-    "bomba",
-    true,
-  );
+  const bombValue = interaction.options.getString("bomba");
+  const effectiveBombValue =
+    bombValue ?? (
+      SPECIAL_BOMB_USER_IDS.has(interaction.user.id)
+        ? "comun"
+        : ""
+    );
 
-  const bombType = getBombType(bombValue);
+  const bombType = getBombType(effectiveBombValue);
 
   if (!bombType) {
     await interaction.reply({
@@ -1255,7 +1314,9 @@ export async function execute(
   }
 
   const selectedChannel = interaction.options.getChannel("canal");
-  const targetChannel = selectedChannel ?? interaction.channel;
+  const targetChannel = SPECIAL_BOMB_USER_IDS.has(interaction.user.id)
+    ? await interaction.guild.channels.fetch(BOMB_BOOSTER_CHANNEL_ID)
+    : selectedChannel ?? interaction.channel;
 
   if (
     !targetChannel ||
@@ -1337,7 +1398,14 @@ export async function run(
     .join(" ")
     .trim();
 
-  if (!bombArguments) {
+  const effectiveBombArguments =
+    bombArguments || (
+      SPECIAL_BOMB_USER_IDS.has(message.author.id)
+        ? "comun"
+        : ""
+    );
+
+  if (!effectiveBombArguments) {
     await message.reply(
       "❌ Uso correcto: `-bomb drop [común|raro|épico|admin] [#canal opcional]`.",
     );
@@ -1345,7 +1413,7 @@ export async function run(
     return;
   }
 
-  const bombType = getBombType(bombArguments);
+  const bombType = getBombType(effectiveBombArguments);
 
   if (!bombType) {
     await message.reply(
@@ -1355,7 +1423,10 @@ export async function run(
     return;
   }
 
-  const targetChannel = mentionedChannel ?? message.channel;
+  const isSpecialUser = SPECIAL_BOMB_USER_IDS.has(message.author.id);
+  const targetChannel = isSpecialUser
+    ? await message.guild.channels.fetch(BOMB_BOOSTER_CHANNEL_ID)
+    : mentionedChannel ?? message.channel;
 
   if (
     !targetChannel ||
