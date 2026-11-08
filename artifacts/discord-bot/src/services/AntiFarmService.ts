@@ -120,30 +120,71 @@ async function triggerAfkCheck(client: any, userId: string, guildId: string, cha
         .setStyle(ButtonStyle.Danger)
     );
 
-    const dmMessage = await user.send({ embeds: [embed], components: [row] }).catch(() => null);
-    if (!dmMessage) {
-      // Si tiene los MDs cerrados, lo movemos directamente al AFK por seguridad
-      await moveToAfk(guild, userId);
-      clearUserSession(userId);
-      return;
-    }
+   
+// Primero intentamos enviar el aviso por MD
+let alertMessage = await user.send({
+  embeds: [embed],
+  components: [row],
+}).catch(() => null);
 
-    session.messageId = dmMessage.id;
+// Si falla el MD, intentamos enviar el aviso en el chat del canal de voz
+if (!alertMessage) {
+  logger.warn(
+    { userId, guildId, channelId },
+    "[AntiFarm] No se pudo enviar MD. Intentando avisar en el canal de voz."
+  );
 
-    // Iniciamos el temporizador de respuesta de 2 minutos
-    session.responseTimer = setTimeout(async () => {
-      const currentSession = activeSessions.get(userId);
-      if (currentSession) {
-        await moveToAfk(guild, userId);
-        clearUserSession(userId);
-        
-        // Intentamos editar el MD para avisar que expiró
-        await dmMessage.edit({
-          content: "❌ *El tiempo de respuesta expiró. Has sido movido al canal AFK.*",
-          components: []
-        }).catch(() => {});
-      }
-    }, RESPONSE_TIMEOUT_MS);
+  const voiceChannel = await guild.channels.fetch(channelId).catch(() => null);
+
+  if (
+    voiceChannel &&
+    voiceChannel.isVoiceBased() &&
+    voiceChannel.members.size === 1 &&
+    voiceChannel.members.has(userId) &&
+    "send" in voiceChannel &&
+    typeof voiceChannel.send === "function"
+  ) {
+    alertMessage = await voiceChannel.send({
+      content: `<@${userId}>`,
+      embeds: [embed],
+      components: [row],
+      allowedMentions: {
+        users: [userId],
+      },
+    }).catch(() => null);
+  }
+}
+
+// Si tampoco se pudo enviar en el canal de voz, lo movemos al AFK
+if (!alertMessage) {
+  logger.warn(
+    { userId, guildId, channelId },
+    "[AntiFarm] No se pudo enviar el aviso ni por MD ni en el canal de voz."
+  );
+
+  await moveToAfk(guild, userId);
+  clearUserSession(userId);
+  return;
+}
+
+session.messageId = alertMessage.id;
+
+// Iniciamos el temporizador de respuesta de 2 minutos
+session.responseTimer = setTimeout(async () => {
+  const currentSession = activeSessions.get(userId);
+
+  if (currentSession) {
+    await moveToAfk(guild, userId);
+    clearUserSession(userId);
+
+    // Avisamos de que el tiempo expiró
+    await alertMessage!.edit({
+      content: "❌ *El tiempo de respuesta expiró. Has sido movido al canal AFK.*",
+      embeds: [],
+      components: [],
+    }).catch(() => {});
+  }
+}, RESPONSE_TIMEOUT_MS);
 
   } catch (err) {
     logger.error({ err, userId }, "[AntiFarm] Error al enviar la alerta de inactividad por MD.");
