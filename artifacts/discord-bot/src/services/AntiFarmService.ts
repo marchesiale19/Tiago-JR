@@ -27,8 +27,8 @@ const AMONG_US_VC_IDS = new Set([
   "1538784348277309480",
 ]);
 
-// Tiempo de soledad antes de preguntar (12 minutos por defecto, en ms)
-const SOLITARY_TIMEOUT_MS = 12 * 60 * 1000; 
+// Tiempo de soledad antes de preguntar (15 minutos, en ms)
+const SOLITARY_TIMEOUT_MS = 15 * 60 * 1000;
 
 // Tiempo límite para que responda el MD (2 minutos, en ms)
 const RESPONSE_TIMEOUT_MS = 2 * 60 * 1000;
