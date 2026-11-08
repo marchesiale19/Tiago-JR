@@ -138,19 +138,32 @@ async function notifyVoiceReward(
 ): Promise<void> {
  const record = await getRecord(guildId, userId);
 
-if (!record || record.pendingRewardHours <= 0) return;
+if (!record) return;
+
+const pendingRewardHours = Number(
+  record.pendingRewardHours ?? 0,
+);
 
 const pendingRewardAmount = Number(
   record.pendingRewardAmount ?? 0,
 );
 
+// Si no obtuvo recompensas, no se envía ningún mensaje.
+if (
+  !Number.isFinite(pendingRewardHours) ||
+  !Number.isFinite(pendingRewardAmount) ||
+  pendingRewardHours <= 0 ||
+  pendingRewardAmount <= 0
+) {
+  return;
+}
 try {
     const user = await client.users.fetch(userId);
 
     await user.send({
       content:
         `🎧 **¡Terminaste tu sesión de voz!**\n\n` +
-        `⏱️ Tiempo recompensado: **${record.pendingRewardHours} horas**\n` +
+`⏱️ Tiempo recompensado: **${pendingRewardHours} horas**\n` +
         `💰 Dinero acumulado: **${pendingRewardAmount.toLocaleString("es-AR")} <:MonedaServer:1524674026188967956>**\n\n` +
         `¡Gracias por jugar en nuestros canales de voz! ❤️`,
     });
@@ -166,11 +179,11 @@ try {
   eq(voiceRewardsTable.id, record.id),
 );
 
-    console.log(
-      `[VoiceRewards] Resumen enviado a ${userId}: ` +
-      `${record.pendingRewardHours} horas, ` +
-`${pendingRewardAmount} frijoles.`,
-    );
+   console.log(
+  `[VoiceRewards] Resumen enviado a ${userId}: ` +
+  `${pendingRewardHours} horas, ` +
+  `${pendingRewardAmount} frijoles.`,
+);
   } catch (error) {
     console.warn(
       `[VoiceRewards] No se pudo enviar el resumen a ${userId}:`,
