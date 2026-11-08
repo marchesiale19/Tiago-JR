@@ -32,6 +32,7 @@ import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
+import { handleAntiFarmButton, ANTI_FARM_BUTTON_PREFIX } from "./services/AntiFarmService";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
@@ -974,6 +975,32 @@ client.on(
      * -------------------------------------------------------- */
 
     if (interaction.isButton()) {
+
+      /* ------------------------------------------------------
+       * ANTI-FARM BUTTONS (Among Us)
+       * ------------------------------------------------------ */
+
+      if (interaction.customId.startsWith(ANTI_FARM_BUTTON_PREFIX)) {
+        try {
+          await handleAntiFarmButton(interaction);
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling anti-farm button interaction",
+          );
+
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction
+              .reply({
+                content: "❌ Hubo un error al procesar tu respuesta.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
 
       /* ------------------------------------------------------
        * LUCKYBOX DROP
