@@ -32,7 +32,11 @@ import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
-import { handleAntiFarmButton, ANTI_FARM_BUTTON_PREFIX } from "./services/AntiFarmService";
+import {
+  handleAntiFarmButton,
+  handleAntiFarmVoiceUpdate,
+  ANTI_FARM_BUTTON_PREFIX,
+} from "./services/AntiFarmService";
 
 /* ============================================================
  * RENDER / HTTP HEALTH SERVER
@@ -102,6 +106,21 @@ const client = new Client({
     timeout: 30000,
     retries: 5,
   },
+});
+
+/* ============================================================
+ * ANTI-FARM VOICE UPDATE
+ * ============================================================ */
+
+client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+  try {
+    handleAntiFarmVoiceUpdate(oldState, newState);
+  } catch (err) {
+    logger.error(
+      { err },
+      "Error handling AntiFarm voice state update",
+    );
+  }
 });
 
 /* ============================================================
