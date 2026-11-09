@@ -3677,7 +3677,7 @@ export async function execute(
   const subcommand =
     interaction.options.getSubcommand();
 
-  if (subcommand === "collect") {
+if (subcommand === "collect") {
     await interaction.deferReply({
       flags:
         MessageFlags.Ephemeral,
@@ -3696,32 +3696,6 @@ export async function execute(
   }
 
   if (subcommand === "drop") {
-    if (subcommand === "robar") {
-  const targetUser = interaction.options.getUser(
-    "usuario",
-    true,
-  );
-
-  const cajaNombre = interaction.options.getString(
-    "caja",
-    true,
-  );
-
-  await interaction.deferReply({
-    flags: MessageFlags.Ephemeral,
-  });
-
-  await handleRobar(
-    (options) =>
-      interaction.editReply(options),
-    interaction.guild,
-    interaction.user,
-    targetUser,
-    cajaNombre,
-  );
-
-  return;
-}
     const cajaNombre =
       interaction.options.getString(
         "caja",
@@ -3766,6 +3740,33 @@ export async function execute(
       interaction.user,
       cajaNombre,
       targetChannel,
+    );
+
+    return;
+  }
+
+  if (subcommand === "robar") {
+    const targetUser = interaction.options.getUser(
+      "usuario",
+      true,
+    );
+
+    const cajaNombre = interaction.options.getString(
+      "caja",
+      true,
+    );
+
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
+    });
+
+    await handleRobar(
+      (options) =>
+        interaction.editReply(options),
+      interaction.guild,
+      interaction.user,
+      targetUser,
+      cajaNombre,
     );
 
     return;
@@ -3920,7 +3921,7 @@ export async function run(
       | "abrir"
       | "info"
       | "dar"
-      | "drop";
+      | "drop"
       | "robar";
 
   const offset = 1;
