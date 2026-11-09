@@ -74,7 +74,7 @@ const BOMB_DROP_AUTHORIZED_ROLES: readonly string[] = [
 /*                              TIPOS                                         */
 /* ========================================================================== */
 
-type BombType =
+export type BombType =
   | "comun"
   | "raro"
   | "epico"
@@ -492,7 +492,7 @@ function getRandomTaunt(user: User): string {
 /*                         SORTEAR CASTIGO                                    */
 /* ========================================================================== */
 
-function pickBombReward(bombType: BombType): number {
+export function pickBombReward(bombType: BombType): number {
   const rewards = BOMB_CONFIG[bombType].rewards;
   const random = Math.random() * 100;
 
