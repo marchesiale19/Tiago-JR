@@ -29,6 +29,11 @@ import {
   rename,
 } from "node:fs/promises";
 
+import {
+  pickBombReward,
+  type BombType,
+} from "./bomb";
+
 import path from "node:path";
 
 /* ========================================================================== */
@@ -234,6 +239,114 @@ interface SyncTopCasinoResult {
 type ReplyFunction = (
   options: any,
 ) => Promise<any>;
+
+/* ========================================================================== */
+/*                         CONFIGURACIÓN ROBAR                                */
+/* ========================================================================== */
+
+const ROBAR_COOLDOWN_MS = 1 * 60 * 60 * 1000;
+
+const ROBAR_COOLDOWN_FILE = path.join(
+  process.cwd(),
+  "data",
+  "luckybox-rob-cooldowns.json",
+);
+
+type RobarCooldownStore = Record<string, number>;
+
+let robarCooldownStore: RobarCooldownStore = {};
+
+let robarCooldownLoaded = false;
+
+let robarCooldownLoadPromise: Promise<void> | null = null;
+
+let robarCooldownWriteQueue: Promise<void> = Promise.resolve();
+
+const activeLuckyboxRobs = new Set<string>();
+
+async function loadRobarCooldowns(): Promise<void> {
+  if (robarCooldownLoaded) return;
+
+  if (robarCooldownLoadPromise) {
+    return robarCooldownLoadPromise;
+  }
+
+  robarCooldownLoadPromise = (async () => {
+    try {
+      const raw = await readFile(
+        ROBAR_COOLDOWN_FILE,
+        "utf8",
+      );
+
+      const parsed = JSON.parse(raw);
+
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
+        robarCooldownStore = parsed as RobarCooldownStore;
+      } else {
+        robarCooldownStore = {};
+      }
+    } catch (err: any) {
+      if (err?.code !== "ENOENT") {
+        logger.error(
+          { err, file: ROBAR_COOLDOWN_FILE },
+          "No se pudo cargar el cooldown de Luckybox Robar.",
+        );
+      }
+
+      robarCooldownStore = {};
+    } finally {
+      robarCooldownLoaded = true;
+      robarCooldownLoadPromise = null;
+    }
+  })();
+
+  return robarCooldownLoadPromise;
+}
+
+function getRobarCooldownKey(
+  guildId: string,
+  userId: string,
+): string {
+  return `${guildId}:${userId}`;
+}
+
+async function saveRobarCooldowns(): Promise<void> {
+  robarCooldownWriteQueue =
+    robarCooldownWriteQueue.then(async () => {
+      const directory = path.dirname(
+        ROBAR_COOLDOWN_FILE,
+      );
+
+      await mkdir(directory, {
+        recursive: true,
+      });
+
+      const temporaryFile =
+        `${ROBAR_COOLDOWN_FILE}.tmp`;
+
+      await writeFile(
+        temporaryFile,
+        JSON.stringify(robarCooldownStore, null, 2),
+        "utf8",
+      );
+
+      await rename(
+        temporaryFile,
+        ROBAR_COOLDOWN_FILE,
+      );
+    }).catch((err) => {
+      logger.error(
+        { err, file: ROBAR_COOLDOWN_FILE },
+        "No se pudo guardar el cooldown de Luckybox Robar.",
+      );
+    });
+
+  return robarCooldownWriteQueue;
+}
 
 /* ========================================================================== */
 /*                        CONFIGURACIÓN COLLECT                               */
@@ -2862,6 +2975,273 @@ async function handleDar(
   }
 }
 
+async function handleRobar(
+  sendReply: ReplyFunction,
+  guild: Guild,
+  thiefUser: User,
+  targetUser: User,
+  cajaNombre: string,
+): Promise<void> {
+  const guildId = guild.id;
+
+  const cooldownKey = getRobarCooldownKey(
+    guildId,
+    thiefUser.id,
+  );
+
+  try {
+    // --------------------------------------------------
+    // 1. VALIDACIONES INICIALES
+    // --------------------------------------------------
+
+    if (thiefUser.id === targetUser.id) {
+      await sendReply({
+        content: "❌ No podés robarte a vos mismo.",
+      });
+
+      return;
+    }
+
+    const targetMember = await guild.members
+      .fetch(targetUser.id)
+      .catch(() => null);
+
+    if (!targetMember) {
+      await sendReply({
+        content: "❌ No pude verificar los roles del usuario objetivo.",
+      });
+
+      return;
+    }
+
+    // --------------------------------------------------
+    // 2. VALIDAR ROL SEGURO
+    // --------------------------------------------------
+
+    if (targetMember.roles.cache.has(ROL_SEGURO_ID)) {
+      await sendReply({
+        content:
+          "❌ Este usuario cuenta con un rol seguro y está protegido contra robos.",
+      });
+
+      return;
+    }
+
+    // --------------------------------------------------
+    // 3. VERIFICAR INVENTARIO DE LA VÍCTIMA
+    // --------------------------------------------------
+
+    const items = await getUserInventory(
+      guildId,
+      targetUser.id,
+    );
+
+    const targetBox = findLuckyboxInInventory(
+      items,
+      cajaNombre,
+    );
+
+    if (!targetBox) {
+      await sendReply({
+        content:
+          `❌ <@${targetUser.id}> no tiene ninguna **${cajaNombre}** en su inventario.`,
+      });
+
+      return;
+    }
+
+    const itemId = String(
+      targetBox.item_id ??
+        targetBox.itemId ??
+        targetBox.id ??
+        "",
+    );
+
+    if (!itemId) {
+      throw new Error(
+        "La Luckybox encontrada no tiene un ID de item válido.",
+      );
+    }
+
+    // --------------------------------------------------
+    // 4. VALIDAR COOLDOWN
+    // --------------------------------------------------
+
+    await loadRobarCooldowns();
+
+    const now = Date.now();
+
+    const lastRob = robarCooldownStore[cooldownKey] ?? 0;
+
+    const elapsed = now - lastRob;
+
+    if (elapsed < ROBAR_COOLDOWN_MS) {
+      const remaining = ROBAR_COOLDOWN_MS - elapsed;
+
+      await sendReply({
+        content:
+          `⏳ Ya intentaste robar una Luckybox recientemente. Podrás volver a intentarlo en **${formatCollectRemaining(remaining)}**.`,
+      });
+
+      return;
+    }
+
+    // Evita que dos comandos simultáneos del mismo usuario
+    // puedan superar la comprobación del cooldown.
+    if (activeLuckyboxRobs.has(cooldownKey)) {
+      await sendReply({
+        content:
+          "⏳ Ya tenés un intento de robo en proceso. Esperá a que termine.",
+      });
+
+      return;
+    }
+
+    activeLuckyboxRobs.add(cooldownKey);
+
+    try {
+      // --------------------------------------------------
+      // 5. PROBABILIDAD 50/50
+      // --------------------------------------------------
+
+      const robberySucceeded = Math.random() < 0.5;
+
+      if (robberySucceeded) {
+        // ----------------------------------------------
+        // ESCENARIO A: ROBO EXITOSO
+        // ----------------------------------------------
+
+        await removeInventoryItem(
+          guildId,
+          targetUser.id,
+          itemId,
+          1,
+        );
+
+        try {
+          await addInventoryItem(
+            guildId,
+            thiefUser.id,
+            itemId,
+            1,
+          );
+        } catch (deliveryError) {
+          // Si no se pudo entregar al ladrón,
+          // intentamos devolver la caja a su dueño.
+          try {
+            await addInventoryItem(
+              guildId,
+              targetUser.id,
+              itemId,
+              1,
+            );
+          } catch (rollbackError) {
+            logger.error(
+              {
+                rollbackError,
+                guildId,
+                targetUserId: targetUser.id,
+                thiefUserId: thiefUser.id,
+                itemId,
+              },
+              "No se pudo revertir la transferencia fallida de Luckybox.",
+            );
+          }
+
+          throw deliveryError;
+        }
+
+        logger.info(
+          {
+            guildId,
+            thiefUserId: thiefUser.id,
+            targetUserId: targetUser.id,
+            cajaNombre,
+            itemId,
+          },
+          "Luckybox robada y transferida correctamente.",
+        );
+
+        robarCooldownStore[cooldownKey] = Date.now();
+
+        await saveRobarCooldowns();
+
+        await sendReply({
+          content:
+            `🎉 **¡Robo exitoso!**\n<@${thiefUser.id}> logró robarle una **${cajaNombre}** a <@${targetUser.id}>.\n\n📦 La caja fue transferida correctamente a tu inventario.`,
+        });
+
+        return;
+      }
+
+      // ----------------------------------------------
+      // ESCENARIO B: BOMBA TRAMPA
+      // ----------------------------------------------
+
+      const normalizedCaja = normalizeName(cajaNombre);
+
+      const bombType: BombType =
+        normalizedCaja.includes("admin")
+          ? "admin"
+          : normalizedCaja.includes("epico")
+            ? "epico"
+            : normalizedCaja.includes("raro")
+              ? "raro"
+              : "comun";
+
+      const penalty = pickBombReward(bombType);
+
+      await unb.editUserBalance(
+        guildId,
+        thiefUser.id,
+        {
+          cash: penalty,
+        },
+        `Luckybox Robar - Bomba ${bombType}`,
+      );
+
+      logger.info(
+        {
+          guildId,
+          thiefUserId: thiefUser.id,
+          targetUserId: targetUser.id,
+          cajaNombre,
+          bombType,
+          penalty,
+        },
+        "El intento de robo activó una bomba trampa.",
+      );
+
+      robarCooldownStore[cooldownKey] = Date.now();
+
+      await saveRobarCooldowns();
+
+      await sendReply({
+        content:
+          `💣 **¡La Luckybox era una trampa!**\n\nPerdiste **${Math.abs(penalty).toLocaleString("es-AR")} Frijoles** de tu balance.`,
+      });
+    } finally {
+      activeLuckyboxRobs.delete(cooldownKey);
+    }
+  } catch (err: any) {
+    logger.error(
+      {
+        err,
+        guildId,
+        thiefUserId: thiefUser.id,
+        targetUserId: targetUser.id,
+        cajaNombre,
+      },
+      "Error procesando un intento de robo de Luckybox.",
+    );
+
+    await sendReply({
+      content:
+        `❌ No se pudo procesar el intento de robo.\n\`${err?.message ?? "Error desconocido"}\``,
+    });
+  }
+}
+
 async function handleAbrir(
   sendReply: ReplyFunction,
   sendChannelMessage: ReplyFunction,
@@ -3184,6 +3564,50 @@ export const data =
                 ),
           ),
     )
+.addSubcommand(
+  (subcommand) =>
+    subcommand
+      .setName("robar")
+      .setDescription(
+        "Intentá robar una Luckybox del inventario de otro usuario.",
+      )
+      .addUserOption(
+        (option) =>
+          option
+            .setName("usuario")
+            .setDescription(
+              "Usuario al que intentás robarle.",
+            )
+            .setRequired(true),
+      )
+      .addStringOption(
+        (option) =>
+          option
+            .setName("caja")
+            .setDescription(
+              "Tipo de Luckybox que querés robar.",
+            )
+            .setRequired(true)
+            .addChoices(
+              {
+                name: "Mr Lucky Común",
+                value: "Mr Lucky Común",
+              },
+              {
+                name: "Mr Lucky Raro",
+                value: "Mr Lucky Raro",
+              },
+              {
+                name: "Mr Lucky Épico",
+                value: "Mr Lucky Épico",
+              },
+              {
+                name: "Mr Lucky Admin",
+                value: "Mr Lucky Admin",
+              },
+            ),
+      ),
+) 
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3272,6 +3696,32 @@ export async function execute(
   }
 
   if (subcommand === "drop") {
+    if (subcommand === "robar") {
+  const targetUser = interaction.options.getUser(
+    "usuario",
+    true,
+  );
+
+  const cajaNombre = interaction.options.getString(
+    "caja",
+    true,
+  );
+
+  await interaction.deferReply({
+    flags: MessageFlags.Ephemeral,
+  });
+
+  await handleRobar(
+    (options) =>
+      interaction.editReply(options),
+    interaction.guild,
+    interaction.user,
+    targetUser,
+    cajaNombre,
+  );
+
+  return;
+}
     const cajaNombre =
       interaction.options.getString(
         "caja",
@@ -3442,6 +3892,7 @@ export async function run(
       "info",
       "dar",
       "drop",
+      "robar",
     ] as const;
 
   const isSubcommand =
@@ -3458,7 +3909,7 @@ export async function run(
     !isSubcommand
   ) {
     await message.reply(
-      "❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info`, `-luckybox dar` o `-luckybox drop`.",
+"❌ Uso incorrecto. Tenés que usar `-luckybox abrir`, `-luckybox info`, `-luckybox dar`, `-luckybox drop` o `-luckybox robar`.",
     );
 
     return;
@@ -3470,6 +3921,7 @@ export async function run(
       | "info"
       | "dar"
       | "drop";
+      | "robar";
 
   const offset = 1;
 
@@ -3513,6 +3965,57 @@ export async function run(
   const opcionesValidas =
     "común, raro, épico y admin";
 
+if (sub === "robar") {
+  const mentionedUser =
+    message.mentions.users.first();
+
+  if (!mentionedUser) {
+    await message.reply(
+      "❌ Uso correcto: `-luckybox robar @usuario [común|raro|épico|admin]`.",
+    );
+
+    return;
+  }
+
+  const cajaArguments = args
+    .slice(offset)
+    .filter(
+      (arg) =>
+        !/^<@!?\d+>$/.test(arg),
+    )
+    .join(" ")
+    .trim();
+
+  if (!cajaArguments) {
+    await message.reply(
+      "❌ Tenés que indicar qué Luckybox querés robar.",
+    );
+
+    return;
+  }
+
+  const cajaNombre = getCajaNombre(cajaArguments);
+
+  if (!cajaNombre) {
+    await message.reply(
+      `❌ Esa caja no existe. Las opciones válidas son: ${opcionesValidas}.`,
+    );
+
+    return;
+  }
+
+  await handleRobar(
+    (options) =>
+      message.reply(options),
+    message.guild,
+    message.author,
+    mentionedUser,
+    cajaNombre,
+  );
+
+  return;
+}
+  
   if (sub === "drop") {
 const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(message.author.id);
     // Si es Sowi (Booster), mantiene su canal exclusivo
