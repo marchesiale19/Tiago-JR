@@ -475,8 +475,8 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 /* ========================================================================== */
 
 const ROL_REPARTIR_LUCKYBOX_ID = "1568863822016684074";
-const CANAL_ANUNCIOS_CASINO_ID = "1538309829066756207"; 
-const ROL_CASINO_PARTICIPANTE_ID = "1522434536796061816"; 
+const CANAL_ANUNCIOS_CASINO_ID = "1543114382689574932"; 
+const ROL_CASINO_PARTICIPANTE_ID = "1543094224403308639"; 
 const REPARTIR_COOLDOWN_MS = 24 * 60 * 60 * 1000; 
 const REPARTIR_MAX_USOS = 3;
 const IMAGEN_JEFE_DECIDIDO = "https://i.postimg.cc/G2WLQkCm/Gemini-Generated-Image-dk7pskdk7pskdk7p.jpg";
