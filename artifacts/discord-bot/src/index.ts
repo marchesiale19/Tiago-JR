@@ -1106,41 +1106,38 @@ client.on(
         return;
       }
 
-      /* ------------------------------------------------------
-       * AHORCADO GUESS BUTTON
-       * ------------------------------------------------------ */
+     /* ------------------------------------------------------
+ * AHORCADO BUTTONS (LETRAS Y PAGINACIÓN)
+ * ------------------------------------------------------ */
 
-      if (
-        interaction.customId.startsWith(
-          "ahorcado_guess:",
-        )
-      ) {
-        try {
-          await handleAhorcadoButton(
-            interaction,
-          );
-        } catch (err) {
-          logger.error(
-            { err },
-            "Error handling Ahorcado guess button",
-          );
+if (
+  interaction.customId.startsWith("ahorcado_guess:") ||
+  interaction.customId.startsWith("ahorcado_page:")
+) {
+  try {
+    await handleAhorcadoButton(interaction);
+  } catch (err) {
+    logger.error(
+      { err, customId: interaction.customId },
+      "Error handling Ahorcado button",
+    );
 
-          if (
-            !interaction.replied &&
-            !interaction.deferred
-          ) {
-            await interaction
-              .reply({
-                content:
-                  "❌ Hubo un error al procesar tu letra en el ahorcado.",
-                ephemeral: true,
-              })
-              .catch(() => {});
-          }
-        }
+    if (
+      !interaction.replied &&
+      !interaction.deferred
+    ) {
+      await interaction
+        .reply({
+          content:
+            "❌ Hubo un error al procesar esta acción del Ahorcado.",
+          ephemeral: true,
+        })
+        .catch(() => {});
+    }
+  }
 
-        return;
-      }
+  return;
+}
       
       /* ------------------------------------------------------
        * POSTULACIONES
