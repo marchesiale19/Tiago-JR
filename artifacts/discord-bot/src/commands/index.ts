@@ -24,6 +24,7 @@ import * as luckybox from "./luckybox";
 import * as bomb from "./bomb";
 import * as tateti from "./tateti";
 import * as ppt from "./ppt";
+import * as mines from "./mines";
 import * as leaderboard from "./leaderboard";
 import * as racha from "./racha";
 import * as crearMision from "./crearmision";
@@ -122,6 +123,7 @@ commands.set(luckybox.data.name, luckybox);
 commands.set(bomb.data.name, bomb);
 commands.set(tateti.data.name, tateti);
 commands.set(ppt.data.name, ppt);
+commands.set(mines.data.name, mines);
 commands.set(asignarRangoData.name, {
   data: asignarRangoData,
   execute: asignarRangoExecute,
