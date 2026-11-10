@@ -3959,7 +3959,7 @@ if (subcommand === "collect") {
     return;
   }
 
-  if (subcommand === "robar") {
+if (subcommand === "robar") {
     const targetUser = interaction.options.getUser(
       "usuario",
       true,
@@ -3986,13 +3986,27 @@ if (subcommand === "collect") {
     return;
   }
 
-  const cajaNombre =
-    interaction.options.getString(
-      "caja",
-      true,
+  if (subcommand === "repartir") {
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
+    });
+
+    await handleLuckyboxRepartir(
+      (options) => interaction.editReply(options),
+      interaction.guild,
+      interaction.user,
     );
 
+    return;
+  }
+
   if (subcommand === "info") {
+    const cajaNombre =
+      interaction.options.getString(
+        "caja",
+        true,
+      );
+
     await interaction.deferReply({
       flags:
         MessageFlags.Ephemeral,
@@ -4004,20 +4018,6 @@ if (subcommand === "collect") {
           options,
         ),
       cajaNombre,
-    );
-
-    return;
-  }
-
-if (subcommand === "repartir") {
-    await interaction.deferReply({
-      flags: MessageFlags.Ephemeral,
-    });
-
-    await handleLuckyboxRepartir(
-      (options) => interaction.editReply(options),
-      interaction.guild,
-      interaction.user,
     );
 
     return;
