@@ -33,7 +33,7 @@ import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
 import { handleAhorcadoButton } from "./commands/ahorcado";
-import { startLuckyboxAutoDropService } from "./service/luckybox-auto-drop"; 
+import { startLuckyboxAutoDropService } from "./services/luckybox-auto-drop"; 
 import {
   handleAntiFarmButton,
   handleAntiFarmVoiceUpdate,
