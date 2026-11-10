@@ -3771,50 +3771,50 @@ export const data =
           ),
     )
 .addSubcommand(
-  (subcommand) =>
-    subcommand
-      .setName("robar")
-      .setDescription(
-        "Intentá robar una Luckybox del inventario de otro usuario.",
-      )
-      .addUserOption(
-        (option) =>
-          option
-            .setName("usuario")
-            .setDescription(
-              "Usuario al que intentás robarle.",
-            )
-            .setRequired(true),
-      )
-      .addStringOption(
-        (option) =>
-          option
-            .setName("caja")
-            .setDescription(
-              "Tipo de Luckybox que querés robar.",
-            )
-            .setRequired(true)
-            .addChoices(
-              {
-                name: "Mr Lucky Común",
-                value: "Mr Lucky Común",
-              },
-              {
-                name: "Mr Lucky Raro",
-                value: "Mr Lucky Raro",
-              },
-              {
-                name: "Mr Lucky Épico",
-                value: "Mr Lucky Épico",
-              },
-              {
-                name: "Mr Lucky Admin",
-                value: "Mr Lucky Admin",
-              },
-            ),
-      ),
-) 
-  .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("robar")
+          .setDescription(
+            "Intentá robar una Luckybox del inventario de otro usuario.",
+          )
+          .addUserOption(
+            (option) =>
+              option
+                .setName("usuario")
+                .setDescription(
+                  "Usuario al que intentás robarle.",
+                )
+                .setRequired(true),
+          )
+          .addStringOption(
+            (option) =>
+              option
+                .setName("caja")
+                .setDescription(
+                  "Tipo de Luckybox que querés robar.",
+                )
+                .setRequired(true)
+                .addChoices(
+                  {
+                    name: "Mr Lucky Común",
+                    value: "Mr Lucky Común",
+                  },
+                  {
+                    name: "Mr Lucky Raro",
+                    value: "Mr Lucky Raro",
+                  },
+                  {
+                    name: "Mr Lucky Épico",
+                    value: "Mr Lucky Épico",
+                  },
+                  {
+                    name: "Mr Lucky Admin",
+                    value: "Mr Lucky Admin",
+                  },
+                ),
+          ),
+    )
+    .addSubcommand(
       (subcommand) =>
         subcommand
           .setName("repartir")
