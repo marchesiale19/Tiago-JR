@@ -155,6 +155,7 @@ interface AhorcadoGame {
   readonly normalizedWord: string;
   readonly reward: number;
   readonly authorId: string;
+    playerId: string | null;
 
   guessedLetters: Set<string>;
   wrongLetters: Set<string>;
@@ -415,6 +416,7 @@ async function startAhorcadoGame(
       normalizedWord: normalized,
       reward,
       authorId: author.id,
+            playerId: null,
 
       guessedLetters: new Set<string>(),
       wrongLetters: new Set<string>(),
@@ -522,6 +524,36 @@ export async function handleAhorcadoButton(
   if (game.finished) {
     await interaction.reply({
       content: "❌ Este Ahorcado ya terminó.",
+      flags: MessageFlags.Ephemeral,
+    });
+
+    return;
+  }
+
+    /* ------------------------------------------------------------------------ */
+  /*                       BLOQUEO DEL PRIMER JUGADOR                         */
+  /* ------------------------------------------------------------------------ */
+
+  // El primer usuario que pulse cualquier botón reclama la partida.
+  if (game.playerId === null) {
+    game.playerId = interaction.user.id;
+
+    logger.info(
+      {
+        userId: interaction.user.id,
+        messageId,
+        guildId: game.guildId,
+      },
+      "Jugador asignado al Ahorcado.",
+    );
+  }
+
+  // Impedir que otros usuarios interactúen.
+  if (game.playerId !== interaction.user.id) {
+    await interaction.reply({
+      content:
+        "🔒 **¡Esta partida ya tiene un jugador!**\n" +
+        "Otra persona fue la primera en participar. Tendrás que esperar al próximo Ahorcado.",
       flags: MessageFlags.Ephemeral,
     });
 
