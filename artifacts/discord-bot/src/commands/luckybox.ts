@@ -3399,46 +3399,8 @@ async function handleRobar(
 
         return;
       }
-
+      
       // ----------------------------------------------
-      // ESCENARIO B: BOMBA TRAMPA
-      // ----------------------------------------------
-
-      const normalizedCaja = normalizeName(cajaNombre);
-
-      const bombType: BombType =
-        normalizedCaja.includes("admin")
-          ? "admin"
-          : normalizedCaja.includes("epico")
-            ? "epico"
-            : normalizedCaja.includes("raro")
-              ? "raro"
-              : "comun";
-
-      const penalty = pickBombReward(bombType);
-
-      await unb.editUserBalance(
-        guildId,
-        thiefUser.id,
-        {
-          cash: penalty,
-        },
-        `Luckybox Robar - Bomba ${bombType}`,
-      );
-
-      logger.info(
-        {
-          guildId,
-          thiefUserId: thiefUser.id,
-          targetUserId: targetUser.id,
-          cajaNombre,
-          bombType,
-          penalty,
-        },
-        "El intento de robo activó una bomba trampa.",
-      );
-
-// ----------------------------------------------
       // ESCENARIO B: BOMBA TRAMPA
       // ----------------------------------------------
 
