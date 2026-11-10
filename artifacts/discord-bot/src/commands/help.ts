@@ -73,6 +73,8 @@ const LOTTERY_MANAGEMENT_ROLES = [
   "1522807097920720967", // Manager
 ];
 
+const ROL_REPARTIR_LUCKYBOX_ID = "1568863822016684074";
+
 /*
  * Roles que pueden utilizar/ver:
  * -clear
@@ -266,6 +268,17 @@ function canGiveLuckybox(
  * -anotar
  * -girar
  */
+
+/*
+ * Comprueba si el usuario puede ver:
+ * /luckybox repartir o -luckybox repartir
+ */
+function canRepartirLuckybox(
+  member: GuildMember | null | undefined,
+): boolean {
+  return getRoleIds(member).includes(ROL_REPARTIR_LUCKYBOX_ID);
+}
+
 function canManageLottery(
   member: GuildMember | null | undefined,
 ): boolean {
@@ -434,6 +447,7 @@ function getCategories(
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
         "-bomb info — Muestra información detallada sobre las Bombas.",
+        "-luckybox repartir — El jefe decide y reparte cajas sorpresa a miembros del casino.",
 
         /*
          * Estos comandos solamente aparecen para los roles
