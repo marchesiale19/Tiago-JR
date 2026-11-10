@@ -478,7 +478,7 @@ const LUCKYBOX_DROP_AUTHORIZED_ROLES: readonly string[] = [
   "1451383215603585140", // Owner
   "1508266687689003039", // Co-Owner
   "1512634750152478851", // Jefe Staff
-  "1485101671875874997", // Administrador Elite
+  "1569589134962462790", // Administrador Elite
   "1522434536796061816", // Desarrollador
   "1453211902267228160", // Administrador
   "1509760475653472287", // Administrador [PB]
