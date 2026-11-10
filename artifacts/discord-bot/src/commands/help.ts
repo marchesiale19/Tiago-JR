@@ -447,8 +447,11 @@ function getCategories(
         "-luckybox info — Muestra información detallada sobre las Lucky Boxes.",
         "-collect — Reclamá las Luckybox correspondientes a tus roles.",
         "-bomb info — Muestra información detallada sobre las Bombas.",
-        "-luckybox repartir — El jefe decide y reparte cajas sorpresa a miembros del casino.",
-
+...(canRepartirLuckybox(member)
+          ? [
+              "-luckybox repartir — El jefe decide y reparte cajas sorpresa a miembros del casino.",
+            ]
+          : []),
         /*
          * Estos comandos solamente aparecen para los roles
          * autorizados a reiniciar el casino y los inventarios.
