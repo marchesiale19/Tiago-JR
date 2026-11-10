@@ -2610,34 +2610,7 @@ async function handleCollect(
 
         await sendReply({ embeds: [successEmbed] });
         return;
-      } else {
-        // Es una bomba: se le descuenta plata del efectivo (cash)
-        const costo = reward.costo ?? 0;
-        await unb.editUserBalance(guild.id, user.id, { cash: -costo });
-
-        if (existingCooldown) {
-          await db.update(cooldownsTable).set({ lastCollect: collectDate }).where(and(eq(cooldownsTable.guildId, guild.id), eq(cooldownsTable.userId, user.id)));
-        } else {
-          await db.insert(cooldownsTable).values({ guildId: guild.id, userId: user.id, lastCollect: collectDate });
-        }
-
-        const nextCollectTimestamp = Math.ceil((collectDate.getTime() + activeCooldownMs) / 1000);
-
-        const bombEmbed = new EmbedBuilder()
-          .setColor(0xed4245)
-          .setTitle("💣 ¡Te explotó una bomba en el Collect!")
-          .setDescription(`<@${user.id}>, tuviste mala suerte y te cayó una **${reward.nombre}**. Se te descontaron \`${costo.toLocaleString()} Frijoles\` de tu balance.`)
-          .addFields(
-            { name: "💥 Castigo aplicado", value: `• **${reward.nombre}** (-${costo.toLocaleString()} Frijoles)`, inline: false },
-            { name: "⏳ Próximo collect", value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`, inline: false }
-          )
-          .setFooter({ text: "Sistema de Collect Especial • Cooldown de 2 días" })
-          .setTimestamp();
-
-        await sendReply({ embeds: [bombEmbed] });
-        return;
-      }
-    }
+    
       } else {
         // Es una bomba: se le descuenta plata del efectivo (cash)
         const costo = reward.costo ?? 0;
