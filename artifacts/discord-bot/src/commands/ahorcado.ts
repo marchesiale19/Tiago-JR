@@ -214,11 +214,11 @@ function renderGameEmbed(game: AhorcadoGame, statusText?: string): EmbedBuilder 
 function createKeyboardRows(disabled = false): ActionRowBuilder<ButtonBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   const layout = [
-    ["A", "B", "C", "D", "E", "F"],
-    ["G", "H", "I", "J", "K", "L"],
-    ["M", "N", "Ñ", "O", "P", "Q"],
-    ["R", "S", "T", "U", "V"],
-    ["W", "X", "Y", "Z"],
+    ["A", "B", "C", "D", "E"],
+    ["F", "G", "H", "I", "J"],
+    ["K", "L", "M", "N", "Ñ"],
+    ["O", "P", "Q", "R", "S"],
+    ["T", "U", "V", "W", "X", "Y", "Z"],
   ];
 
   for (const rowLetters of layout) {
