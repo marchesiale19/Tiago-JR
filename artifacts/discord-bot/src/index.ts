@@ -1232,7 +1232,41 @@ client.on(
         return;
       }
 
-          /* ------------------------------------------------------
+/* ------------------------------------------------------
+       * MINES (BUSCAMINAS)
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "mines_",
+        )
+      ) {
+        try {
+          const minesModule =
+            commands.get(
+              "mines",
+            ) as any;
+
+          if (
+            minesModule &&
+            typeof minesModule.handleButton ===
+              "function"
+          ) {
+            await minesModule.handleButton(
+              interaction,
+            );
+          }
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling mines button",
+          );
+        }
+
+        return;
+      }
+      
+      /* ------------------------------------------------------
        * SUPERVISION ACCEPT
        * ------------------------------------------------------ */
 
