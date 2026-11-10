@@ -471,6 +471,61 @@ export const AUTHORIZED_ROLES: readonly string[] = [
 ];
 
 /* ========================================================================== */
+/*                   CONFIGURACIÓN LUCKYBOX REPARTIR (JEFE)                   */
+/* ========================================================================== */
+
+const ROL_REPARTIR_LUCKYBOX_ID = "1568863822016684074";
+const CANAL_ANUNCIOS_CASINO_ID = "1538309829066756207"; 
+const ROL_CASINO_PARTICIPANTE_ID = "1546645000153210952"; 
+const REPARTIR_COOLDOWN_MS = 24 * 60 * 60 * 1000; 
+const REPARTIR_MAX_USOS = 3;
+
+const REPARTIR_STATE_FILE = path.join(
+  process.cwd(),
+  "data",
+  "luckybox-repartir-state.json",
+);
+
+interface RepartirUserState {
+  timestamps: number[];
+  lastWinners: string[];
+}
+
+type RepartirStateStore = Record<string, RepartirUserState>;
+let repartirStateStore: RepartirStateStore = {};
+let repartirStateLoaded = false;
+
+async function loadRepartirState(): Promise<void> {
+  if (repartirStateLoaded) return;
+  try {
+    const raw = await readFile(REPARTIR_STATE_FILE, "utf8");
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      repartirStateStore = parsed as RepartirStateStore;
+    }
+  } catch (err: any) {
+    if (err?.code !== "ENOENT") {
+      logger.error({ err }, "No se pudo cargar el estado de luckybox repartir.");
+    }
+    repartirStateStore = {};
+  } finally {
+    repartirStateLoaded = true;
+  }
+}
+
+async function saveRepartirState(): Promise<void> {
+  try {
+    const directory = path.dirname(REPARTIR_STATE_FILE);
+    await mkdir(directory, { recursive: true });
+    const tempFile = `${REPARTIR_STATE_FILE}.tmp`;
+    await writeFile(tempFile, JSON.stringify(repartirStateStore, null, 2), "utf8");
+    await rename(tempFile, REPARTIR_STATE_FILE);
+  } catch (err) {
+    logger.error({ err }, "No se pudo guardar el estado de luckybox repartir.");
+  }
+}
+
+/* ========================================================================== */
 /*                         ROLES AUTORIZADOS PARA DROP                        */
 /* ========================================================================== */
 
@@ -2855,6 +2910,157 @@ async function handleInfo(
   });
 }
 
+async function handleLuckyboxRepartir(
+  sendReply: ReplyFunction,
+  guild: Guild,
+  moderatorUser: User,
+): Promise<void> {
+  try {
+    // 1. Validar rol del jefe (1568863822016684074)
+    const member = await guild.members.fetch(moderatorUser.id).catch(() => null);
+    if (!member || !member.roles.cache.has(ROL_REPARTIR_LUCKYBOX_ID)) {
+      await sendReply({
+        content: "❌ No tenés el rol autorizado para ejecutar este comando.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    await loadRepartirState();
+    const now = Date.now();
+
+    if (!repartirStateStore[moderatorUser.id]) {
+      repartirStateStore[moderatorUser.id] = { timestamps: [], lastWinners: [] };
+    }
+
+    const userState = repartirStateStore[moderatorUser.id];
+    userState.timestamps = userState.timestamps.filter((t) => now - t < REPARTIR_COOLDOWN_MS);
+
+    if (userState.timestamps.length >= REPARTIR_MAX_USOS) {
+      const oldestUse = Math.min(...userState.timestamps);
+      const resetTime = Math.ceil((oldestUse + REPARTIR_COOLDOWN_MS) / 1000);
+      await sendReply({
+        content: `⏳ Ya utilizaste este comando las **${REPARTIR_MAX_USOS} veces** permitidas en las últimas 24 horas. Podrás volver a usarlo <t:${resetTime}:R>.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // 2. Obtener miembros con el rol de casino (1546645000153210952) excluyendo bots y ganadores recientes
+    await guild.members.fetch();
+    const casinoMembers = guild.members.cache.filter((m) =>
+      m.roles.cache.has(ROL_CASINO_PARTICIPANTE_ID) &&
+      !m.user.bot &&
+      !userState.lastWinners.includes(m.id)
+    );
+
+    let pool = Array.from(casinoMembers.values());
+    if (pool.length < 3) {
+      const fallbackMembers = guild.members.cache.filter((m) =>
+        m.roles.cache.has(ROL_CASINO_PARTICIPANTE_ID) && !m.user.bot
+      );
+      pool = Array.from(fallbackMembers.values());
+    }
+
+    if (pool.length < 3) {
+      await sendReply({
+        content: `❌ Se necesitan al menos 3 usuarios activos con el rol de casino (<@&${ROL_CASINO_PARTICIPANTE_ID}>) para realizar el sorteo.`,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // 3. Seleccionar 3 ganadores aleatorios sin repetir
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    const selectedWinners = shuffled.slice(0, 3);
+
+    userState.lastWinners = selectedWinners.map((w) => w.id);
+    userState.timestamps.push(now);
+    await saveRepartirState();
+
+    // 4. Repartir cajas (25% prob, Admin nunca se repite)
+    const cajasDisponibles = ["Mr Lucky Épico", "Mr Lucky Raro"];
+    let adminAvailable = true;
+    const assignedBoxes: string[] = [];
+
+    for (let i = 0; i < selectedWinners.length; i++) {
+      if (adminAvailable && Math.random() < 0.25) {
+        assignedBoxes.push("Mr Lucky Admin");
+        adminAvailable = false;
+      } else {
+        const randomBox = cajasDisponibles[Math.floor(Math.random() * cajasDisponibles.length)];
+        assignedBoxes.push(randomBox);
+      }
+    }
+
+    // 5. Añadir al inventario de UnbelievableBoat
+    for (let i = 0; i < selectedWinners.length; i++) {
+      const winner = selectedWinners[i];
+      const cajaNombre = assignedBoxes[i];
+      const itemId = getLuckyboxItemId(cajaNombre);
+      if (itemId) {
+        await addInventoryItem(guild.id, winner.id, itemId, 1);
+      }
+    }
+
+    // 6. Enviar anuncio público al canal de voz/texto especificado (1538309829066756207)
+    const anuncioChannel = await guild.client.channels.fetch(CANAL_ANUNCIOS_CASINO_ID).catch(() => null);
+    if (!anuncioChannel || !anuncioChannel.isTextBased() || !("send" in anuncioChannel)) {
+      await sendReply({
+        content: "❌ Se entregaron las cajas, pero no se encontró el canal de texto o chat del canal de voz configurado.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setColor(0xFFD700)
+      .setTitle("👑 ¡EL JEFE HA DECIDIDO! 👑")
+      .setDescription(
+        `Una figura de alta jerarquía ha abierto la bóveda secreta del casino. El destino ha elegido a tres miembros de la élite para recibir cajas sorpresa de forma totalmente gratuita. ¡Revisen sus inventarios!\n\n<@&${ROL_CASINO_PARTICIPANTE_ID}>`
+      )
+      .addFields(
+        {
+          name: "👤 Primer Seleccionado",
+          value: `<@${selectedWinners[0].id}>\n📦 **Caja:** \`${assignedBoxes[0]}\``,
+          inline: false,
+        },
+        {
+          name: "👤 Segundo Seleccionado",
+          value: `<@${selectedWinners[1].id}>\n📦 **Caja:** \`${assignedBoxes[1]}\``,
+          inline: false,
+        },
+        {
+          name: "👤 Tercer Seleccionado",
+          value: `<@${selectedWinners[2].id}>\n📦 **Caja:** \`${assignedBoxes[2]}\``,
+          inline: false,
+        }
+      )
+      .setImage(IMAGEN_JEFE_DECIDIDO)
+      .setFooter({ text: "Sistema de Cajas Sorpresa • Tiagojr Casino" })
+      .setTimestamp();
+
+    await anuncioChannel.send({
+      content: `<@&${ROL_CASINO_PARTICIPANTE_ID}>`,
+      embeds: [embed],
+      allowedMentions: { roles: [ROL_CASINO_PARTICIPANTE_ID] },
+    });
+
+    const usosRestantes = REPARTIR_MAX_USOS - userState.timestamps.length;
+    await sendReply({
+      content: `✅ ¡Proceso completado con éxito! Se publicaron las cajas en <#${CANAL_ANUNCIOS_CASINO_ID}>. Te quedan **${usosRestantes} usos** disponibles en las próximas 24 horas.`,
+      flags: MessageFlags.Ephemeral,
+    });
+
+  } catch (err: any) {
+    logger.error({ err, guildId: guild.id }, "Error al ejecutar luckybox repartir.");
+    await sendReply({
+      content: `❌ Ocurrió un error al procesar el comando:\n\`${err?.message ?? "Error desconocido"}\``,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
 async function handleDar(
   sendReply: ReplyFunction,
   guild: Guild,
@@ -3608,6 +3814,14 @@ export const data =
             ),
       ),
 ) 
+  .addSubcommand(
+      (subcommand) =>
+        subcommand
+          .setName("repartir")
+          .setDescription(
+            "El jefe decide y reparte 3 cajas sorpresa aleatorias a miembros del casino.",
+          ),
+    )
     .addSubcommand(
       (subcommand) =>
         subcommand
@@ -3795,6 +4009,20 @@ if (subcommand === "collect") {
     return;
   }
 
+if (subcommand === "repartir") {
+    await interaction.deferReply({
+      flags: MessageFlags.Ephemeral,
+    });
+
+    await handleLuckyboxRepartir(
+      (options) => interaction.editReply(options),
+      interaction.guild,
+      interaction.user,
+    );
+
+    return;
+  }
+  
   if (subcommand === "dar") {
     const targetUser =
       interaction.options.getUser(
@@ -3894,6 +4122,7 @@ export async function run(
       "dar",
       "drop",
       "robar",
+      "repartir",
     ] as const;
 
   const isSubcommand =
@@ -3922,7 +4151,8 @@ export async function run(
       | "info"
       | "dar"
       | "drop"
-      | "robar";
+      | "robar"
+      | "repartir"; 
 
   const offset = 1;
 
@@ -4100,6 +4330,16 @@ const isBoosterUser = LUCKYBOX_BOOSTER_USER_IDS.includes(message.author.id);
     return;
   }
 
+if (sub === "repartir") {
+    await handleLuckyboxRepartir(
+      (options) => message.reply(options),
+      message.guild,
+      message.author,
+    );
+
+    return;
+  }
+  
   if (sub === "dar") {
     const mentionedUser =
       message.mentions.users.first();
