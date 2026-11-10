@@ -479,7 +479,7 @@ const CANAL_ANUNCIOS_CASINO_ID = "1538309829066756207";
 const ROL_CASINO_PARTICIPANTE_ID = "1522434536796061816"; 
 const REPARTIR_COOLDOWN_MS = 24 * 60 * 60 * 1000; 
 const REPARTIR_MAX_USOS = 3;
-
+const IMAGEN_JEFE_DECIDIDO = "https://i.postimg.cc/G2WLQkCm/Gemini-Generated-Image-dk7pskdk7pskdk7p.jpg";
 const REPARTIR_STATE_FILE = path.join(
   process.cwd(),
   "data",
