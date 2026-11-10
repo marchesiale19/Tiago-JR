@@ -372,7 +372,6 @@ export async function handleAhorcadoButton(interaction: ButtonInteraction): Prom
     return;
   }
 
-  // Verificar si la letra ya se intentó previamente
   if (game.guessedLetters.has(letter) || game.wrongLetters.has(letter)) {
     await interaction.reply({
       content: `⚠️ La letra **${letter}** ya fue probada. Elegí otra.`,
@@ -383,7 +382,6 @@ export async function handleAhorcadoButton(interaction: ButtonInteraction): Prom
 
   await interaction.deferUpdate();
 
-  // Procesar intento
   const isCorrect = game.normalizedWord.includes(letter);
 
   if (isCorrect) {
@@ -393,22 +391,18 @@ export async function handleAhorcadoButton(interaction: ButtonInteraction): Prom
     game.livesLeft -= 1;
   }
 
-  // Verificar condición de victoria
   const wordLetters = game.normalizedWord
     .replace(/ /g, "")
     .split("")
     .filter((char) => /[A-ZÑ]/.test(char));
     
   const hasWon = wordLetters.every((char) => game.guessedLetters.has(char));
-
-  // Verificar condición de derrota
   const hasLost = game.livesLeft <= 0;
 
   if (hasWon) {
     game.finished = true;
     activeGames.delete(messageId);
 
-    // Otorgar dinero al ganador mediante UnbelievaBoat
     try {
       await unb.editUserBalance(
         game.guildId,
@@ -459,7 +453,6 @@ export async function handleAhorcadoButton(interaction: ButtonInteraction): Prom
     return;
   }
 
-  // Si el juego sigue activo, actualizamos el embed con el resultado del intento
   const updateStatus = isCorrect
     ? `✨ **¡<@${interaction.user.id}> acertó la letra \`${letter}\`!**`
     : `💥 **¡<@${interaction.user.id}> le erró con la \`${letter}\`!** Perdieron una vida.`;
@@ -540,7 +533,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
     return;
   }
 
-  // Sintaxis esperada: -ahorcado #canal palabra cantidad [@rol]
   if (args.length < 3) {
     await message.reply(
       "❌ **Uso incorrecto.** La sintaxis es:\n`-ahorcado #canal <palabra> <cantidad> [@rol]`\n\n*Ejemplo:* `-ahorcado #casino Messi 100000 @Casino`"
@@ -550,8 +542,6 @@ export async function run(message: Message, args: string[]): Promise<void> {
 
   const channelMention = message.mentions.channels.first();
   const targetChannel = (channelMention ?? message.channel) as GuildTextBasedChannel;
-
-  // Filtrar canal y mención de rol de las entradas
   const roleMention = message.mentions.roles.first();
 
   const cleanArgs = args.filter(
@@ -567,4 +557,18 @@ export async function run(message: Message, args: string[]): Promise<void> {
   const rewardRaw = cleanArgs[1];
   const reward = parseInt(rewardRaw, 10);
 
-  if (isNaN(reward) || reward <= 0
+  if (isNaN(reward) || reward <= 0) {
+    await message.reply("❌ La cantidad del premio tiene que ser un número entero válido mayor a 0.");
+    return;
+  }
+
+  await startAhorcadoGame(
+    message.guild,
+    message.author,
+    targetChannel,
+    word,
+    reward,
+    roleMention ? { id: roleMention.id } : undefined,
+    (options) => message.reply(options)
+  );
+}
