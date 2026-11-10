@@ -32,6 +32,7 @@ import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
+import { handleAhorcadoButton } from "./commands/ahorcado";
 import {
   handleAntiFarmButton,
   handleAntiFarmVoiceUpdate,
@@ -1096,6 +1097,42 @@ client.on(
               .reply({
                 content:
                   "❌ Hubo un error al procesar el reclamo de la bomba.",
+                ephemeral: true,
+              })
+              .catch(() => {});
+          }
+        }
+
+        return;
+      }
+
+      /* ------------------------------------------------------
+       * AHORCADO GUESS BUTTON
+       * ------------------------------------------------------ */
+
+      if (
+        interaction.customId.startsWith(
+          "ahorcado_guess:",
+        )
+      ) {
+        try {
+          await handleAhorcadoButton(
+            interaction,
+          );
+        } catch (err) {
+          logger.error(
+            { err },
+            "Error handling Ahorcado guess button",
+          );
+
+          if (
+            !interaction.replied &&
+            !interaction.deferred
+          ) {
+            await interaction
+              .reply({
+                content:
+                  "❌ Hubo un error al procesar tu letra en el ahorcado.",
                 ephemeral: true,
               })
               .catch(() => {});
