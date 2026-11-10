@@ -967,7 +967,7 @@ const LUCKYBOX_DROP_ORANGE =
 const LUCKYBOX_DROP_GREEN =
   0x57F287;
 
-interface ActiveLuckyboxDrop {
+export interface ActiveLuckyboxDrop {
   readonly dropId: string;
   readonly guildId: string;
   readonly channelId: string;
@@ -979,7 +979,7 @@ interface ActiveLuckyboxDrop {
   claimedBy?: string;
 }
 
-const activeLuckyboxDrops =
+export const activeLuckyboxDrops =
   new Map<
     string,
     ActiveLuckyboxDrop
@@ -1267,7 +1267,7 @@ function normalizeName(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-function getLuckyboxItemId(
+export function getLuckyboxItemId(
   cajaNombre: string,
 ): string | undefined {
   const normalized = normalizeName(cajaNombre);
