@@ -2914,6 +2914,9 @@ async function handleLuckyboxRepartir(
   sendReply: ReplyFunction,
   guild: Guild,
   moderatorUser: User,
+  targetUser1: User,
+  targetUser2: User,
+  targetUser3: User,
 ): Promise<void> {
   try {
     // 1. Validar rol del jefe (1568863822016684074)
@@ -2921,6 +2924,17 @@ async function handleLuckyboxRepartir(
     if (!member || !member.roles.cache.has(ROL_REPARTIR_LUCKYBOX_ID)) {
       await sendReply({
         content: "❌ No tenés el rol autorizado para ejecutar este comando.",
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    // Validar que no se repitan usuarios
+    const targetUsers = [targetUser1, targetUser2, targetUser3];
+    const uniqueIds = new Set(targetUsers.map((u) => u.id));
+    if (uniqueIds.size !== 3) {
+      await sendReply({
+        content: "❌ Tenés que seleccionar a **3 usuarios distintos** para realizar el reparto.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -2946,44 +2960,40 @@ async function handleLuckyboxRepartir(
       return;
     }
 
-    // 2. Obtener miembros con el rol de casino (1546645000153210952) excluyendo bots y ganadores recientes
-    await guild.members.fetch();
-    const casinoMembers = guild.members.cache.filter((m) =>
-      m.roles.cache.has(ROL_CASINO_PARTICIPANTE_ID) &&
-      !m.user.bot &&
-      !userState.lastWinners.includes(m.id)
-    );
+    // 2. Comprobar obligatoriamente que los 3 tengan el rol de casino (1543094224403308639)
+    const sinRol: string[] = [];
+    const fetchedMembers: any[] = [];
 
-    let pool = Array.from(casinoMembers.values());
-    if (pool.length < 3) {
-      const fallbackMembers = guild.members.cache.filter((m) =>
-        m.roles.cache.has(ROL_CASINO_PARTICIPANTE_ID) && !m.user.bot
-      );
-      pool = Array.from(fallbackMembers.values());
+    for (const user of targetUsers) {
+      const m = await guild.members.fetch(user.id).catch(() => null);
+      if (!m || !m.roles.cache.has(ROL_CASINO_PARTICIPANTE_ID)) {
+        sinRol.push(`<@${user.id}>`);
+      } else {
+        fetchedMembers.push(m);
+      }
     }
 
-    if (pool.length < 3) {
+    if (sinRol.length > 0) {
       await sendReply({
-        content: `❌ Se necesitan al menos 3 usuarios activos con el rol de casino (<@&${ROL_CASINO_PARTICIPANTE_ID}>) para realizar el sorteo.`,
+        content:
+          `❌ Los siguientes usuarios no tienen el rol **Casino** (<@&${ROL_CASINO_PARTICIPANTE_ID}>):\n${sinRol.join(", ")}\n\n` +
+          `Para poder reclamarlo y recibir cajas, necesitan reaccionar al último mensaje del canal de roles <#1456429637524783237>.`,
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    // 3. Seleccionar 3 ganadores aleatorios sin repetir
-    const shuffled = pool.sort(() => Math.random() - 0.5);
-    const selectedWinners = shuffled.slice(0, 3);
-
-    userState.lastWinners = selectedWinners.map((w) => w.id);
+    // Actualizar ganadores recientes y timestamps
+    userState.lastWinners = targetUsers.map((w) => w.id);
     userState.timestamps.push(now);
     await saveRepartirState();
 
-    // 4. Repartir cajas (25% prob, Admin nunca se repite)
+    // 3. Asignar cajas (25% probabilidad de Admin, las demás Raro/Épico)
     const cajasDisponibles = ["Mr Lucky Épico", "Mr Lucky Raro"];
     let adminAvailable = true;
     const assignedBoxes: string[] = [];
 
-    for (let i = 0; i < selectedWinners.length; i++) {
+    for (let i = 0; i < targetUsers.length; i++) {
       if (adminAvailable && Math.random() < 0.25) {
         assignedBoxes.push("Mr Lucky Admin");
         adminAvailable = false;
@@ -2993,9 +3003,9 @@ async function handleLuckyboxRepartir(
       }
     }
 
-    // 5. Añadir al inventario de UnbelievableBoat
-    for (let i = 0; i < selectedWinners.length; i++) {
-      const winner = selectedWinners[i];
+    // 4. Añadir al inventario de UnbelievaBoat
+    for (let i = 0; i < targetUsers.length; i++) {
+      const winner = targetUsers[i];
       const cajaNombre = assignedBoxes[i];
       const itemId = getLuckyboxItemId(cajaNombre);
       if (itemId) {
@@ -3003,11 +3013,11 @@ async function handleLuckyboxRepartir(
       }
     }
 
-    // 6. Enviar anuncio público al canal de voz/texto especificado (1538309829066756207)
+    // 5. Enviar anuncio público al canal de casino
     const anuncioChannel = await guild.client.channels.fetch(CANAL_ANUNCIOS_CASINO_ID).catch(() => null);
     if (!anuncioChannel || !anuncioChannel.isTextBased() || !("send" in anuncioChannel)) {
       await sendReply({
-        content: "❌ Se entregaron las cajas, pero no se encontró el canal de texto o chat del canal de voz configurado.",
+        content: "❌ Se entregaron las cajas, pero no se encontró el canal de anuncios configurado.",
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -3017,22 +3027,22 @@ async function handleLuckyboxRepartir(
       .setColor(0xFFD700)
       .setTitle("👑 ¡EL JEFE HA DECIDIDO! 👑")
       .setDescription(
-        `Una figura de alta jerarquía ha abierto la bóveda secreta del casino. El destino ha elegido a tres miembros de la élite para recibir cajas sorpresa de forma totalmente gratuita. ¡Revisen sus inventarios!\n\n<@&${ROL_CASINO_PARTICIPANTE_ID}>`
+        `Una figura de alta jerarquía ha abierto la bóveda secreta del casino y ha seleccionado manualmente a tres miembros de la élite para recibir cajas sorpresa. ¡Revisen sus inventarios!\n\n<@&${ROL_CASINO_PARTICIPANTE_ID}>`
       )
       .addFields(
         {
           name: "👤 Primer Seleccionado",
-          value: `<@${selectedWinners[0].id}>\n📦 **Caja:** \`${assignedBoxes[0]}\``,
+          value: `<@${targetUsers[0].id}>\n📦 **Caja:** \`${assignedBoxes[0]}\``,
           inline: false,
         },
         {
           name: "👤 Segundo Seleccionado",
-          value: `<@${selectedWinners[1].id}>\n📦 **Caja:** \`${assignedBoxes[1]}\``,
+          value: `<@${targetUsers[1].id}>\n📦 **Caja:** \`${assignedBoxes[1]}\``,
           inline: false,
         },
         {
           name: "👤 Tercer Seleccionado",
-          value: `<@${selectedWinners[2].id}>\n📦 **Caja:** \`${assignedBoxes[2]}\``,
+          value: `<@${targetUsers[2].id}>\n📦 **Caja:** \`${assignedBoxes[2]}\``,
           inline: false,
         }
       )
@@ -3048,7 +3058,7 @@ async function handleLuckyboxRepartir(
 
     const usosRestantes = REPARTIR_MAX_USOS - userState.timestamps.length;
     await sendReply({
-      content: `✅ ¡Proceso completado con éxito! Se publicaron las cajas en <#${CANAL_ANUNCIOS_CASINO_ID}>. Te quedan **${usosRestantes} usos** disponibles en las próximas 24 horas.`,
+      content: `✅ ¡Proceso completado con éxito! Se entregaron las cajas y se publicó el anuncio en <#${CANAL_ANUNCIOS_CASINO_ID}>. Te quedan **${usosRestantes} usos** disponibles en las próximas 24 horas.`,
       flags: MessageFlags.Ephemeral,
     });
 
@@ -3814,12 +3824,33 @@ export const data =
                 ),
           ),
     )
-    .addSubcommand(
+  .addSubcommand(
       (subcommand) =>
         subcommand
           .setName("repartir")
           .setDescription(
-            "El jefe decide y reparte 3 cajas sorpresa aleatorias a miembros del casino.",
+            "El jefe elige y reparte 3 cajas sorpresa a 3 usuarios específicos del casino.",
+          )
+          .addUserOption(
+            (option) =>
+              option
+                .setName("usuario1")
+                .setDescription("Primer usuario seleccionado.")
+                .setRequired(true),
+          )
+          .addUserOption(
+            (option) =>
+              option
+                .setName("usuario2")
+                .setDescription("Segundo usuario seleccionado.")
+                .setRequired(true),
+          )
+          .addUserOption(
+            (option) =>
+              option
+                .setName("usuario3")
+                .setDescription("Tercer usuario seleccionado.")
+                .setRequired(true),
           ),
     )
     .addSubcommand(
@@ -3987,6 +4018,10 @@ if (subcommand === "robar") {
   }
 
   if (subcommand === "repartir") {
+    const targetUser1 = interaction.options.getUser("usuario1", true);
+    const targetUser2 = interaction.options.getUser("usuario2", true);
+    const targetUser3 = interaction.options.getUser("usuario3", true);
+
     await interaction.deferReply({
       flags: MessageFlags.Ephemeral,
     });
@@ -3995,6 +4030,9 @@ if (subcommand === "robar") {
       (options) => interaction.editReply(options),
       interaction.guild,
       interaction.user,
+      targetUser1,
+      targetUser2,
+      targetUser3,
     );
 
     return;
