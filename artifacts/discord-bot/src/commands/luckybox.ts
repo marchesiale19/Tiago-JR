@@ -382,6 +382,12 @@ let collectCooldownWriteQueue:
 /* ========================================================================== */
 
 export const COLLECT_ROLES = {
+  JEFE: {
+    roleId: "1568863822016684074",
+    roleName: "👑 <span> </span>ヽJEFE",
+    rewards: [],
+  },
+
   EXITOSO: {
     roleId: "1525558889779822664",
     roleName: "👑ヽEXITOSO",
@@ -2494,6 +2500,7 @@ async function handleCollect(
             `<@&${COLLECT_ROLES.MEJOR_MIEMBRO.roleId}>`,
             `<@&${COLLECT_ROLES.EXITOSO.roleId}>`,
             `<@&${ROL_SUPER_BOOSTER_ID}>`,
+            `<@&${ROL_REPARTIR_LUCKYBOX_ID}>`,
           ].join("\n"),
           inline: false,
         })
@@ -2506,9 +2513,11 @@ async function handleCollect(
       return;
     }
 
-    // Identificamos si tiene el rol exclusivo de Super Booster
-    const isSuperBooster = member.roles.cache.has(ROL_SUPER_BOOSTER_ID);
-    const activeCooldownMs = isSuperBooster ? 2 * 24 * 60 * 60 * 1000 : COLLECT_COOLDOWN_MS;
+   const isSuperBooster = member.roles.cache.has(ROL_SUPER_BOOSTER_ID);
+    const isJefeRole = member.roles.cache.has(ROL_REPARTIR_LUCKYBOX_ID);
+
+    const hasSpecialCollect = isSuperBooster || isJefeRole;
+    const activeCooldownMs = hasSpecialCollect ? 2 * 24 * 60 * 60 * 1000 : COLLECT_COOLDOWN_MS;
 
     const existingCooldown = await db.query.cooldownsTable.findFirst({
       where: and(
@@ -2556,9 +2565,9 @@ async function handleCollect(
               inline: false,
             },
           )
-          .setFooter({
-            text: isSuperBooster ? "El cooldown de Super Booster es de 2 días." : "El cooldown es de 6 días por servidor y usuario.",
-          })
+        .setFooter({
+          text: hasSpecialCollect ? "El cooldown especial es de 2 días." : "El cooldown es de 6 días por servidor y usuario.",
+        })
           .setTimestamp();
 
         await sendReply({ embeds: [cooldownEmbed] });
@@ -2568,8 +2577,8 @@ async function handleCollect(
 
     const collectDate = new Date();
 
-    // LÓGICA EXCLUSIVA PARA SUPER BOOSTER
-    if (isSuperBooster) {
+// LÓGICA EXCLUSIVA PARA SUPER BOOSTER Y JEFE
+    if (hasSpecialCollect) {
       const reward = pickSuperBoosterReward();
 
       if (reward.tipo === "caja") {
@@ -2590,17 +2599,45 @@ async function handleCollect(
 
         const successEmbed = new EmbedBuilder()
           .setColor(0x57F287)
-          .setTitle("⚡ ¡Collect de Super Booster Exitoso!")
+          .setTitle("⚡ ¡Collect Especial Exitoso!")
           .setDescription(`<@${user.id}>, reclamaste tu collect especial y obtuviste una caja: **${reward.nombre}** añadida a tu inventario.`)
           .addFields(
             { name: "📦 Recompensa", value: `• **${reward.nombre}** × \`1\``, inline: false },
             { name: "⏳ Próximo collect", value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`, inline: false }
           )
-          .setFooter({ text: "Sistema de Super Booster • Cooldown de 2 días" })
+          .setFooter({ text: "Sistema de Collect Especial • Cooldown de 2 días" })
           .setTimestamp();
 
         await sendReply({ embeds: [successEmbed] });
         return;
+      } else {
+        // Es una bomba: se le descuenta plata del efectivo (cash)
+        const costo = reward.costo ?? 0;
+        await unb.editUserBalance(guild.id, user.id, { cash: -costo });
+
+        if (existingCooldown) {
+          await db.update(cooldownsTable).set({ lastCollect: collectDate }).where(and(eq(cooldownsTable.guildId, guild.id), eq(cooldownsTable.userId, user.id)));
+        } else {
+          await db.insert(cooldownsTable).values({ guildId: guild.id, userId: user.id, lastCollect: collectDate });
+        }
+
+        const nextCollectTimestamp = Math.ceil((collectDate.getTime() + activeCooldownMs) / 1000);
+
+        const bombEmbed = new EmbedBuilder()
+          .setColor(0xed4245)
+          .setTitle("💣 ¡Te explotó una bomba en el Collect!")
+          .setDescription(`<@${user.id}>, tuviste mala suerte y te cayó una **${reward.nombre}**. Se te descontaron \`${costo.toLocaleString()} Frijoles\` de tu balance.`)
+          .addFields(
+            { name: "💥 Castigo aplicado", value: `• **${reward.nombre}** (-${costo.toLocaleString()} Frijoles)`, inline: false },
+            { name: "⏳ Próximo collect", value: `<t:${nextCollectTimestamp}:R>\n<t:${nextCollectTimestamp}:F>`, inline: false }
+          )
+          .setFooter({ text: "Sistema de Collect Especial • Cooldown de 2 días" })
+          .setTimestamp();
+
+        await sendReply({ embeds: [bombEmbed] });
+        return;
+      }
+    }
       } else {
         // Es una bomba: se le descuenta plata del efectivo (cash)
         const costo = reward.costo ?? 0;
