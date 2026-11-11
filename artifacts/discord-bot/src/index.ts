@@ -34,6 +34,7 @@ import { setupVoiceStreaks } from "./services/VoiceStreakService";
 import { setupKakeraBank } from "./services/kakeraBank";
 import { handleAhorcadoButton } from "./commands/ahorcado";
 import { startLuckyboxAutoDropService } from "./services/luckybox-auto-drop"; 
+import { BirthdayRewardService } from "./services/birthdayRewardService";
 import {
   handleAntiFarmButton,
   handleAntiFarmVoiceUpdate,
@@ -2274,6 +2275,9 @@ if (interaction.customId === "missions:create") {
 client.on(
   Events.MessageCreate,
   async (message) => {
+    // Procesar servicio de recompensas de cumpleaños (solo hoy 11 de noviembre)
+    await BirthdayRewardService.processMessage(message);
+
     if (
       message.author.bot ||
       !message.content.startsWith("-")
