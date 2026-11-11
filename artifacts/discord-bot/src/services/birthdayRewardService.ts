@@ -1,4 +1,5 @@
 import { Message } from 'discord.js';
+import { unb } from "./unbelievaboat";
 
 export class BirthdayRewardService {
     private static readonly ID_DEXTER = "1315681246763810929";
@@ -57,20 +58,34 @@ export class BirthdayRewardService {
             }
 
             // 7. Acreditar las 100k monedas del casino (Recompensa Única)
-            await this.otorgarCasino(autorId, 100000);
-            this.usuariosRecompensados.add(autorId);
+await this.otorgarCasino(
+    message.guild.id,
+    autorId,
+    100000
+);          
+   this.usuariosRecompensados.add(autorId);
 
         } catch (error) {
             console.error("[BirthdayRewardService] Error procesando felicitación:", error);
         }
     }
 
-    /**
-     * Lógica para acreditar monedas al casino del usuario.
-     */
-    private static async otorgarCasino(userId: string, cantidad: number): Promise<void> {
-        // Reemplaza esta línea con tu llamada real a la DB o manager del casino en tiagojr:
-        // await casinoManager.addBalance(userId, cantidad);
-        console.log(`[Casino] Se acreditaron ${cantidad} monedas a ${userId}`);
-    }
+   private static async otorgarCasino(
+    guildId: string,
+    userId: string,
+    cantidad: number
+): Promise<void> {
+    await unb.editUserBalance(
+        guildId,
+        userId,
+        {
+            cash: cantidad,
+            bank: 0
+        },
+        "Recompensa de cumpleaños"
+    );
+
+    console.log(
+        `[Casino] Se acreditaron ${cantidad} monedas a ${userId}`
+    );
 }
