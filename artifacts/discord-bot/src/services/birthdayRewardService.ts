@@ -1,6 +1,6 @@
 
 import { Message } from 'discord.js';
-import { unb } from "./unbelievaboat";
+import { unb } from "../lib/unbelievaboat";
 
 export class BirthdayRewardService {
     private static readonly ID_DEXTER = "1315681246763810929";
