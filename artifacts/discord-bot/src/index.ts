@@ -31,7 +31,6 @@ import { setupNameFilter } from "./services/NameFilterService";
 import * as reputacionCommand from "./commands/reputacion";
 import { setupVoiceRewards } from "./services/VoiceRewardService";
 import { setupVoiceStreaks } from "./services/VoiceStreakService";
-import { setupKakeraBank } from "./services/kakeraBank";
 import { handleAhorcadoButton } from "./commands/ahorcado";
 import { startLuckyboxAutoDropService } from "./services/luckybox-auto-drop"; 
 import { BirthdayRewardService } from "./services/birthdayRewardService";
