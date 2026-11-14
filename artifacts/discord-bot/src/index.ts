@@ -181,21 +181,20 @@ client.once(Events.ClientReady, (readyClient) => {
     );
   }
 
-  // Inicialización de la base de datos y Kakera Bank
+  
+  // Inicialización de la base de datos
   import("./database/init")
     .then(async ({ initDatabase }) => {
       const databaseReady = await initDatabase(readyClient);
 
       if (!databaseReady) {
         logger.warn(
-          "Kakera Bank: servicio desactivado porque la base de datos no está lista.",
+          "La base de datos no está lista; se omite la inicialización de servicios dependientes.",
         );
         return;
       }
 
-         setupKakeraBank(readyClient);
-      console.log("✅ KakeraBankService inicializado.");
-
+      // Inicialización de Voice Streaks
       try {
         setupVoiceStreaks(readyClient);
         console.log("✅ VoiceStreakService inicializado.");
@@ -206,9 +205,9 @@ client.once(Events.ClientReady, (readyClient) => {
         );
       }
     })
-       .catch((error) => {
+    .catch((error) => {
       console.error(
-        "❌ Error real inicializando la base de datos para Kakera Bank:",
+        "❌ Error inicializando la base de datos:",
         error,
       );
 
@@ -223,7 +222,7 @@ client.once(Events.ClientReady, (readyClient) => {
                 }
               : String(error),
         },
-        "No se pudo inicializar la base de datos para Kakera Bank.",
+        "No se pudo inicializar la base de datos.",
       );
     });
 });
