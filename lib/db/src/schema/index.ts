@@ -9,7 +9,6 @@ export * from "./logros";
 export * from "./reputaciones";
 export * from "./cooldowns";
 export * from "./voice-rewards";
-export * from "./kakera-bank";
 export * from "./voice-streaks";
 export * from "./voice-streak-history";
 export * from "./voice-streak-rewards";
